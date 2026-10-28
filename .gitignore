@@ -7,3 +7,18 @@ dist-ssr
 # Tauri 产物
 src-tauri/target
 src-tauri/gen
+
+# logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# local env
+.env
+.env.local
+.env.*.local
+
+# editor
+.idea/
+.vscode/*
+!.vscode/extensions.json

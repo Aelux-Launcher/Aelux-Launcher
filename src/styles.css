@@ -1,11 +1,20 @@
-/* Aelux Launcher 壳层基础样式（组件本身由 aelux-components 提供，这里只做布局编排） */
+/* ============================================================================
+ * Aelux Launcher 壳层样式 · 浅色主题（冰蓝主色 + 灰白表面，拒绝黑色）
+ * 组件自身样式由 aelux-components（基于 --aelux-* 令牌，默认浅色）提供，
+ * 这里只做布局编排与少量强调样式。
+ * ========================================================================== */
 :root {
-  --app-bg: var(--aelux-bg, #0f1115);
-  --app-surface: var(--aelux-surface, #171a21);
-  --app-border: var(--aelux-border, #2a2f3a);
-  --app-text: var(--aelux-text, #e6e8ec);
-  --app-text-sub: var(--aelux-text-sub, #9aa3b2);
-  --app-primary: var(--aelux-primary, #6366f1);
+  --app-page: #f4f6f9;
+  --app-surface: #ffffff;
+  --app-surface-2: #f7f9fc;
+  --app-border: var(--aelux-border);
+  --app-text: var(--aelux-text);
+  --app-text-sub: var(--aelux-text-secondary);
+  --app-primary: var(--aelux-primary);
+  --app-primary-soft: var(--aelux-primary-soft);
+  --app-radius: var(--aelux-radius-lg);
+  --app-shadow: var(--aelux-shadow-md);
+  --app-shadow-sm: var(--aelux-shadow-sm);
 }
 
 * {
@@ -18,133 +27,379 @@ body,
   margin: 0;
 }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  background: var(--app-bg);
+  font-family: var(--aelux-font-sans);
+  background: var(--app-page);
   color: var(--app-text);
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 .aelux-app {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  background: var(--app-page);
 }
 
-/* ===== 标题栏 ===== */
+/* ===================== 标题栏 ===================== */
 .aelux-titlebar {
   height: 40px;
-  flex: none;
+  flex: 0 0 40px;
   display: flex;
   align-items: center;
-  padding: 0 10px;
+  gap: 10px;
+  padding: 0 8px 0 14px;
   background: var(--app-surface);
   border-bottom: 1px solid var(--app-border);
   user-select: none;
 }
 .aelux-titlebar__title {
-  font-weight: 600;
   font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text);
+  letter-spacing: 0.01em;
 }
 .aelux-titlebar__center {
   flex: 1;
   display: flex;
+  align-items: center;
   justify-content: center;
 }
 .aelux-titlebar__actions {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 2px;
 }
-.aelux-titlebar__actions button {
-  width: 32px;
-  height: 26px;
-  display: grid;
-  place-items: center;
+.aelux-titlebar__close:hover {
+  background: var(--aelux-danger) !important;
+  color: #fff !important;
 }
 
-/* ===== 主体 ===== */
+/* ===================== 主体布局 ===================== */
 .aelux-body {
   flex: 1;
   display: flex;
   min-height: 0;
 }
-.aelux-sidebar {
-  width: 180px;
-  flex: none;
-  padding: 12px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  background: var(--app-surface);
-  border-right: 1px solid var(--app-border);
-}
 .aelux-content {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: 24px 28px 40px;
+  background: transparent;
 }
 
-/* ===== 视图 ===== */
+/* 侧边导航激活项 accent（库已处理底色，这里加左侧强调条） */
+.aelux-sidebar__item--active {
+  box-shadow: inset 3px 0 0 var(--aelux-primary);
+}
+
+/* 品牌区 */
+.aelux-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 14px;
+}
+.aelux-brand__logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--aelux-primary), var(--aelux-primary-700));
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 18px;
+}
+.aelux-brand__name {
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.1;
+}
+.aelux-brand__sub {
+  font-size: 11px;
+  color: var(--app-text-sub);
+}
+
+/* ===================== 视图通用 ===================== */
 .view__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  gap: 12px;
 }
 .view h2 {
-  margin: 0 0 14px;
-  font-size: 20px;
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.view__lead {
+  color: var(--app-text-sub);
+  margin: -8px 0 18px;
+  font-size: 13px;
 }
 
+/* ===================== 实例卡片（主页） ===================== */
 .instance-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.instance-card {
+  transition: transform var(--aelux-transition), box-shadow var(--aelux-transition);
+}
+.instance-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--aelux-shadow-lg);
 }
 .instance-card__meta {
   display: flex;
   gap: 6px;
-  margin: 8px 0;
+  margin: 10px 0;
+  flex-wrap: wrap;
 }
 .instance-card__time {
   color: var(--app-text-sub);
   font-size: 12px;
-  margin: 4px 0 12px;
+  margin: 4px 0 14px;
+}
+.instance-card__play {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
+/* ===================== 登录网格（账号） ===================== */
 .login-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
 }
-
-.aelux-update-badge {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
+.account-card__meta {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
 }
-
-.mods__hint {
+.account-card__uuid {
   color: var(--app-text-sub);
   font-size: 13px;
+  margin: 4px 0 16px;
+  font-family: var(--aelux-font-mono);
+  word-break: break-all;
 }
 
-/* ===== 设置行 ===== */
+/* ===================== 设置行 ===================== */
 .setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 10px 0;
+  padding: 12px 0;
   border-bottom: 1px solid var(--app-border);
 }
 .setting-row:last-child {
   border-bottom: none;
 }
 .setting-row__label {
-  font-weight: 500;
+  font-weight: 600;
 }
 .setting-row__desc {
   color: var(--app-text-sub);
   font-size: 12px;
-  margin-top: 2px;
+  margin-top: 3px;
+}
+
+/* ===================== 模组 ===================== */
+.mods__hint {
+  color: var(--app-text-sub);
+  font-size: 13px;
+}
+
+/* 分段筛选器（下载页） */
+.dl-seg {
+  display: inline-flex;
+  background: var(--app-surface-2);
+  border: 1px solid var(--app-border);
+  border-radius: var(--aelux-radius-md);
+  padding: 3px;
+  gap: 2px;
+}
+.dl-seg__btn {
+  border: none;
+  background: transparent;
+  color: var(--app-text-sub);
+  font-size: 13px;
+  padding: 5px 12px;
+  border-radius: var(--aelux-radius-sm);
+  cursor: pointer;
+  transition: background var(--aelux-transition), color var(--aelux-transition);
+}
+.dl-seg__btn:hover {
+  color: var(--app-text);
+}
+.dl-seg__btn.is-active {
+  background: var(--app-surface);
+  color: var(--aelux-primary-700);
+  font-weight: 600;
+  box-shadow: var(--app-shadow-sm);
+}
+.dl-error {
+  color: var(--aelux-danger);
+  font-size: 13px;
+  margin: 8px 0;
+}
+.dl-tasks-card {
+  margin-top: 18px;
+}
+
+/* ===================== 下载（版本列表） ===================== */
+.dl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.dl-toolbar__spacer {
+  flex: 1;
+}
+.dl-search {
+  max-width: 240px;
+}
+.server-port {
+  width: 110px;
+}
+.version-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.version-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--aelux-radius-md);
+  transition: border-color var(--aelux-transition), box-shadow var(--aelux-transition);
+}
+.version-row:hover {
+  border-color: var(--aelux-primary-soft-border);
+  box-shadow: var(--app-shadow-sm);
+}
+.version-row__id {
+  font-weight: 600;
+  font-size: 14px;
+}
+.version-row__type {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--app-text-sub);
+}
+.version-row__time {
+  font-size: 12px;
+  color: var(--app-text-sub);
+}
+.version-row__spacer {
+  flex: 1;
+}
+.version-row--release {
+  border-left: 3px solid var(--aelux-success);
+}
+.version-row--snapshot {
+  border-left: 3px solid var(--aelux-warning);
+}
+
+/* ===================== 联机（服务器） ===================== */
+.server-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.server-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--aelux-radius-md);
+  transition: border-color var(--aelux-transition), box-shadow var(--aelux-transition);
+}
+.server-card:hover {
+  border-color: var(--aelux-primary-soft-border);
+  box-shadow: var(--app-shadow-sm);
+}
+.server-card__name {
+  font-weight: 600;
+  font-size: 15px;
+}
+.server-card__host {
+  font-family: var(--aelux-font-mono);
+  font-size: 12px;
+  color: var(--app-text-sub);
+}
+.server-card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.server-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: 16px;
+  background: var(--app-surface-2);
+  border: 1px dashed var(--app-border);
+  border-radius: var(--aelux-radius-md);
+  margin-bottom: 18px;
+}
+.server-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.server-form__field label {
+  font-size: 12px;
+  color: var(--app-text-sub);
+}
+
+/* ===================== 杂项 ===================== */
+.aelux-update-badge {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+}
+.empty-cta {
+  margin-top: 4px;
+}
+
+/* 细滚动条 */
+.aelux-content::-webkit-scrollbar {
+  width: 10px;
+}
+.aelux-content::-webkit-scrollbar-thumb {
+  background: var(--aelux-border-strong);
+  border-radius: 999px;
+  border: 3px solid var(--app-page);
+}
+
+/* 进度对话框细节 */
+.progress-detail-log {
+  font-family: var(--aelux-font-mono);
+  font-size: 12px;
+  background: var(--app-surface-2);
+  border: 1px solid var(--app-border);
+  border-radius: var(--aelux-radius-sm);
+  padding: 10px;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--app-text-sub);
 }

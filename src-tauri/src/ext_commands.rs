@@ -210,3 +210,124 @@ pub fn write_text(path: String, content: String) -> Result<(), String> {
     std::fs::write(&tmp, content).map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
+
+/* ===================== 版本清单 / JSON 拉取 ===================== */
+
+fn fetch_text(url: &str) -> Result<String, String> {
+    let client = reqwest::blocking::Client::new();
+    let resp = client.get(url).send().map_err(|e| e.to_string())?;
+    resp.text().map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RemoteVersion {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub version_type: String,
+    #[serde(rename = "releaseTime")]
+    pub release_time: String,
+    pub url: String,
+    #[serde(default)]
+    pub sha1: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RemoteManifest {
+    pub latest: serde_json::Value,
+    pub versions: Vec<RemoteVersion>,
+}
+
+/// 拉取 MC 版本清单（lib-core VersionRepository.manifestProvider 的后端实现）。
+/// 优先 BMCLAPI 镜像（国内可达），失败回退 Mojang 官方源。
+#[tauri::command]
+pub fn fetch_minecraft_manifest() -> Result<RemoteManifest, String> {
+    let sources = [
+        "https://bmclapi2.bangbang93.com/version_manifest.json",
+        "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+    ];
+    for src in sources {
+        if let Ok(text) = fetch_text(src) {
+            if let Ok(m) = serde_json::from_str::<RemoteManifest>(&text) {
+                return Ok(m);
+            }
+        }
+    }
+    Err("无法获取版本清单".into())
+}
+
+/// 拉取任意 URL 的 JSON 文本（lib-core fetchVersionJson 的后端实现）。
+#[tauri::command]
+pub fn fetch_json(url: String) -> Result<String, String> {
+    fetch_text(&url)
+}
+
+/* ===================== Java 探测 ===================== */
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct JreInfo {
+    pub path: String,
+    pub major: i32,
+    pub version: String,
+}
+
+fn java_major_from_version(v: &str) -> i32 {
+    let parts: Vec<&str> = v.split('.').collect();
+    if parts.first().map(|s| *s == "1").unwrap_or(false) {
+        parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(8)
+    } else {
+        parts.first().and_then(|s| s.parse().ok()).unwrap_or(8)
+    }
+}
+
+fn probe_java(path: &str) -> Option<JreInfo> {
+    let out = std::process::Command::new(path).arg("-version").output().ok()?;
+    let err = String::from_utf8_lossy(&out.stderr);
+    let line = err.lines().next()?;
+    // java -version 输出到 stderr，形如：java version "21.0.3" / openjdk version "17.0.10"
+    let start = line.find('"')?;
+    let rest = &line[start + 1..];
+    let end = rest.find('"')?;
+    let ver = &rest[..end];
+    let major = java_major_from_version(ver);
+    Some(JreInfo {
+        path: path.to_string(),
+        major,
+        version: ver.to_string(),
+    })
+}
+
+/// 探测可用 JRE：系统 PATH 的 java + 托管目录 <.aelux/jre/<major>/bin/java>。
+/// 对应 lib-core JavaManager.listManaged / detectSystem。
+#[tauri::command]
+pub fn list_jres(app: AppHandle) -> Vec<JreInfo> {
+    let mut result: Vec<JreInfo> = Vec::new();
+
+    if let Some(info) = probe_java("java") {
+        result.push(info);
+    }
+
+    if let Some(base) = app.path().app_data_dir().ok() {
+        let jre_root = base.join(".aelux").join("jre");
+        if let Ok(entries) = std::fs::read_dir(&jre_root) {
+            for e in entries.flatten() {
+                let java_bin = e.path().join("bin").join(if cfg!(windows) { "java.exe" } else { "java" });
+                if java_bin.exists() {
+                    if let Some(info) = probe_java(java_bin.to_str().unwrap_or("")) {
+                        result.push(info);
+                    }
+                }
+            }
+        }
+    }
+    result
+}
+
+/* ===================== 运行期路径 ===================== */
+
+#[tauri::command]
+pub fn get_data_dir(app: AppHandle) -> Result<String, String> {
+    app.path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())
+        .map(|p| p.to_string_lossy().to_string())
+}

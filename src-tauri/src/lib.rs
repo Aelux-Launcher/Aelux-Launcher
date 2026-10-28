@@ -46,6 +46,10 @@ pub fn run() {
             ext_commands::read_local_update,
             ext_commands::read_text,
             ext_commands::write_text,
+            ext_commands::get_data_dir,
+            ext_commands::fetch_minecraft_manifest,
+            ext_commands::fetch_json,
+            ext_commands::list_jres,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

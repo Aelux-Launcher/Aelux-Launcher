@@ -8,8 +8,25 @@ pub struct GameInstance {
     pub id: String,
     pub name: String,
     pub version: String,
-    pub mod_loader: Option<String>,
+    pub loader: Option<String>,
     pub last_played: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SessionPayload {
+    pub r#type: String,
+    pub username: String,
+    pub uuid: String,
+    #[serde(default)]
+    pub access_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LaunchRequest {
+    pub instance: GameInstance,
+    pub session: Option<SessionPayload>,
+    pub memory_mb: u64,
+    pub java_path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -53,21 +70,21 @@ impl Default for LauncherState {
                     id: "1".to_string(),
                     name: "原版生存".to_string(),
                     version: "1.21.4".to_string(),
-                    mod_loader: None,
+                    loader: None,
                     last_played: Some("2小时前".to_string()),
                 },
                 GameInstance {
                     id: "2".to_string(),
                     name: "模组服务器".to_string(),
                     version: "1.20.4".to_string(),
-                    mod_loader: Some("Fabric".to_string()),
+                    loader: Some("Fabric".to_string()),
                     last_played: Some("昨天".to_string()),
                 },
                 GameInstance {
                     id: "3".to_string(),
                     name: "创造模式".to_string(),
                     version: "1.21.4".to_string(),
-                    mod_loader: None,
+                    loader: None,
                     last_played: Some("3天前".to_string()),
                 },
             ],
@@ -133,7 +150,7 @@ pub fn get_instances(state: State<Mutex<LauncherState>>) -> Vec<GameInstance> {
 pub fn create_instance(
     name: String,
     version: String,
-    mod_loader: Option<String>,
+    loader: Option<String>,
     state: State<Mutex<LauncherState>>,
 ) -> Result<GameInstance, String> {
     let mut state = state.lock().unwrap();
@@ -141,7 +158,7 @@ pub fn create_instance(
         id: (state.instances.len() + 1).to_string(),
         name,
         version,
-        mod_loader,
+        loader,
         last_played: None,
     };
     state.instances.push(instance.clone());
@@ -155,18 +172,165 @@ pub fn delete_instance(id: String, state: State<Mutex<LauncherState>>) -> Result
     Ok(())
 }
 
+/// 把 Maven 坐标（group:artifact:version[:classifier]）还原为 libraries 下的相对路径。
+fn maven_path(name: &str) -> Option<String> {
+    let parts: Vec<&str> = name.split(':').collect();
+    if parts.len() < 3 {
+        return None;
+    }
+    let group = parts[0].replace('.', "/");
+    let artifact = parts[1];
+    let version = parts[2];
+    let file = match parts.get(3) {
+        Some(c) => format!("{}-{}-{}.jar", artifact, version, c),
+        None => format!("{}-{}.jar", artifact, version),
+    };
+    Some(format!("{}/{}/{}/{}", group, artifact, version, file))
+}
+
+/// 启动一次游戏（lib-core Launch.run 的后端实现）。
+///
+/// 流程（参考 HMCLCore 的启动编排，简化版）：
+///   解析版本 JSON → 组装类路径（客户端 jar + libraries）→ 解析游戏参数并做变量替换
+///   → 拼接 JVM 参数（内存、classpath、主类）→ 以指定 Java 拉起进程。
+/// 注：本实现为可运行的最小闭环，未含原生库解包、资源索引下载与启动器规则（rules）判定。
 #[tauri::command]
-pub fn launch_minecraft(version: String, state: State<Mutex<LauncherState>>) -> Result<String, String> {
-    // TODO: 实现真实的启动逻辑
-    // 1. 检查版本是否存在
-    // 2. 下载版本文件（如果需要）
-    // 3. 验证游戏文件
-    // 4. 启动游戏进程
-    
-    let mut state = state.lock().unwrap();
-    state.selected_version = Some(version.clone());
-    
-    Ok(format!("Minecraft {} 启动成功", version))
+pub fn launch_minecraft(req: LaunchRequest, app: AppHandle) -> Result<String, String> {
+    let mc = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join(".aelux")
+        .join("minecraft");
+    let version = req.instance.version.clone();
+    let json_path = mc
+        .join("versions")
+        .join(&version)
+        .join(format!("{}.json", version));
+
+    let text = std::fs::read_to_string(&json_path)
+        .map_err(|_| format!("缺少版本文件：{}", json_path.display()))?;
+    let vjson: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+
+    let main_class = vjson
+        .get("mainClass")
+        .and_then(|v| v.as_str())
+        .ok_or("版本 JSON 缺少 mainClass")?
+        .to_string();
+    let client_jar = mc.join("versions").join(&version).join(format!("{}.jar", version));
+
+    // 类路径：客户端 jar + 已下载的 libraries
+    let mut classpath = vec![client_jar.to_string_lossy().to_string()];
+    if let Some(libs) = vjson.get("libraries").and_then(|l| l.as_array()) {
+        for lib in libs {
+            if let Some(name) = lib.get("name").and_then(|n| n.as_str()) {
+                if let Some(p) = maven_path(name) {
+                    let jar = mc.join("libraries").join(p);
+                    if jar.exists() {
+                        classpath.push(jar.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    let assets_index = vjson
+        .get("assets")
+        .and_then(|a| a.as_str())
+        .unwrap_or("legacy")
+        .to_string();
+
+    // 游戏参数：新版 arguments.game 或旧版 minecraftArguments
+    let mut game_args: Vec<String> = Vec::new();
+    if let Some(args) = vjson
+        .get("arguments")
+        .and_then(|a| a.get("game"))
+        .and_then(|g| g.as_array())
+    {
+        for a in args {
+            if let Some(s) = a.as_str() {
+                game_args.push(s.to_string());
+            }
+            // 规则对象（rules）此处简化处理：跳过条件参数
+        }
+    } else if let Some(legacy) = vjson.get("minecraftArguments").and_then(|m| m.as_str()) {
+        game_args = legacy.split_whitespace().map(|s| s.to_string()).collect();
+    }
+
+    // 变量替换
+    let player = req
+        .session
+        .as_ref()
+        .map(|s| s.username.clone())
+        .unwrap_or_else(|| req.instance.name.clone());
+    let uuid = req
+        .session
+        .as_ref()
+        .map(|s| s.uuid.clone())
+        .unwrap_or_else(|| "offline".to_string());
+    let token = req
+        .session
+        .as_ref()
+        .and_then(|s| s.access_token.clone())
+        .unwrap_or_else(|| "0".to_string());
+    let user_type = match req.session.as_ref().map(|s| s.r#type.as_str()) {
+        Some("microsoft") => "msa",
+        _ => "mojang",
+    };
+
+    let mc_dir = mc.to_string_lossy().to_string();
+    let assets_root = mc.join("assets").to_string_lossy().to_string();
+    let replacements: Vec<(&str, String)> = vec![
+        ("${auth_player_name}", player),
+        ("${version_name}", version.clone()),
+        ("${game_directory}", mc_dir),
+        ("${assets_root}", assets_root),
+        ("${assets_index_name}", assets_index),
+        ("${auth_uuid}", uuid),
+        ("${auth_access_token}", token),
+        ("${user_type}", user_type.to_string()),
+        ("${user_properties}", "{}".to_string()),
+        ("${resolution_width}", "854".to_string()),
+        ("${resolution_height}", "480".to_string()),
+    ];
+    game_args = game_args
+        .into_iter()
+        .map(|a| {
+            let mut s = a;
+            for (k, v) in &replacements {
+                s = s.replace(k, v);
+            }
+            s
+        })
+        .collect();
+
+    // JVM 参数
+    let sep = if cfg!(windows) { ";" } else { ":" };
+    let mut jvm_args = vec![
+        format!("-Xmx{}M", req.memory_mb),
+        "-XX:+UnlockExperimentalVMOptions".to_string(),
+        "-XX:+UseG1GC".to_string(),
+        "-cp".to_string(),
+        classpath.join(sep),
+    ];
+
+    let java = if req.java_path.is_empty() {
+        "java".to_string()
+    } else {
+        req.java_path.clone()
+    };
+
+    let child = std::process::Command::new(&java)
+        .args(&jvm_args)
+        .arg(main_class)
+        .args(&game_args)
+        .current_dir(&mc)
+        .spawn();
+
+    match child {
+        Ok(c) => Ok(format!("已启动（pid {}）", c.id())),
+        Err(e) => Err(format!("启动失败：{}", e)),
+    }
 }
 
 #[tauri::command]

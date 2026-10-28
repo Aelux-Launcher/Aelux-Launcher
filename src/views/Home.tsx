@@ -9,7 +9,7 @@ export function Home() {
       <div className="view__header">
         <h2>游戏实例</h2>
         {!session && (
-        <Button variant="secondary" size="sm" onClick={() => setView('login')}>
+        <Button variant="secondary" size="sm" onClick={() => setView('account')}>
           未登录 · 去登录
         </Button>
         )}
