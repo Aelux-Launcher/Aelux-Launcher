@@ -18,7 +18,7 @@ export function App() {
     void init()
   }, [])
 
-  // 页面切换动画（PCL MyPageLeft.TriggerShowAnimation / TriggerHideAnimation）：
+  // 页面切换动画：旧页 110ms 缩放淡出 → 新页逐项回弹滑入
   // 旧页 110ms 缩放淡出 → 新页 400ms 回弹缩放淡入。
   const [shown, setShown] = useState<ViewKey>(view)
   const [leaving, setLeaving] = useState(false)
@@ -63,7 +63,7 @@ export function App() {
             />
           )}
 
-          <div className={`pcl-stage${leaving ? ' pcl-stage--leave' : ' pcl-stage--enter'}`} key={shown}>
+          <div className={`alx-stage${leaving ? ' alx-stage--leave' : ''}`} key={shown}>
             {shown === 'home' && <Home />}
             {shown === 'download' && <Download />}
             {shown === 'multiplayer' && <Multiplayer />}

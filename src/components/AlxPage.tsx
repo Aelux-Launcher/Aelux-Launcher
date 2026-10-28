@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react'
 import { cx } from 'aelux-components'
-import { PclNavItem } from './PclNavItem'
+import { AlxNavItem } from './AlxNavItem'
 
-export interface PclNavEntry {
+export interface AlxNavEntry {
   key: string
   title: string
   /** 左侧图标 */
   icon?: ReactNode
-  /** 分组标题，显示在该项上方（PCL 的 Opacity=0.6 灰字） */
+  /** 分组标题，显示在该项上方（12px，60% 不透明度） */
   group?: string
   /** 右侧操作区 */
   trailing?: ReactNode
@@ -15,12 +15,12 @@ export interface PclNavEntry {
 
 interface Props {
   /** 左栏导航项 */
-  nav?: PclNavEntry[]
+  nav?: AlxNavEntry[]
   active?: string
   onSelect?: (key: string) => void
   /** 自定义左栏内容（优先于 nav） */
   left?: ReactNode
-  /** 左栏宽度；PCL 各页在 170~210 之间 */
+  /** 左栏宽度 */
   leftWidth?: number
   /** 右栏内容 */
   children?: ReactNode
@@ -28,20 +28,20 @@ interface Props {
 }
 
 /**
- * PCL 式两栏页面 —— 对应 PCL 的 `PanMain`：
- *   左栏 `MyPageLeft`（白底 + 列表项，进入时逐项滑入）
- *   右栏 `MyPageRight`（浅蓝渐变底 + 白色卡片）
+ * 两栏页面骨架：
+ *   左栏（白底 + 列表项，进入时逐项滑入）
+ *   右栏（浅蓝渐变底 + 白色卡片）
  */
-export function PclPage({ nav, active, onSelect, left, leftWidth = 190, children, className }: Props) {
+export function AlxPage({ nav, active, onSelect, left, leftWidth = 190, children, className }: Props) {
   return (
-    <div className={cx('pcl-page', className)}>
-      <aside className="pcl-page__left" style={{ width: leftWidth }}>
+    <div className={cx('alx-page', className)}>
+      <aside className="alx-page__left" style={{ width: leftWidth }}>
         {left ?? (
-          <div className="pcl-nav pcl-stagger">
+          <div className="alx-nav">
             {nav?.map((item) => (
               <div key={item.key}>
-                {item.group && <div className="pcl-nav-group">{item.group}</div>}
-                <PclNavItem
+                {item.group && <div className="alx-nav-group">{item.group}</div>}
+                <AlxNavItem
                   title={item.title}
                   icon={item.icon}
                   trailing={item.trailing}
@@ -53,7 +53,7 @@ export function PclPage({ nav, active, onSelect, left, leftWidth = 190, children
           </div>
         )}
       </aside>
-      <section className="pcl-page__right">{children}</section>
+      <section className="alx-page__right">{children}</section>
     </div>
   )
 }

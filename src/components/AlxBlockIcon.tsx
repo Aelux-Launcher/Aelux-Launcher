@@ -4,9 +4,9 @@ interface Props {
 }
 
 /**
- * 草方块图标 —— 仿 PCL 下载页里的 Minecraft 方块缩略图（等距立方体）。
+ * 草方块图标 —— 下载页里的 Minecraft 方块缩略图（等距立方体）。
  */
-export function McBlockIcon({ size = 32, className }: Props) {
+export function AlxBlockIcon({ size = 32, className }: Props) {
   return (
     <svg
       className={className}

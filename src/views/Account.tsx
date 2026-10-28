@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Badge, toast, IconUser } from 'aelux-components'
 import { useApp, auth, platform } from '../store'
-import { PclCard } from '../components/PclCard'
+import { AlxCard } from '../components/AlxCard'
 
 /** 账号页内容（渲染在「更多」页的右栏）。 */
 export function Account() {
@@ -42,50 +42,50 @@ export function Account() {
 
   if (session) {
     return (
-      <PclCard title="当前账号">
+      <AlxCard title="当前账号">
         <div className="account-card__meta">
           <Badge status={session.type === 'offline' ? 'info' : 'success'}>{session.type}</Badge>
           {session.roleId && <Badge status="info">角色 {session.roleId.slice(0, 8)}</Badge>}
         </div>
         <p className="account-card__uuid">UUID：{session.uuid}</p>
-        <button type="button" className="pcl-btn" onClick={logout}>
+        <button type="button" className="alx-btn" onClick={logout}>
           退出登录
         </button>
-      </PclCard>
+      </AlxCard>
     )
   }
 
   return (
-    <PclCard title="登录">
+    <AlxCard title="登录">
       <div className="login-grid">
-        <div className="pcl-guide" style={{ display: 'block' }}>
-          <div className="pcl-guide__title">微软登录（正版）</div>
-          <div className="pcl-guide__desc" style={{ marginBottom: 10 }}>
+        <div className="alx-guide" style={{ display: 'block' }}>
+          <div className="alx-guide__title">微软登录（正版）</div>
+          <div className="alx-guide__desc" style={{ marginBottom: 10 }}>
             使用微软 / Xbox / Minecraft 账号登录，享受正版校验与皮肤同步。
           </div>
-          <button type="button" className="pcl-btn pcl-btn--primary" onClick={microsoft}>
+          <button type="button" className="alx-btn alx-btn--primary" onClick={microsoft}>
             <IconUser size={13} />
             微软登录
           </button>
         </div>
 
-        <div className="pcl-guide" style={{ display: 'block' }}>
-          <div className="pcl-guide__title">第三方账号</div>
-          <div className="pcl-guide__desc" style={{ marginBottom: 10 }}>
+        <div className="alx-guide" style={{ display: 'block' }}>
+          <div className="alx-guide__title">第三方账号</div>
+          <div className="alx-guide__desc" style={{ marginBottom: 10 }}>
             使用 Aelux 服务器账号体系登录，与白名单角色对齐。
           </div>
-          <button type="button" className="pcl-btn pcl-btn--primary" onClick={thirdParty}>
+          <button type="button" className="alx-btn alx-btn--primary" onClick={thirdParty}>
             服务器账号登录
           </button>
         </div>
 
-        <div className="pcl-guide" style={{ display: 'block' }}>
-          <div className="pcl-guide__title">离线登录</div>
-          <div className="pcl-guide__desc" style={{ marginBottom: 10 }}>
+        <div className="alx-guide" style={{ display: 'block' }}>
+          <div className="alx-guide__title">离线登录</div>
+          <div className="alx-guide__desc" style={{ marginBottom: 10 }}>
             输入昵称即可离线游玩，完全本地可用，无需网络。
           </div>
           <input
-            className="pcl-input"
+            className="alx-input"
             placeholder="昵称"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -93,7 +93,7 @@ export function Account() {
           />
           <button
             type="button"
-            className="pcl-btn"
+            className="alx-btn"
             disabled={!name.trim()}
             onClick={offline}
             style={{ width: '100%' }}
@@ -102,6 +102,6 @@ export function Account() {
           </button>
         </div>
       </div>
-    </PclCard>
+    </AlxCard>
   )
 }

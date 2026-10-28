@@ -133,7 +133,7 @@ export const useApp = create<AppState>((set, get) => ({
   session: null,
   settings: SettingsSchema.parse({}),
   instances: [],
-  // 默认浅色主题（PCL2 风：冰蓝主色 + 灰白表面，不用黑色）
+  // 默认浅色主题（冰蓝主色 + 灰白表面，不用黑色）
   view: 'home',
   pendingAnnouncements: [],
   updateAvailable: false,

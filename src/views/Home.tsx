@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Badge, Progress, toast, IconUser, IconTrash, IconPlay } from 'aelux-components'
 import { useApp } from '../store'
-import { PclPage } from '../components/PclPage'
+import { AlxPage } from '../components/AlxPage'
 
 /**
- * 启动页 —— 复刻 PCL 的 `PageLaunch`（PageLaunchLeft 控制列 + PageLaunchRight 日志区）：
+ * 启动页（左栏为控制列，右栏为内容与日志区）：
  *   左栏（白底）：账号登录入口 → 头像 / 昵称 / 邮箱 → 启动游戏（描边双行）→ 版本选择 / 版本设置
  *   右栏（浅蓝渐变）：提示条 + 实例列表 + 启动日志
  */
@@ -54,22 +54,22 @@ export function Home() {
   }
 
   return (
-    <PclPage
+    <AlxPage
       leftWidth={300}
       left={
-        <div className="pcl-launch">
-          <button type="button" className="pcl-launch__account" onClick={() => setView('more')}>
+        <div className="alx-launch">
+          <button type="button" className="alx-launch__account" onClick={() => setView('more')}>
             <IconUser size={15} />
             {session ? `${session.username} 切换账号` : '离线登录'}
           </button>
 
-          <div className="pcl-launch__avatar" aria-hidden="true" />
-          <div className="pcl-launch__name">{session?.username ?? '未登录'}</div>
-          <div className="pcl-launch__mail">
+          <div className="alx-launch__avatar" aria-hidden="true" />
+          <div className="alx-launch__name">{session?.username ?? '未登录'}</div>
+          <div className="alx-launch__mail">
             {session?.type === 'offline' ? '离线会话 · 本地游玩' : session ? '已登录' : '点击上方登录'}
           </div>
 
-          <div className="pcl-launch__spacer" />
+          <div className="alx-launch__spacer" />
 
           {launching && (
             <div style={{ width: '100%', marginBottom: 10 }}>
@@ -77,25 +77,25 @@ export function Home() {
             </div>
           )}
 
-          <button type="button" className="pcl-launch__btn" disabled={launching} onClick={handleLaunch}>
-            <span className="pcl-launch__btn-title">{launching ? '正在启动…' : '启动游戏'}</span>
-            <span className="pcl-launch__btn-sub">
+          <button type="button" className="alx-launch__btn" disabled={launching} onClick={handleLaunch}>
+            <span className="alx-launch__btn-title">{launching ? '正在启动…' : '启动游戏'}</span>
+            <span className="alx-launch__btn-sub">
               {selected ? `[${selected.loader ?? '原版'}]${selected.name}` : '尚未安装任何版本'}
             </span>
           </button>
 
-          <div className="pcl-launch__row">
-            <button type="button" className="pcl-btn" onClick={() => setView('download')}>
+          <div className="alx-launch__row">
+            <button type="button" className="alx-btn" onClick={() => setView('download')}>
               版本选择
             </button>
-            <button type="button" className="pcl-btn" onClick={() => setView('settings')}>
+            <button type="button" className="alx-btn" onClick={() => setView('settings')}>
               版本设置
             </button>
           </div>
         </div>
       }
     >
-      <div className="pcl-hint">
+      <div className="alx-hint">
         <IconUser size={15} />
         <span>
           {session
@@ -104,35 +104,35 @@ export function Home() {
         </span>
       </div>
 
-      <div className="pcl-section">
-        <div className="pcl-section__head">
+      <div className="alx-section">
+        <div className="alx-section__head">
           <h3>游戏实例</h3>
-          <span className="pcl-section__count">{instances.length} 个</span>
+          <span className="alx-section__count">{instances.length} 个</span>
         </div>
 
         {instances.length === 0 ? (
-          <div className="pcl-empty">
+          <div className="alx-empty">
             <p>还没有实例。到「下载」页安装一个 Minecraft 版本后，这里会出现可一键启动的实例。</p>
-            <button type="button" className="pcl-btn" onClick={() => setView('download')}>
+            <button type="button" className="alx-btn" onClick={() => setView('download')}>
               去下载游戏
             </button>
           </div>
         ) : (
-          <div className="pcl-instances">
+          <div className="alx-instances">
             {instances.map((inst) => (
-              <div key={inst.id} className="pcl-instance">
-                <div className="pcl-instance__main">
-                  <div className="pcl-instance__name">
+              <div key={inst.id} className="alx-instance">
+                <div className="alx-instance__main">
+                  <div className="alx-instance__name">
                     {inst.name}
                     {inst.loader && <Badge status="info">{inst.loader}</Badge>}
                   </div>
-                  <div className="pcl-instance__desc">
+                  <div className="alx-instance__desc">
                     {inst.version} · {inst.lastPlayed ?? '从未游玩'}
                   </div>
                 </div>
                 <button
                   type="button"
-                  className="pcl-btn pcl-btn--primary"
+                  className="alx-btn alx-btn--primary"
                   onClick={() => {
                     setSelectedId(inst.id)
                     void handleLaunch()
@@ -143,7 +143,7 @@ export function Home() {
                 </button>
                 <button
                   type="button"
-                  className="pcl-btn"
+                  className="alx-btn"
                   aria-label="删除实例"
                   onClick={() => deleteInstance(inst.id)}
                 >
@@ -155,22 +155,22 @@ export function Home() {
         )}
       </div>
 
-      <div className="pcl-section">
-        <div className="pcl-section__head">
+      <div className="alx-section">
+        <div className="alx-section__head">
           <h3>启动日志</h3>
         </div>
-        <div className="pcl-log">
+        <div className="alx-log">
           {logs.length === 0 ? (
-            <span className="pcl-log__empty">暂无日志，启动游戏后这里会显示启动过程。</span>
+            <span className="alx-log__empty">暂无日志，启动游戏后这里会显示启动过程。</span>
           ) : (
             logs.map((l, i) => (
-              <div key={i} className="pcl-log__line">
+              <div key={i} className="alx-log__line">
                 {l}
               </div>
             ))
           )}
         </div>
       </div>
-    </PclPage>
+    </AlxPage>
   )
 }

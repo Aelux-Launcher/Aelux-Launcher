@@ -15,11 +15,11 @@ import {
   type TaskItem,
 } from 'aelux-components'
 import { useApp } from '../store'
-import { PclPage } from '../components/PclPage'
-import { PclCard } from '../components/PclCard'
-import { McBlockIcon } from '../components/McBlockIcon'
+import { AlxPage } from '../components/AlxPage'
+import { AlxCard } from '../components/AlxCard'
+import { AlxBlockIcon } from '../components/AlxBlockIcon'
 
-/** 下载页左栏的资源类型，对应 PCL `PageDownloadLeft` 的 ItemXXX 列表。 */
+/** 下载页左栏的资源类型列表。 */
 const RESOURCE_TABS = [
   { key: 'vanilla', title: '原版游戏', icon: <IconPackage size={17} /> },
   { key: 'mod', title: 'Mod', icon: <IconGrid size={17} />, group: '社区资源' },
@@ -52,7 +52,7 @@ function taskTitle(id: string): string {
 const MAX_VISIBLE_TASKS = 40
 
 /**
- * 下载页 —— 复刻 PCL 的 `PageDownload`：
+ * 下载页：
  *   左栏：资源类型列表（原版游戏 + 社区资源分组）
  *   右栏：「最新版本」卡片 + 「正式版 / 快照」可折叠卡片，条目为方块图标 + 版本 + 日期
  */
@@ -128,15 +128,15 @@ export function Download() {
 
   function VersionRow({ id, date, desc }: { id: string; date: string; desc?: string }) {
     return (
-      <div className="pcl-ver">
-        <McBlockIcon size={32} className="pcl-ver__icon" />
+      <div className="alx-ver">
+        <AlxBlockIcon size={32} className="alx-ver__icon" />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="pcl-ver__id">{id}</div>
-          <div className="pcl-ver__desc">{desc ?? date}</div>
+          <div className="alx-ver__id">{id}</div>
+          <div className="alx-ver__desc">{desc ?? date}</div>
         </div>
         <button
           type="button"
-          className="pcl-btn"
+          className="alx-btn"
           disabled={installing !== null}
           onClick={() => handleInstall(id)}
         >
@@ -148,16 +148,16 @@ export function Download() {
   }
 
   return (
-    <PclPage nav={RESOURCE_TABS} active={resource} onSelect={setResource} leftWidth={190}>
+    <AlxPage nav={RESOURCE_TABS} active={resource} onSelect={setResource} leftWidth={190}>
       {resource !== 'vanilla' ? (
-        <PclCard title={RESOURCE_TABS.find((t) => t.key === resource)?.title}>
-          <div className="pcl-empty">
+        <AlxCard title={RESOURCE_TABS.find((t) => t.key === resource)?.title}>
+          <div className="alx-empty">
             <p>该资源类型将在后续版本接入（对应设计文档 Phase 2：Modrinth / CurseForge / ModPack）。</p>
           </div>
-        </PclCard>
+        </AlxCard>
       ) : (
         <>
-          <div className="pcl-search">
+          <div className="alx-search">
             <IconSearch size={16} />
             <input
               placeholder="搜索版本号…"
@@ -166,7 +166,7 @@ export function Download() {
             />
             <button
               type="button"
-              className="pcl-btn"
+              className="alx-btn"
               style={{ height: 26, padding: '0 10px' }}
               disabled={versionsLoading}
               onClick={() => loadVersions()}
@@ -177,20 +177,20 @@ export function Download() {
           </div>
 
           {versionsError && (
-            <div className="pcl-hint" style={{ borderColor: '#f09595', background: '#fcebeb' }}>
+            <div className="alx-hint" style={{ borderColor: '#f09595', background: '#fcebeb' }}>
               加载版本清单失败：{versionsError}
             </div>
           )}
 
           {versionsLoading && versions.length === 0 ? (
-            <PclCard title="加载中">
-              <div className="pcl-empty">
+            <AlxCard title="加载中">
+              <div className="alx-empty">
                 <p>正在从版本清单源拉取可下载版本…</p>
               </div>
-            </PclCard>
+            </AlxCard>
           ) : (
             <>
-              <PclCard title="最新版本" className="pcl-card--accent">
+              <AlxCard title="最新版本" className="alx-card--accent">
                 {latest ? (
                   <VersionRow
                     id={latest.id}
@@ -198,7 +198,7 @@ export function Download() {
                     desc={`最新正式版，发布于 ${latest.releaseTime.replace('T', ' ').slice(0, 16)}`}
                   />
                 ) : (
-                  <div className="pcl-empty">
+                  <div className="alx-empty">
                     <p>暂无版本数据</p>
                   </div>
                 )}
@@ -209,11 +209,11 @@ export function Download() {
                     desc={`最新预览版，发布于 ${snapshots[0].releaseTime.replace('T', ' ').slice(0, 16)}`}
                   />
                 )}
-              </PclCard>
+              </AlxCard>
 
-              <PclCard title="正式版" collapsible defaultOpen>
+              <AlxCard title="正式版" collapsible defaultOpen>
                 {releases.length === 0 ? (
-                  <div className="pcl-empty">
+                  <div className="alx-empty">
                     <p>没有匹配的版本</p>
                   </div>
                 ) : (
@@ -221,23 +221,23 @@ export function Download() {
                     <VersionRow key={v.id} id={v.id} date={v.releaseTime.replace('T', ' ').slice(0, 16)} />
                   ))
                 )}
-              </PclCard>
+              </AlxCard>
 
               {snapshots.length > 0 && (
-                <PclCard title="快照版" collapsible defaultOpen={false}>
+                <AlxCard title="快照版" collapsible defaultOpen={false}>
                   {snapshots.map((v) => (
                     <VersionRow key={v.id} id={v.id} date={v.releaseTime.replace('T', ' ').slice(0, 16)} />
                   ))}
-                </PclCard>
+                </AlxCard>
               )}
             </>
           )}
 
           {tasks.length > 0 && (
-            <PclCard
+            <AlxCard
               title="下载任务"
               extra={
-                <span className="pcl-section__count">
+                <span className="alx-section__count">
                   {tasks.length} 项 · 完成 {downloadState?.completed ?? 0} · 失败{' '}
                   {downloadState?.failed ?? 0}
                 </span>
@@ -245,15 +245,15 @@ export function Download() {
             >
               <TaskList items={visibleTasks} maxHeight={300} />
               {tasks.length > visibleTasks.length && (
-                <p className="pcl-section__count" style={{ marginTop: 8 }}>
+                <p className="alx-section__count" style={{ marginTop: 8 }}>
                   仅显示前 {visibleTasks.length} 项，其余 {tasks.length - visibleTasks.length} 项已排队。
                 </p>
               )}
-            </PclCard>
+            </AlxCard>
           )}
 
           {installError && (
-            <div className="pcl-hint" style={{ borderColor: '#f09595', background: '#fcebeb' }}>
+            <div className="alx-hint" style={{ borderColor: '#f09595', background: '#fcebeb' }}>
               安装出错：{installError}
             </div>
           )}
@@ -280,6 +280,6 @@ export function Download() {
         showClose
         closeOnEsc
       />
-    </PclPage>
+    </AlxPage>
   )
 }

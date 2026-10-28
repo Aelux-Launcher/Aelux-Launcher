@@ -1,8 +1,8 @@
 /* ============================================================================
  * Aelux Launcher · 应用层样式
  *
- * PCL 视觉系统（配色 / 圆角 / 动画 / 控件样式）全部在 pcl.css，
- * 这里只放与 PCL 无关的应用层规则（提示条、页面容器、少量业务区块）。
+ * 视觉系统（配色 / 圆角 / 动画 / 控件样式）全部在 theme.css，
+ * 这里只放应用层规则（提示条、页面容器、少量业务区块）。
  * ========================================================================== */
 
 * {
@@ -17,26 +17,23 @@ body,
 body {
   font-family: var(--aelux-font-sans);
   background: transparent;
-  color: var(--pcl-1);
+  color: var(--alx-1);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-/* 页面舞台：承载 PCL 的进出场动画 */
-.pcl-stage {
+/* 页面舞台：承载进出场动画（进入由左栏/右栏逐项动画承担，见 theme.css） */
+.alx-stage {
   flex: 1;
   min-height: 0;
   display: flex;
 }
-.pcl-stage > * {
+.alx-stage > * {
   flex: 1;
   min-width: 0;
 }
-.pcl-stage--enter {
-  animation: pcl-page-in var(--pcl-dur-page) var(--pcl-ease-back) both;
-}
-.pcl-stage--leave {
-  animation: pcl-page-out var(--pcl-dur-page-out) var(--pcl-ease-fluent) both;
+.alx-stage--leave {
+  animation: alx-stage-out 110ms var(--alx-ease-in-fluent-weak) both;
 }
 
 /* 初始化提示条 */
@@ -50,81 +47,81 @@ body {
 }
 
 /* 区块标题 */
-.pcl-section {
+.alx-section {
   margin-bottom: 20px;
 }
-.pcl-section__head {
+.alx-section__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
 }
-.pcl-section__head h3 {
+.alx-section__head h3 {
   margin: 0;
   font-size: 15px;
   font-weight: 700;
-  color: var(--pcl-1);
+  color: var(--alx-1);
 }
-.pcl-section__count {
+.alx-section__count {
   font-size: 12px;
-  color: var(--pcl-1);
+  color: var(--alx-1);
   opacity: 0.6;
 }
 
 /* 空状态 */
-.pcl-empty {
+.alx-empty {
   padding: 22px 4px;
   text-align: center;
   font-size: 13px;
-  color: var(--pcl-1);
+  color: var(--alx-1);
   opacity: 0.75;
 }
-.pcl-empty p {
+.alx-empty p {
   margin: 0 0 12px;
 }
 
 /* 实例列表 */
-.pcl-instances {
+.alx-instances {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.pcl-instance {
+.alx-instance {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 11px 14px;
-  background: var(--pcl-white-96);
-  border-radius: var(--pcl-radius-card);
+  background: var(--alx-white-96);
+  border-radius: var(--alx-radius-card);
   box-shadow: 0 1px 4px rgba(52, 61, 74, 0.07);
-  transition: box-shadow var(--pcl-dur-in) var(--pcl-ease-fluent);
+  transition: box-shadow var(--alx-dur-in) var(--alx-ease-fluent);
 }
-.pcl-instance:hover {
+.alx-instance:hover {
   box-shadow: 0 3px 12px rgba(72, 144, 245, 0.4);
 }
-.pcl-instance__main {
+.alx-instance__main {
   flex: 1;
   min-width: 0;
 }
-.pcl-instance__name {
+.alx-instance__name {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: var(--pcl-1);
+  color: var(--alx-1);
 }
-.pcl-instance__desc {
+.alx-instance__desc {
   font-size: 12px;
-  color: var(--pcl-1);
+  color: var(--alx-1);
   opacity: 0.65;
   margin-top: 3px;
 }
 
 /* 启动日志 */
-.pcl-log {
-  background: var(--pcl-white-96);
-  border-radius: var(--pcl-radius-card);
+.alx-log {
+  background: var(--alx-white-96);
+  border-radius: var(--alx-radius-card);
   box-shadow: 0 1px 4px rgba(52, 61, 74, 0.07);
   padding: 12px 14px;
   min-height: 96px;
@@ -133,47 +130,47 @@ body {
   font-family: var(--aelux-font-mono);
   font-size: 12px;
   line-height: 1.7;
-  color: var(--pcl-1);
+  color: var(--alx-1);
   opacity: 0.85;
 }
-.pcl-log__empty {
+.alx-log__empty {
   font-family: var(--aelux-font-sans);
   opacity: 0.6;
 }
-.pcl-log__line {
+.alx-log__line {
   white-space: pre-wrap;
   word-break: break-all;
 }
 
 /* 关于 */
-.pcl-about {
+.alx-about {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
 }
-.pcl-about__logo {
+.alx-about__logo {
   width: 64px;
   height: 64px;
   border-radius: 12px;
   object-fit: contain;
   margin-bottom: 12px;
 }
-.pcl-about__name {
+.alx-about__name {
   font-size: 17px;
   font-weight: 600;
-  color: var(--pcl-1);
+  color: var(--alx-1);
 }
-.pcl-about__version {
+.alx-about__version {
   font-size: 12px;
-  color: var(--pcl-1);
+  color: var(--alx-1);
   opacity: 0.6;
   margin: 4px 0 14px;
 }
-.pcl-about__desc {
+.alx-about__desc {
   font-size: 13px;
   line-height: 1.8;
-  color: var(--pcl-1);
+  color: var(--alx-1);
   opacity: 0.75;
   margin: 0 0 10px;
   max-width: 560px;
@@ -192,7 +189,7 @@ body {
   flex-wrap: wrap;
 }
 .account-card__uuid {
-  color: var(--pcl-1);
+  color: var(--alx-1);
   opacity: 0.7;
   font-size: 12px;
   margin: 4px 0 14px;
@@ -200,7 +197,7 @@ body {
   word-break: break-all;
 }
 .mods__hint {
-  color: var(--pcl-1);
+  color: var(--alx-1);
   opacity: 0.65;
   font-size: 12px;
 }

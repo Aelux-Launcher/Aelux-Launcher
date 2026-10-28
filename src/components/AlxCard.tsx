@@ -4,7 +4,7 @@ import { IconChevronDown } from 'aelux-components'
 import { cx } from 'aelux-components'
 
 interface Props {
-  /** 卡片标题（PCL MyCard 主标题，粗体 13px） */
+  /** 卡片标题（粗体 13px，左对齐） */
   title?: ReactNode
   /** 标题右侧内容 */
   extra?: ReactNode
@@ -19,11 +19,11 @@ interface Props {
 }
 
 /**
- * 卡片 —— 复刻 PCL 的 `MyCard`：
+ * 卡片：
  *   圆角 5、背景 rgba(255,255,255,.96)、阴影 0.07 透明度（悬停 0.4 且转蓝 #4890f5）、
  *   标题粗体 13px 靠左（悬停转深蓝 #0b5bcb）、右侧可折叠箭头。
  */
-export function PclCard({
+export function AlxCard({
   title,
   extra,
   collapsible,
@@ -36,16 +36,16 @@ export function PclCard({
   const expanded = !collapsible || open
 
   return (
-    <section className={cx('pcl-card', className)}>
+    <section className={cx('alx-card', className)}>
       {(title != null || extra != null || collapsible) && (
-        <div className="pcl-card__title">
+        <div className="alx-card__title">
           <span>{title}</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             {extra}
             {collapsible && (
               <button
                 type="button"
-                className={cx('pcl-card__toggle', open && 'is-open')}
+                className={cx('alx-card__toggle', open && 'is-open')}
                 aria-label={open ? '收起' : '展开'}
                 aria-expanded={open}
                 onClick={() => setOpen(!open)}
@@ -57,7 +57,7 @@ export function PclCard({
         </div>
       )}
       {expanded && (
-        <div className={cx('pcl-card__body', flush && 'pcl-card__body--flush')}>
+        <div className={cx('alx-card__body', flush && 'alx-card__body--flush')}>
           {children}
         </div>
       )}
