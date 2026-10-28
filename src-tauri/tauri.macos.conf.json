@@ -1,7 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "app": {
-    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",
@@ -15,9 +14,7 @@
         "center": true,
         "decorations": false,
         "transparent": true,
-        "shadow": true,
-        "titleBarStyle": "Overlay",
-        "hiddenTitle": true
+        "shadow": false
       }
     ]
   },

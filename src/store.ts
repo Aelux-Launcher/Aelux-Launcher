@@ -126,6 +126,19 @@ function applyTheme(t: 'light' | 'dark', persist: boolean) {
   if (persist) localStorage.setItem(THEME_CHOICE_KEY, t)
 }
 
+/**
+ * 标记当前宿主平台到 <html data-platform>。
+ *
+ * 窗口外观按平台差异化（见 src-tauri/tauri.*.conf.json）：
+ *   - Windows / macOS：透明窗口 + 无边框 → 页面可以画出圆角与投影；
+ *   - Linux：Wayland 下透明窗口不可靠，配置里关掉了透明 → 页面必须自己补背景，
+ *     否则窗口边缘会露出 webview 默认的白色（表现为「圆角外一圈白边」）。
+ * 浏览器预览模式按 windows 处理（预览时看到的就是 Windows 效果）。
+ */
+function applyPlatform(name: string) {
+  document.documentElement.setAttribute('data-platform', name)
+}
+
 export const useApp = create<AppState>((set, get) => ({
   ready: false,
   initError: null,
@@ -156,6 +169,18 @@ export const useApp = create<AppState>((set, get) => ({
     // 最终一定置 ready，失败信息进 initError 供界面提示。
     const fail = (e: unknown) => (e as Error)?.message ?? String(e)
 
+    // 平台信息只取一次：既用于标记 <html data-platform>（窗口外观适配），
+    // 也用于依赖 rules 判定（natives 分类器按 os.name 选）。
+    let osInfo = { name: 'windows', version: '10.0', arch: 'x86_64' }
+    try {
+      osInfo = await platform.invoke<{ name: string; version: string; arch: string }>(
+        'get_os_info',
+      )
+    } catch {
+      /* 取不到平台信息时退回 Windows，行为与旧版一致 */
+    }
+    applyPlatform(osInfo.name)
+
     try {
       // 解析运行期路径，构造依赖路径的 lib-core 模块。
       DATA_DIR = await platform.invoke<string>('get_data_dir')
@@ -167,15 +192,7 @@ export const useApp = create<AppState>((set, get) => ({
           platform.invoke<string>('fetch_json', { url }).then((s) => JSON.parse(s)),
         fetchJson: (url: string) =>
           platform.invoke<string>('fetch_json', { url }).then((s) => JSON.parse(s)),
-        osProvider: async () => {
-          try {
-            return await platform.invoke<
-              { name: string; version: string; arch: string }
-            >('get_os_info')
-          } catch {
-            return { name: 'windows', version: '10.0', arch: 'x86_64' }
-          }
-        },
+        osProvider: async () => osInfo,
         metaRoot: versionsDir,
         gameRoot: versionsDir,
         assetsRoot: mc,

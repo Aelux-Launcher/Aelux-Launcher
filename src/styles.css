@@ -22,6 +22,26 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ---------------------------------------------------------------------------
+ * 平台窗口外观适配
+ *
+ * Windows / macOS：窗口是「透明 + 无边框」（见 src-tauri/tauri.*.conf.json），
+ *   页面靠 8px 外边距 + 圆角 + 投影制造悬浮卡片效果，body 必须保持透明。
+ * Linux：Wayland 下透明窗口不可靠，配置里关掉了透明，窗口底色由 webview 提供。
+ *   此时若继续留 8px 外边距，圆角外会露出一圈 webview 默认白边，
+ *   因此改为「铺满 + 补背景色 + 去圆角投影」。
+ * ------------------------------------------------------------------------- */
+html[data-platform='linux'] body {
+  background: var(--alx-4);
+}
+
+html[data-platform='linux'] .aelux-app {
+  height: 100vh;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 /* 页面舞台：承载进出场动画（进入由左栏/右栏逐项动画承担，见 theme.css） */
 .alx-stage {
   flex: 1;
