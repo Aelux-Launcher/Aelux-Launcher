@@ -65,29 +65,9 @@ pub struct LauncherState {
 impl Default for LauncherState {
     fn default() -> Self {
         Self {
-            instances: vec![
-                GameInstance {
-                    id: "1".to_string(),
-                    name: "原版生存".to_string(),
-                    version: "1.21.4".to_string(),
-                    loader: None,
-                    last_played: Some("2小时前".to_string()),
-                },
-                GameInstance {
-                    id: "2".to_string(),
-                    name: "模组服务器".to_string(),
-                    version: "1.20.4".to_string(),
-                    loader: Some("Fabric".to_string()),
-                    last_played: Some("昨天".to_string()),
-                },
-                GameInstance {
-                    id: "3".to_string(),
-                    name: "创造模式".to_string(),
-                    version: "1.21.4".to_string(),
-                    loader: None,
-                    last_played: Some("3天前".to_string()),
-                },
-            ],
+            // 实例是用户数据，落盘保存（见 load_instances / save_instances），
+            // 这里不再塞假数据，否则主页会凭空出现几个不存在的实例。
+            instances: Vec::new(),
             current_user: None,
             selected_version: None,
             tags: vec![
@@ -95,24 +75,59 @@ impl Default for LauncherState {
                     id: "favorites".to_string(),
                     name: "收藏".to_string(),
                     color: "#F44336".to_string(),
-                    version_ids: vec!["1".to_string(), "3".to_string()],
+                    version_ids: vec![],
                 },
                 TagInfo {
                     id: "survival".to_string(),
                     name: "生存".to_string(),
                     color: "#4CAF50".to_string(),
-                    version_ids: vec!["1".to_string()],
+                    version_ids: vec![],
                 },
                 TagInfo {
                     id: "modded".to_string(),
                     name: "模组".to_string(),
                     color: "#FF9800".to_string(),
-                    version_ids: vec!["2".to_string()],
+                    version_ids: vec![],
                 },
             ],
             extra_folders: Vec::new(),
         }
     }
+}
+
+/* ===================== 游戏实例持久化 ===================== */
+
+/// 实例列表落盘位置：<app_data_dir>/instances.json
+fn instances_path(app: &AppHandle) -> Option<PathBuf> {
+    let dir = app.path().app_data_dir().ok()?;
+    let _ = std::fs::create_dir_all(&dir);
+    Some(dir.join("instances.json"))
+}
+
+fn load_instances(app: &AppHandle) -> Vec<GameInstance> {
+    let Some(p) = instances_path(app) else {
+        return Vec::new();
+    };
+    let Ok(s) = std::fs::read_to_string(&p) else {
+        return Vec::new();
+    };
+    serde_json::from_str(&s).unwrap_or_default()
+}
+
+fn save_instances(app: &AppHandle, list: &[GameInstance]) -> Result<(), String> {
+    let Some(p) = instances_path(app) else {
+        return Ok(());
+    };
+    let s = serde_json::to_string_pretty(list).map_err(|e| e.to_string())?;
+    std::fs::write(&p, s).map_err(|e| e.to_string())
+}
+
+/// 用时间戳生成实例 id（同一毫秒内不会重复）。
+fn new_instance_id() -> String {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis().to_string())
+        .unwrap_or_else(|_| "1".to_string())
 }
 
 #[tauri::command]
@@ -141,9 +156,8 @@ pub fn get_versions() -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn get_instances(state: State<Mutex<LauncherState>>) -> Vec<GameInstance> {
-    let state = state.lock().unwrap();
-    state.instances.clone()
+pub fn get_instances(app: AppHandle) -> Vec<GameInstance> {
+    load_instances(&app)
 }
 
 #[tauri::command]
@@ -151,25 +165,26 @@ pub fn create_instance(
     name: String,
     version: String,
     loader: Option<String>,
-    state: State<Mutex<LauncherState>>,
+    app: AppHandle,
 ) -> Result<GameInstance, String> {
-    let mut state = state.lock().unwrap();
+    let mut list = load_instances(&app);
     let instance = GameInstance {
-        id: (state.instances.len() + 1).to_string(),
+        id: new_instance_id(),
         name,
         version,
         loader,
         last_played: None,
     };
-    state.instances.push(instance.clone());
+    list.push(instance.clone());
+    save_instances(&app, &list)?;
     Ok(instance)
 }
 
 #[tauri::command]
-pub fn delete_instance(id: String, state: State<Mutex<LauncherState>>) -> Result<(), String> {
-    let mut state = state.lock().unwrap();
-    state.instances.retain(|i| i.id != id);
-    Ok(())
+pub fn delete_instance(id: String, app: AppHandle) -> Result<(), String> {
+    let mut list = load_instances(&app);
+    list.retain(|i| i.id != id);
+    save_instances(&app, &list)
 }
 
 /// 把 Maven 坐标（group:artifact:version[:classifier]）还原为 libraries 下的相对路径。
@@ -188,12 +203,59 @@ fn maven_path(name: &str) -> Option<String> {
     Some(format!("{}/{}/{}/{}", group, artifact, version, file))
 }
 
+/// 判定 arguments 里带 rules 的参数在当前系统是否启用。
+///
+/// 规则语义与 Mojang 一致：按顺序求值，第一条命中的规则决定去留；
+/// 全部不命中则不启用。此处只做 os.name / os.arch 级别的判定
+/// （arguments 里的条件参数几乎只用 os.name），版本号级别的判定交给 lib-core 侧。
+fn rules_allow(rules: Option<&serde_json::Value>, _version: &str) -> bool {
+    let Some(rules) = rules.and_then(|r| r.as_array()) else {
+        return true;
+    };
+    let os_name = if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "osx"
+    } else {
+        "linux"
+    };
+    let arch = if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "x86_64"
+    };
+
+    for rule in rules {
+        let matched = if let Some(os) = rule.get("os") {
+            let name_ok = os
+                .get("name")
+                .and_then(|n| n.as_str())
+                .map(|n| n == os_name)
+                .unwrap_or(true);
+            let arch_ok = os
+                .get("arch")
+                .and_then(|a| a.as_str())
+                .map(|a| a == arch)
+                .unwrap_or(true);
+            name_ok && arch_ok
+        } else {
+            true
+        };
+        if matched {
+            let action = rule.get("action").and_then(|a| a.as_str()).unwrap_or("allow");
+            return action == "allow";
+        }
+    }
+    false
+}
+
 /// 启动一次游戏（lib-core Launch.run 的后端实现）。
 ///
 /// 流程（参考 HMCLCore 的启动编排，简化版）：
-///   解析版本 JSON → 组装类路径（客户端 jar + libraries）→ 解析游戏参数并做变量替换
+///   解析版本 JSON → 组装类路径（客户端 jar + libraries + natives）→ 解析游戏参数并做变量替换
 ///   → 拼接 JVM 参数（内存、classpath、主类）→ 以指定 Java 拉起进程。
-/// 注：本实现为可运行的最小闭环，未含原生库解包、资源索引下载与启动器规则（rules）判定。
+/// 注：依赖库 / 资源 / 原生库的**下载**由 lib-core 的 VersionRepository 负责（计划 → DownloadManager），
+/// 此处只负责「已就位文件的装配与启动」。
 #[tauri::command]
 pub fn launch_minecraft(req: LaunchRequest, app: AppHandle) -> Result<String, String> {
     let mc = app
@@ -218,6 +280,12 @@ pub fn launch_minecraft(req: LaunchRequest, app: AppHandle) -> Result<String, St
         .ok_or("版本 JSON 缺少 mainClass")?
         .to_string();
     let client_jar = mc.join("versions").join(&version).join(format!("{}.jar", version));
+    if !client_jar.exists() {
+        return Err(format!(
+            "缺少客户端 jar：{}（该版本可能未下载完成，请重新安装）",
+            client_jar.display()
+        ));
+    }
 
     // 类路径：客户端 jar + 已下载的 libraries
     let mut classpath = vec![client_jar.to_string_lossy().to_string()];
@@ -233,11 +301,31 @@ pub fn launch_minecraft(req: LaunchRequest, app: AppHandle) -> Result<String, St
             }
         }
     }
+    // 原生库 jar 也进 classpath：LWJGL 3 会自行从 classpath 里解出 .dll/.so。
+    let natives_dir = mc.join("natives").join(&version);
+    if let Ok(entries) = std::fs::read_dir(&natives_dir) {
+        for e in entries.flatten() {
+            let path = e.path();
+            if path.extension().map(|x| x == "jar").unwrap_or(false) {
+                classpath.push(path.to_string_lossy().to_string());
+            }
+        }
+    }
 
+    // 资源索引名：新版在 assetIndex.id，旧版在 assets 字段。
     let assets_index = vjson
-        .get("assets")
+        .get("assetIndex")
+        .and_then(|a| a.get("id"))
         .and_then(|a| a.as_str())
+        .or_else(|| vjson.get("assets").and_then(|a| a.as_str()))
         .unwrap_or("legacy")
+        .to_string();
+
+    // 版本类型（正式版 / snapshot），arguments 里会用到 ${version_type}
+    let version_type = vjson
+        .get("type")
+        .and_then(|t| t.as_str())
+        .unwrap_or("release")
         .to_string();
 
     // 游戏参数：新版 arguments.game 或旧版 minecraftArguments
@@ -250,8 +338,23 @@ pub fn launch_minecraft(req: LaunchRequest, app: AppHandle) -> Result<String, St
         for a in args {
             if let Some(s) = a.as_str() {
                 game_args.push(s.to_string());
+            } else if let Some(value) = a.get("value") {
+                // 形如 { "rules": [...], "value": "--xxx" | ["--a","--b"] }
+                if !rules_allow(a.get("rules"), &version) {
+                    continue;
+                }
+                match value {
+                    Some(v) if v.is_string() => game_args.push(v.as_str().unwrap_or_default().to_string()),
+                    Some(v) if v.is_array() => {
+                        for item in v.as_array().unwrap() {
+                            if let Some(s) = item.as_str() {
+                                game_args.push(s.to_string());
+                            }
+                        }
+                    }
+                    _ => {}
+                }
             }
-            // 规则对象（rules）此处简化处理：跳过条件参数
         }
     } else if let Some(legacy) = vjson.get("minecraftArguments").and_then(|m| m.as_str()) {
         game_args = legacy.split_whitespace().map(|s| s.to_string()).collect();
@@ -283,6 +386,7 @@ pub fn launch_minecraft(req: LaunchRequest, app: AppHandle) -> Result<String, St
     let replacements: Vec<(&str, String)> = vec![
         ("${auth_player_name}", player),
         ("${version_name}", version.clone()),
+        ("${version_type}", version_type.clone()),
         ("${game_directory}", mc_dir),
         ("${assets_root}", assets_root),
         ("${assets_index_name}", assets_index),
@@ -310,9 +414,16 @@ pub fn launch_minecraft(req: LaunchRequest, app: AppHandle) -> Result<String, St
         format!("-Xmx{}M", req.memory_mb),
         "-XX:+UnlockExperimentalVMOptions".to_string(),
         "-XX:+UseG1GC".to_string(),
-        "-cp".to_string(),
-        classpath.join(sep),
     ];
+    // 原生库目录（LWJGL 2 需要显式指定；LWJGL 3 会自己从 classpath 解）
+    if natives_dir.exists() {
+        jvm_args.push(format!(
+            "-Djava.library.path={}",
+            natives_dir.to_string_lossy()
+        ));
+    }
+    jvm_args.push("-cp".to_string());
+    jvm_args.push(classpath.join(sep));
 
     let java = if req.java_path.is_empty() {
         "java".to_string()

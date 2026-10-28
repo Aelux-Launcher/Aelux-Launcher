@@ -33,6 +33,23 @@ function statusOf(s: string): TaskItem['status'] {
   return s as TaskItem['status']
 }
 
+/** 任务 id → 可读标题（任务 id 形如 lib:group:artifact:version / asset:minecraft/...）。 */
+function taskTitle(id: string): string {
+  if (id.startsWith('vjson:')) return `版本信息 ${id.slice(6)}`
+  if (id.startsWith('vjar:')) return `客户端 jar ${id.slice(5)}`
+  if (id.startsWith('lib:')) return `依赖 ${id.slice(4)}`
+  if (id.startsWith('aindex:')) return '资源索引'
+  if (id.startsWith('asset:')) {
+    const p = id.slice(6)
+    return p.split('/').pop() ?? p
+  }
+  if (id.startsWith('native:')) return `原生库 ${id.slice(7)}`
+  return id
+}
+
+/** 一次安装会产生数千个资源文件，列表只展示进行中的前若干条 + 汇总。 */
+const MAX_VISIBLE_TASKS = 40
+
 /**
  * 下载页 —— 对应 PCL 的 `PageDownload`（PageDownloadLeft + PageDownloadInstall）：
  *   左栏：资源类型列表（原版游戏 / Mod / 整合包 / 数据包 / 资源包 / 光影包）
@@ -76,7 +93,7 @@ export function Download() {
         const pct = t.total > 0 ? Math.round((t.received / t.total) * 100) : undefined
         return {
           id: t.id,
-          title: t.id.replace(/^vjson:|vjar:/, ''),
+          title: taskTitle(t.id),
           description: t.dest,
           status: statusOf(t.status),
           progress: pct,
@@ -84,6 +101,13 @@ export function Download() {
       }),
     [downloadState],
   )
+
+  /** 优先展示进行中的任务，避免数千条资源把界面撑爆。 */
+  const visibleTasks = useMemo(() => {
+    const running = tasks.filter((t) => t.status === 'running' || t.status === 'pending')
+    const others = tasks.filter((t) => t.status !== 'running' && t.status !== 'pending')
+    return [...running, ...others].slice(0, MAX_VISIBLE_TASKS)
+  }, [tasks])
 
   const totalBytes = downloadState?.tasks.reduce((a, t) => a + (t.total || 0), 0) ?? 0
   const recvBytes = downloadState?.tasks.reduce((a, t) => a + (t.received || 0), 0) ?? 0
@@ -206,9 +230,19 @@ export function Download() {
             <div className="pcl-section">
               <div className="pcl-section__head">
                 <h3>下载任务</h3>
-                <span className="pcl-section__count">{tasks.length} 项</span>
+                <span className="pcl-section__count">
+                  {tasks.length} 项
+                  {downloadState
+                    ? ` · 完成 ${downloadState.completed} · 失败 ${downloadState.failed}`
+                    : ''}
+                </span>
               </div>
-              <TaskList items={tasks} />
+              <TaskList items={visibleTasks} maxHeight={320} />
+              {tasks.length > visibleTasks.length && (
+                <p className="pcl-section__count" style={{ marginTop: 8 }}>
+                  仅显示前 {visibleTasks.length} 项，其余 {tasks.length - visibleTasks.length} 项已排队。
+                </p>
+              )}
             </div>
           )}
 
@@ -231,7 +265,7 @@ export function Download() {
           { label: '已下载', value: `${(recvBytes / 1048576).toFixed(1)} MB` },
           { label: '总大小', value: `${(totalBytes / 1048576).toFixed(1)} MB` },
         ]}
-        details={<TaskList items={tasks} maxHeight={180} />}
+        details={<TaskList items={visibleTasks} maxHeight={180} />}
         cancellable={false}
         showClose
         closeOnEsc

@@ -107,6 +107,8 @@ export const previewAdapter: PlatformAdapter = {
         return JSON.stringify({ id: 'preview', downloads: {} }) as T
       case 'list_jres':
         return [{ path: '/usr/bin/java', major: 21, version: '21.0.3' }] as T
+      case 'get_os_info':
+        return { name: 'windows', version: '10.0.19045', arch: 'x86_64' } as T
       case 'launch_minecraft':
         return 0 as T
       case 'get_instances':

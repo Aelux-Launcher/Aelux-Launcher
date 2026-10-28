@@ -31,7 +31,7 @@ export function More() {
             <h3>关于 Aelux 启动器</h3>
           </div>
           <div className="pcl-about">
-            <div className="pcl-about__logo">A</div>
+            <img className="pcl-about__logo" src="/aelux-icon.png" alt="Aelux" />
             <div className="pcl-about__name">Aelux Launcher</div>
             <div className="pcl-about__version">版本 0.1.0 · MIT License</div>
             <p className="pcl-about__desc">

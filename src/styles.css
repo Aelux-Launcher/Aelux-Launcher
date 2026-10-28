@@ -112,16 +112,11 @@ body {
   justify-self: start;
 }
 .aelux-titlebar__logo {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 13px;
-  color: #fff;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  object-fit: contain;
+  display: block;
 }
 .aelux-titlebar__name {
   font-size: 15px;
@@ -625,15 +620,11 @@ body {
   padding: 22px 24px;
 }
 .pcl-about__logo {
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #4890f5, #1370f3);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-size: 22px;
-  font-weight: 700;
+  object-fit: contain;
+  display: block;
   margin-bottom: 12px;
 }
 .pcl-about__name {

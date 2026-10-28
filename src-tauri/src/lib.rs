@@ -47,6 +47,7 @@ pub fn run() {
             ext_commands::read_text,
             ext_commands::write_text,
             ext_commands::get_data_dir,
+            ext_commands::get_os_info,
             ext_commands::fetch_minecraft_manifest,
             ext_commands::fetch_json,
             ext_commands::list_jres,

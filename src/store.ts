@@ -31,6 +31,7 @@ import {
   type GameInstance,
   type McVersionEntry,
   type DownloadManagerState,
+  type DownloadTaskInput,
   type LaunchResult,
 } from 'aelux-launcher-lib'
 import { platform, isTauri } from './lib/bridge'
@@ -164,8 +165,20 @@ export const useApp = create<AppState>((set, get) => ({
         manifestProvider: () => platform.invoke('fetch_minecraft_manifest'),
         fetchVersionJson: (url: string) =>
           platform.invoke<string>('fetch_json', { url }).then((s) => JSON.parse(s)),
+        fetchJson: (url: string) =>
+          platform.invoke<string>('fetch_json', { url }).then((s) => JSON.parse(s)),
+        osProvider: async () => {
+          try {
+            return await platform.invoke<
+              { name: string; version: string; arch: string }
+            >('get_os_info')
+          } catch {
+            return { name: 'windows', version: '10.0', arch: 'x86_64' }
+          }
+        },
         metaRoot: versionsDir,
         gameRoot: versionsDir,
+        assetsRoot: mc,
       })
       downloadManager = new DownloadManager(platform, 8, 3)
       java = new JavaManager(platform)
@@ -276,11 +289,25 @@ export const useApp = create<AppState>((set, get) => ({
     try {
       const plan = await versionRepo.planInstall(id)
       if (!plan) throw new Error('无法生成安装计划')
-      const tasks = [plan.versionJson, plan.clientJar].filter(Boolean) as Parameters<
-        DownloadManager['enqueue']
-      >[0]
+
+      // 完整安装计划：版本 JSON + 客户端 jar + 依赖库 + 资源索引 + 资源对象 + 原生库。
+      // 少了依赖库 classpath 不全、少了资源对象材质/音效全丢，游戏都起不来。
+      const tasks: DownloadTaskInput[] = [
+        plan.versionJson,
+        ...(plan.clientJar ? [plan.clientJar] : []),
+        ...plan.libraries,
+        ...(plan.assetsIndex ? [plan.assetsIndex] : []),
+        ...plan.assets,
+        ...plan.natives,
+      ]
       downloadManager.enqueue(tasks)
       await downloadManager.whenIdle()
+
+      const state = downloadManager.getState()
+      if (state.failed > 0) {
+        throw new Error(`${state.failed} 个文件下载失败，安装未完成`)
+      }
+
       // 安装完成 → 登记为实例，主页即可一键启动。
       await get().createInstance(id, id)
       telemetry.record('install', { version: id })

@@ -67,9 +67,23 @@ fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
 
+/// 全局共享的 HTTP 客户端。
+/// 早期实现每次下载都新建 Client，连接无法复用 —— 下载几千个资源文件时
+/// 握手开销会拖垮速度。共享一个 Client 后由连接池复用，吞吐显著提升。
+fn http_client() -> &'static reqwest::blocking::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::blocking::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::blocking::Client::builder()
+            .user_agent("Aelux-Launcher/0.1")
+            .timeout(std::time::Duration::from_secs(120))
+            .build()
+            .unwrap_or_default()
+    })
+}
+
 #[tauri::command]
 pub fn download_file(url: String, dest: String, sha256: Option<String>) -> Result<String, String> {
-    let client = reqwest::blocking::Client::new();
+    let client = http_client();
     let resp = client.get(&url).send().map_err(|e| e.to_string())?;
     let bytes = resp.bytes().map_err(|e| e.to_string())?;
 
@@ -214,9 +228,68 @@ pub fn write_text(path: String, content: String) -> Result<(), String> {
 /* ===================== 版本清单 / JSON 拉取 ===================== */
 
 fn fetch_text(url: &str) -> Result<String, String> {
-    let client = reqwest::blocking::Client::new();
+    let client = http_client();
     let resp = client.get(url).send().map_err(|e| e.to_string())?;
     resp.text().map_err(|e| e.to_string())
+}
+
+/* ===================== 运行环境信息 ===================== */
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OsInfo {
+    /// windows / linux / macos
+    pub name: String,
+    /// x86_64 / aarch64
+    pub arch: String,
+    /// 供 rules 的 os.version 正则匹配
+    pub version: String,
+}
+
+/// 读取 Windows 的真实版本号（形如 "10.0.19045"）。
+/// 依赖 rules 里常见 `os.version: "^10\\."` 这类正则，必须给真实版本号才能命中，
+/// 否则 Windows 上的 natives 依赖会被规则过滤掉。
+fn windows_version() -> Option<String> {
+    let out = std::process::Command::new("cmd")
+        .args(["/C", "ver"])
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    // 形如：Microsoft Windows [Version 10.0.19045.4046]
+    let start = text.find('[')? + 1;
+    let end = text[start..].find(']')? + start;
+    let v = text[start..end].trim();
+    if v.is_empty() {
+        None
+    } else {
+        Some(v.to_string())
+    }
+}
+
+/// 当前操作系统信息 —— 供 lib-core 做依赖 rules 判定（lib-core 不直接读系统）。
+#[tauri::command]
+pub fn get_os_info() -> OsInfo {
+    let name = if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    };
+    let arch = if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "x86_64"
+    };
+    let version = if name == "windows" {
+        windows_version().unwrap_or_else(|| "10.0".to_string())
+    } else {
+        std::env::consts::OS.to_string()
+    };
+    OsInfo {
+        name: name.to_string(),
+        arch: arch.to_string(),
+        version,
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

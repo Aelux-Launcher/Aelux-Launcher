@@ -24,9 +24,7 @@ export function TitleBar() {
   return (
     <div className="aelux-titlebar" data-tauri-drag-region>
       <div className="aelux-titlebar__brand" data-tauri-drag-region>
-        <span className="aelux-titlebar__logo" aria-hidden="true">
-          A
-        </span>
+        <img className="aelux-titlebar__logo" src="/aelux-icon.png" alt="Aelux" />
         <span className="aelux-titlebar__name" data-tauri-drag-region>
           Aelux
         </span>
