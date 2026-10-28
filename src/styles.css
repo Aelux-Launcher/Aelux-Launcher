@@ -42,33 +42,21 @@ html[data-platform='linux'] .aelux-app {
   box-shadow: none;
 }
 
-/* 页面舞台：承载进出场动画（进入由左栏/右栏逐项动画承担，见 theme.css） */
-.alx-stage {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-}
-.alx-stage > * {
-  flex: 1;
-  min-width: 0;
-}
-.alx-stage--leave {
-  animation: alx-stage-out 110ms var(--alx-ease-in-fluent-weak) both;
-}
-
-/* 初始化提示条：浮在内容区右上角，不要横跨整个窗口把左栏也盖住 */
+/* 初始化提示条：浮在内容区**右下角**。
+   早期放在右上角，正好压住下载页搜索卡的「来源 / 类型」字段，
+   挡住可操作控件 —— 右下角是空白区，不与任何表单控件重叠。 */
 .aelux-content {
   position: relative;
 }
 .aelux-init-alerts {
   position: absolute;
-  right: 20px;
-  top: 12px;
+  right: 16px;
+  bottom: 16px;
   z-index: 20;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-width: 460px;
+  max-width: 420px;
   pointer-events: none;
 }
 .aelux-init-alerts .aelux-alert {

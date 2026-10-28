@@ -1,8 +1,8 @@
-import { IconButton, IconSun, IconMoon, IconPlay, IconDownload, IconExternal, IconSettings, IconGrid } from 'aelux-components'
+import { IconPlay, IconDownload, IconExternal, IconSettings, IconGrid, IconChevronLeft } from 'aelux-components'
 import { invoke } from '@tauri-apps/api/core'
 import { useApp } from '../store'
 
-type ViewKey = 'home' | 'download' | 'multiplayer' | 'settings' | 'more'
+export type ViewKey = 'home' | 'download' | 'multiplayer' | 'settings' | 'more'
 
 /** 顶栏导航：启动 / 下载 / 联机 / 设置 / 更多 */
 const TABS: { key: ViewKey; label: string; icon: React.ReactNode }[] = [
@@ -14,12 +14,39 @@ const TABS: { key: ViewKey; label: string; icon: React.ReactNode }[] = [
 ]
 
 /**
- * 顶部标题栏：
- *   高 48px、蓝色渐变；左侧品牌；中间为 MyRadioButton 标签组
- *   （未选中 #bbffffff 底 / 选中纯白底 + #1370f3 文字图标）；右侧窗口控制。
+ * 顶部标题栏（高 48px）：
+ *   左侧 Logo + 文字（17px 白）；中间居中水平胶囊标签组；
+ *   右侧最小化 + 关闭（28×28 圆形按钮）。
+ *   处于子页时，改为「返回箭头 + 子页名」并隐藏顶部标签。
  */
-export function TitleBar() {
-  const { view, setView, theme, setTheme, updateAvailable, browserMode } = useApp()
+export function TitleBar({
+  subTitle,
+  onBack,
+}: {
+  /** 子页标题；给出时显示返回栏 */
+  subTitle?: string
+  /** 返回回调 */
+  onBack?: () => void
+}) {
+  const { view, setView, browserMode } = useApp()
+
+  if (subTitle) {
+    return (
+      <div className="aelux-titlebar" data-tauri-drag-region>
+        <div className="aelux-subbar">
+          <button
+            type="button"
+            className="aelux-subbar__back"
+            aria-label="返回"
+            onClick={onBack}
+          >
+            <IconChevronLeft size={16} />
+          </button>
+          <span>{subTitle}</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="aelux-titlebar" data-tauri-drag-region>
@@ -54,29 +81,15 @@ export function TitleBar() {
       </nav>
 
       <div className="aelux-titlebar__actions">
-        {updateAvailable && <span className="aelux-titlebar__preview">有更新</span>}
-        <IconButton
-          size="sm"
-          variant="ghost"
-          label={theme === 'dark' ? '切换到浅色' : '切换到深色'}
-          icon={theme === 'dark' ? <IconSun size={15} /> : <IconMoon size={15} />}
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-        />
         <button
           type="button"
           className="aelux-titlebar__win"
           aria-label="最小化"
           onClick={() => invoke('minimize_window')}
         >
-          —
-        </button>
-        <button
-          type="button"
-          className="aelux-titlebar__win"
-          aria-label="最大化"
-          onClick={() => invoke('toggle_maximize')}
-        >
-          ▢
+          <svg width="13" height="13" viewBox="0 0 15 15" aria-hidden="true">
+            <path d="M0,0 h15 v2 h-15 v-2 Z" fill="currentColor" />
+          </svg>
         </button>
         <button
           type="button"
@@ -84,7 +97,12 @@ export function TitleBar() {
           aria-label="关闭"
           onClick={() => invoke('close_window')}
         >
-          ✕
+          <svg width="13" height="13" viewBox="0 0 20 20" aria-hidden="true">
+            <path
+              d="M2,0 L0,2 8,10 0,18 2,20 10,12 18,20 20,18 12,10 20,2 18,0 10,8 Z"
+              fill="currentColor"
+            />
+          </svg>
         </button>
       </div>
     </div>

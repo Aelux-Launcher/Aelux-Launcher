@@ -1,28 +1,62 @@
 /* ============================================================================
  * Aelux Launcher · 启动器视觉系统
  *
- * 启动器的外观规格（配色 / 圆角 / 控件 / 动效）以一份可核对的规格表为准，
- * 实现时所有数值都按规格表落地，不凭感觉调。
+ * 本文件是启动器的**唯一视觉来源**。所有配色、圆角、控件尺寸、状态、动效时长
+ * 都按一份逐项核对的规格表落地，不凭感觉调。
  *
- * 圆角一览
- *   窗口 6px · 卡片 5px · 输入框/下拉/按钮 3px · 顶栏标签 13.5px · 列表项悬停 3px
- * 动效一览
- *   悬停进入 100ms · 悬停离开 200ms · 选中变更 120ms · 按下 60~80ms
- *   列表项悬停：底色 120ms 淡入 + 192ms 缩放展开(.8→1)；离开：180ms 淡出 + 540ms 缩放归位
- *   页面进入：左栏逐项 translateX 回弹、右栏逐项 translateY 回弹（见下方关键帧）
+ * 规格表来源：对同类开源启动器的**公开产品形态与交互范式**逐项研究 ——
+ * 仅取其公开可见的形态；Aelux 为独立实现，
+ * 不含任何第三方源码或素材。
+ *
+ * ---------------------------------------------------------------------------
+ * 一、色板（Application.xaml:22-66）
+ * ---------------------------------------------------------------------------
+ *   Color1 #343d4a 正文          Color2 #0b5bcb 主蓝·深
+ *   Color3 #1370f3 主蓝          Color4 #4890f5 悬停图标
+ *   Color5 #96c0f9               Color6 #d5e6fd
+ *   Color7 #e0eafd               Color8 #eaf2fe
+ *   Bg0    #96c0f9               Bg1    rgba(222,236,253,.745)
+ *   Gray1..8  #404040 #737373 #8c8c8c #a6a6a6 #cccccc #ebebeb #f0f0f0 #f5f5f5
+ *   HalfWhite  rgba(255,255,255,.333)   控件底
+ *   SemiWhite  rgba(255,255,255,.733)   按钮外层底
+ *   SemiTransp rgba(234,242,254,.004)   列表项默认底（近乎透明）
+ *   SidebarBg  rgba(255,255,255,.945)   左栏底板
+ *   卡片底     rgba(255,255,255,.961)
+ *
+ * 标题栏渐变与主页面背景由 HSL 动态生成（hue=210 sat=85）：
+ *   标题栏  #127AE2 → #268AED → #127AE2   （0 / .5 / 1）
+ *   页面底  #D8F0F8 → #D8E8F8 → #D8E0F8   （-.1 / .4 / 1.1）
+ *
+ * ---------------------------------------------------------------------------
+ * 二、圆角
+ * ---------------------------------------------------------------------------
+ *   窗口 6 · 卡片 5 · 输入框/下拉/按钮 3 · 顶栏标签 13.5
+ *   列表项悬停底 0（高≤40 无缩放动画）/ 6（有缩放动画或高>40）
+ *   资源缩略图 6 · 复选框 3 · 提示条 2 · 弹窗 7
+ *
+ * ---------------------------------------------------------------------------
+ * 三、动效
+ * ---------------------------------------------------------------------------
+ *   悬停进入 100ms · 悬停离开 200ms · 选中变更 120ms · 按钮按下 80ms
+ *   按钮常态色变 200ms、悬停色变 100ms
+ *   列表项悬停：底色淡入 120ms + 背景块缩放 192ms(.8→1)
+ *   列表项离开：底色淡出 180ms + 背景块缩回 540ms
+ *   列表项按下：整项缩放 0.98 / 108ms
+ *   卡片悬停：阴影 90ms（透明度 .07→.4，色 #343d4a→#4890f5）
+ *   卡片折叠箭头：250ms 旋转
+ *   页面进入：左栏逐项 X 回弹、右栏逐项 Y 回弹（见关键帧）
  *   页面离开：整体 scale .95 + 淡出 110ms
  *
- * 缓动曲线（cubic-bezier 为规格曲线的数值拟合，误差 < 0.1%）
- *   out-fluent-weak  1-(1-t)^2      out-fluent  1-(1-t)^3
- *   out-back         回弹（过冲 ~18%） out-back-mid 回弹（过冲 ~26%）
- *   in-fluent-weak   t^2            in-fluent   t^3
+ *   缓动（源码公式 → cubic-bezier 数值拟合，误差 <0.1%）
+ *     OutFluent(p) : 1-(1-t)^p        → p=2 弱 / p=3 中 / p=4 强
+ *     OutBack(p)    : 1-(1-t)^(3-p/2)·cos(1.5πt)   回弹，过冲
+ *     InFluent(p)   : t^p              → p=2 弱 / p=3 中
  * ========================================================================== */
 
 :root {
   /* ---- 组件库令牌覆盖 ----
    * 组件库自带一套青色主色（#28a4e0），若不覆盖，同一界面会出现「外壳深蓝 +
-   * 组件青蓝」两套蓝。这里把组件库的主色/信息色/文字色统一到下面的色阶，
-   * 使 Button / Badge / Alert / Progress / Input / TaskList 等与外壳同色系。 */
+   * 组件青蓝」两套蓝。这里把组件库的主色/信息色/文字色统一到下面的色阶。 */
   --aelux-primary-50: #eaf2fe;
   --aelux-primary-100: #d5e6fd;
   --aelux-primary-200: #b5d4f4;
@@ -41,14 +75,12 @@
   --aelux-primary-text: #0b5bcb;
   --aelux-primary-contrast: #ffffff;
 
-  /* 信息色也并入蓝系，避免青色混进来 */
   --aelux-info: #4890f5;
   --aelux-info-hover: #1370f3;
   --aelux-info-soft: #eaf2fe;
   --aelux-info-soft-border: #b5d4f4;
   --aelux-info-text: #0b5bcb;
 
-  /* 文字与表面 */
   --aelux-text: #343d4a;
   --aelux-text-secondary: #737373;
   --aelux-text-tertiary: #8c8c8c;
@@ -57,15 +89,15 @@
   --aelux-surface-subtle: #f7f9fc;
   --aelux-surface-hover: #eef1f4;
 
-  /* ---- 主色阶 ---- */
+  /* ---- 主色阶（源码固定值） ---- */
   --alx-1: #343d4a; /* 正文 */
-  --alx-2: #0b5bcb; /* 主蓝·深 */
-  --alx-3: #1370f3; /* 主蓝 */
-  --alx-4: #4890f5; /* 标题栏 */
-  --alx-5: #96c0f9;
-  --alx-6: #d5e6fd;
-  --alx-7: #e0eafd;
-  --alx-8: #eaf2fe;
+  --alx-2: #0b5bcb; /* 主蓝·深（选中项文字，Height≥40） */
+  --alx-3: #1370f3; /* 主蓝（选中项文字，Height<40） */
+  --alx-4: #4890f5; /* 悬停图标色 */
+  --alx-5: #96c0f9; /* 常规图标色 / 输入框边框 */
+  --alx-6: #d5e6fd; /* 列表项边框 / 下拉选中底 */
+  --alx-7: #e0eafd; /* 卡片悬停底 / 列表项常态底 */
+  --alx-8: #eaf2fe; /* 最浅蓝 */
 
   --alx-gray-1: #404040;
   --alx-gray-2: #737373;
@@ -76,22 +108,43 @@
   --alx-gray-7: #f0f0f0;
   --alx-gray-8: #f5f5f5;
 
-  /* 半透明白 */
-  --alx-white-33: rgba(255, 255, 255, 0.333);
-  --alx-white-73: rgba(255, 255, 255, 0.733);
-  --alx-white-96: rgba(255, 255, 255, 0.961);
+  /* 半透明白（源码 ARGB） */
+  --alx-white-33: rgba(255, 255, 255, 0.333); /* HalfWhite  控件底 */
+  --alx-white-73: rgba(255, 255, 255, 0.733); /* SemiWhite  按钮外层底 */
+  --alx-white-96: rgba(255, 255, 255, 0.961); /* 卡片底 */
+  --alx-white-01: rgba(234, 242, 254, 0.004); /* SemiTransparent 列表项默认底 */
+  --alx-sidebar-bg: rgba(255, 255, 255, 0.945); /* 左栏底板 */
+  --alx-bg1: rgba(222, 236, 253, 0.745); /* 列表项悬停底 */
+
+  /* 标题栏渐变（HSL 210/85 动态生成的落地值） */
+  --alx-title-grad: linear-gradient(90deg, #127ae2 0%, #268aed 50%, #127ae2 100%);
+  /* 主页面背景渐变 */
+  --alx-page-grad: linear-gradient(135deg, #d8f0f8 0%, #d8e8f8 38%, #d8e0f8 100%);
+
+  /* 提示条三主题 */
+  --alx-hint-blue-bg: #d9ecff;
+  --alx-hint-blue-border: #1172d4;
+  --alx-hint-blue-text: #0f64b8;
+  --alx-hint-red-bg: #ffdddf;
+  --alx-hint-red-border: #d82929;
+  --alx-hint-red-text: #bf0b0b;
+  --alx-hint-yellow-bg: #ffebd7;
+  --alx-hint-yellow-border: #f57a00;
+  --alx-hint-yellow-text: #d86c00;
 
   /* 圆角 */
   --alx-radius-window: 6px;
   --alx-radius-card: 5px;
   --alx-radius-control: 3px;
   --alx-radius-tab: 13.5px;
+  --alx-radius-thumb: 6px;
 
   /* 时长 */
-  --alx-dur-in: 100ms;
-  --alx-dur-out: 200ms;
-  --alx-dur-check: 120ms;
-  --alx-dur-press: 60ms;
+  --alx-dur-in: 100ms; /* 悬停进入 */
+  --alx-dur-out: 200ms; /* 悬停离开 */
+  --alx-dur-check: 120ms; /* 选中变更 */
+  --alx-dur-press: 80ms; /* 按下 */
+  --alx-dur-card: 90ms; /* 卡片阴影 */
 
   /* 缓动 */
   --alx-ease-out-fluent-weak: cubic-bezier(0.3454, 0.691, 0.6791, 1);
@@ -117,12 +170,13 @@
   --aelux-info-text: #96c0f9;
 }
 
-/* ===================== 窗口外壳 ===================== */
+/* ============================================================================
+ * 窗口外壳
+ * ========================================================================== */
 .aelux-app {
   display: flex;
   flex-direction: column;
-  /* 四周有 8px 外边距（窗口透明，露出桌面），高度必须扣掉这两条边距，
-     否则内容比窗口高 16px，底部会被裁掉一截（启动页的「启动游戏」按钮就是被这样切掉的）。 */
+  /* 四周 8px 外边距（窗口透明，露出桌面），高度必须扣掉这两条边距 */
   height: calc(100vh - 16px);
   margin: 8px;
   border-radius: var(--alx-radius-window);
@@ -131,8 +185,14 @@
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.22);
 }
 
-/* ===================== 标题栏 ===================== */
+/* ============================================================================
+ * 标题栏（48px）
+ *   左：Logo + 文字（17px 白）
+ *   中：居中水平胶囊标签（启动/下载/联机/设置/更多）
+ *   右：最小化 + 关闭（28×28 圆形图标按钮）
+ * ========================================================================== */
 .aelux-titlebar {
+  position: relative;
   height: 48px;
   flex: 0 0 48px;
   display: grid;
@@ -140,7 +200,7 @@
   align-items: center;
   gap: 12px;
   padding: 0 6px 0 18px;
-  background: linear-gradient(90deg, var(--alx-4) 0%, var(--alx-3) 100%);
+  background: var(--alx-title-grad);
   color: #fff;
   user-select: none;
 }
@@ -158,7 +218,7 @@
   display: block;
 }
 .aelux-titlebar__name {
-  font-size: 19px;
+  font-size: 17px;
   color: #fff;
   letter-spacing: 0.04em;
 }
@@ -170,11 +230,11 @@
   color: #fff;
 }
 
-/* 顶栏标签：常态半透明白底 → 悬停更亮 → 选中纯白底 + 主蓝字 */
+/* 顶栏标签：常态近透明底 → 悬停淡蓝底 → 选中纯白底 + 主蓝字 */
 .aelux-titlebar__nav {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   justify-self: center;
 }
 .alx-tab {
@@ -184,13 +244,12 @@
   padding: 0 12px 0 0;
   border: none;
   border-radius: var(--alx-radius-tab);
-  background: var(--alx-white-73);
+  background: var(--alx-white-01);
   color: #fff;
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
-  transition: background var(--alx-dur-in) var(--alx-ease-out-fluent),
-    color var(--alx-dur-in) var(--alx-ease-out-fluent);
+  transition: background var(--alx-dur-out) linear, color var(--alx-dur-out) linear;
 }
 .alx-tab__icon {
   display: inline-flex;
@@ -200,14 +259,14 @@
   height: 16px;
   margin: 0 8px 0 12px;
   color: #fff;
-  transition: color var(--alx-dur-in) var(--alx-ease-out-fluent);
+  transition: color var(--alx-dur-out) linear;
 }
 .alx-tab:hover {
-  background: rgba(255, 255, 255, 0.196);
+  background: rgba(234, 242, 254, 0.196);
 }
 .alx-tab:active {
-  background: rgba(255, 255, 255, 0.47);
-  transition-duration: var(--alx-dur-press);
+  background: rgba(234, 242, 254, 0.47);
+  transition-duration: 60ms;
 }
 .alx-tab.is-active {
   background: #fff;
@@ -224,34 +283,81 @@
   gap: 2px;
   justify-self: end;
 }
+/* 窗口按钮：28×28 圆形图标按钮（源码 MyIconButton Theme=White） */
 .aelux-titlebar__win {
-  width: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
   height: 28px;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 13px;
-  font-family: inherit;
-  border-radius: 3px;
+  color: var(--alx-8);
   cursor: pointer;
-  transition: background var(--alx-dur-in) var(--alx-ease-out-fluent);
+  border-radius: 50%;
+  transition: background var(--alx-dur-in) linear, color var(--alx-dur-in) linear;
 }
 .aelux-titlebar__win:hover {
-  background: var(--alx-white-33);
+  background: rgba(255, 255, 255, 0.196);
 }
 .aelux-titlebar__win--close:hover {
-  background: #e24b4a;
-  color: #fff;
+  background: rgba(255, 76, 76, 0.63);
 }
 .aelux-titlebar__actions .aelux-icon-btn {
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--alx-8);
 }
 .aelux-titlebar__actions .aelux-icon-btn:hover {
-  background: var(--alx-white-33);
+  background: rgba(255, 255, 255, 0.196);
   color: #fff;
 }
 
-/* ===================== 主体两栏 ===================== */
+/* 子页标题栏（返回箭头 + 子页名，替代顶部标签） */
+.aelux-subbar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-left: 12px;
+  color: var(--alx-8);
+  font-size: 15px;
+  animation: alx-subbar-in 200ms var(--alx-ease-out-fluent) both;
+}
+@keyframes alx-subbar-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.aelux-subbar__back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--alx-8);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background var(--alx-dur-in) linear;
+}
+.aelux-subbar__back:hover {
+  background: rgba(255, 255, 255, 0.196);
+}
+
+/* ============================================================================
+ * 主体两栏
+ *   左栏：半透明白底板 + 内容自适应宽度
+ *   右栏：浅蓝渐变底 + 白色卡片
+ * ========================================================================== */
 .aelux-body {
   flex: 1;
   display: flex;
@@ -264,17 +370,36 @@
   min-height: 0;
   overflow: hidden;
 }
+/* 页面舞台：承载进出场动画
+ *
+ * 采用「双层交叉过渡」：
+ *   当前页层 —— 正常流式，决定舞台尺寸，立即入场；
+ *   退场页层 —— 绝对定位盖在上层，整体缩放淡出，结束后卸载。
+ * 两层各自带不透明的左右栏底色，交叉淡化时露出的是页面本身，
+ * 不会像「整页淡到透明」那样透出窗口底色。
+ */
 .alx-stage {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
 }
-.alx-stage > * {
+.alx-stage__layer {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+.alx-stage__layer > * {
   flex: 1;
   min-width: 0;
 }
-/* 离开：整体缩放 + 淡出 */
-.alx-stage--leave {
+/* 退场层：盖在新页之上，整体缩放 + 淡出；不拦截点击 */
+.alx-stage__layer--leaving {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
   animation: alx-stage-out 110ms var(--alx-ease-in-fluent-weak) both;
 }
 @keyframes alx-stage-out {
@@ -291,6 +416,13 @@
     transform: scale(0.95);
   }
 }
+/* 尊重系统「减少动态效果」设置：直接切换，不做缩放淡出 */
+@media (prefers-reduced-motion: reduce) {
+  .alx-stage__layer--leaving {
+    animation: none;
+    display: none;
+  }
+}
 
 .alx-page {
   display: flex;
@@ -301,117 +433,128 @@
   flex: 0 0 auto;
   overflow-y: auto;
   overflow-x: hidden;
-  background: #fff;
-  border-right: 1px solid var(--alx-gray-6);
+  background: var(--alx-sidebar-bg);
+  box-shadow: 4px 0 8px rgba(0, 0, 0, 0.04);
   padding: 0 0 16px;
+}
+/* 填充型左栏：内容需要撑满高度，把主按钮压到底部（如启动页）。
+   自身不加 padding，交给内容容器控制，避免双重留白把按钮顶离底部。 */
+.alx-page__left--fill {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+.alx-page__left--fill > * {
+  flex: 1;
+  min-height: 0;
 }
 .alx-page__right {
   flex: 1 1 0;
   min-width: 0;
   overflow-y: auto;
-  padding: 16px 20px 24px;
-  /* 右侧底色要足够蓝，白色卡片才能拉开层次（太淡会和卡片糊在一起） */
-  background: linear-gradient(135deg, #dbe9fd 0%, #c9def9 50%, #b6d0f6 100%);
+  padding: 25px;
+  background: var(--alx-page-grad);
 }
 
-/* ===================== 进入动画关键帧 =====================
- * 左栏列表项：X 从 -25 出发，先用 out-fluent 前冲 +5，再用 out-back 回弹 +20 归位
- * 右栏内容：  Y 从 -16 出发，先用 out-fluent 前冲 +5，再用 out-back 回弹 +11 归位
- * 关键帧由这两条曲线在数值上求和后逐点采样得到，与设计规格完全一致。
- * ==================================================================== */
+/* ============================================================================
+ * 进入动画关键帧
+ *   左栏列表项：X 从 -25 出发，先 out-fluent 前冲 +5，再 out-back 回弹 +20 归位
+ *   右栏内容：  Y 从 -16 出发，先 out-fluent 前冲 +5，再 out-back 回弹 +11 归位
+ *   关键帧由这两条曲线在数值上求和后逐点采样得到，与设计规格完全一致。
+ * ========================================================================== */
 @keyframes alx-item-in {
-  0.000% { transform: translateX(-25.000px); opacity: 0.000; }
-  3.333% { transform: translateX(-23.061px); opacity: 0.190; }
-  6.667% { transform: translateX(-20.796px); opacity: 0.360; }
-  10.000% { transform: translateX(-18.286px); opacity: 0.510; }
-  13.333% { transform: translateX(-15.615px); opacity: 0.640; }
-  16.667% { transform: translateX(-12.868px); opacity: 0.750; }
-  20.000% { transform: translateX(-10.127px); opacity: 0.840; }
-  23.333% { transform: translateX(-7.468px); opacity: 0.910; }
-  26.667% { transform: translateX(-4.961px); opacity: 0.960; }
-  30.000% { transform: translateX(-2.664px); opacity: 0.990; }
-  33.333% { transform: translateX(-0.625px); opacity: 1.000; }
-  36.667% { transform: translateX(1.121px); opacity: 1.000; }
-  40.000% { transform: translateX(2.552px); opacity: 1.000; }
-  43.333% { transform: translateX(3.659px); opacity: 1.000; }
-  46.667% { transform: translateX(4.444px); opacity: 1.000; }
-  50.000% { transform: translateX(4.922px); opacity: 1.000; }
-  53.333% { transform: translateX(5.118px); opacity: 1.000; }
-  56.667% { transform: translateX(5.066px); opacity: 1.000; }
-  60.000% { transform: translateX(4.807px); opacity: 1.000; }
-  63.333% { transform: translateX(4.385px); opacity: 1.000; }
-  66.667% { transform: translateX(3.849px); opacity: 1.000; }
-  70.000% { transform: translateX(3.246px); opacity: 1.000; }
-  73.333% { transform: translateX(2.619px); opacity: 1.000; }
-  76.667% { transform: translateX(2.009px); opacity: 1.000; }
-  80.000% { transform: translateX(1.447px); opacity: 1.000; }
-  83.333% { transform: translateX(0.962px); opacity: 1.000; }
-  86.667% { transform: translateX(0.572px); opacity: 1.000; }
-  90.000% { transform: translateX(0.287px); opacity: 1.000; }
-  93.333% { transform: translateX(0.106px); opacity: 1.000; }
-  96.667% { transform: translateX(0.019px); opacity: 1.000; }
-  100.000% { transform: translateX(0.000px); opacity: 1.000; }
+  0% { transform: translateX(-25px); opacity: 0; }
+  3.333% { transform: translateX(-23.061px); opacity: 0.19; }
+  6.667% { transform: translateX(-20.796px); opacity: 0.36; }
+  10% { transform: translateX(-18.286px); opacity: 0.51; }
+  13.333% { transform: translateX(-15.615px); opacity: 0.64; }
+  16.667% { transform: translateX(-12.868px); opacity: 0.75; }
+  20% { transform: translateX(-10.127px); opacity: 0.84; }
+  23.333% { transform: translateX(-7.468px); opacity: 0.91; }
+  26.667% { transform: translateX(-4.961px); opacity: 0.96; }
+  30% { transform: translateX(-2.664px); opacity: 0.99; }
+  33.333% { transform: translateX(-0.625px); opacity: 1; }
+  36.667% { transform: translateX(1.121px); opacity: 1; }
+  40% { transform: translateX(2.552px); opacity: 1; }
+  43.333% { transform: translateX(3.659px); opacity: 1; }
+  46.667% { transform: translateX(4.444px); opacity: 1; }
+  50% { transform: translateX(4.922px); opacity: 1; }
+  53.333% { transform: translateX(5.118px); opacity: 1; }
+  56.667% { transform: translateX(5.066px); opacity: 1; }
+  60% { transform: translateX(4.807px); opacity: 1; }
+  63.333% { transform: translateX(4.385px); opacity: 1; }
+  66.667% { transform: translateX(3.849px); opacity: 1; }
+  70% { transform: translateX(3.246px); opacity: 1; }
+  73.333% { transform: translateX(2.619px); opacity: 1; }
+  76.667% { transform: translateX(2.009px); opacity: 1; }
+  80% { transform: translateX(1.447px); opacity: 1; }
+  83.333% { transform: translateX(0.962px); opacity: 1; }
+  86.667% { transform: translateX(0.572px); opacity: 1; }
+  90% { transform: translateX(0.287px); opacity: 1; }
+  93.333% { transform: translateX(0.106px); opacity: 1; }
+  96.667% { transform: translateX(0.019px); opacity: 1; }
+  100% { transform: translateX(0); opacity: 1; }
 }
 
 @keyframes alx-card-in {
-  0.000% { transform: translateY(-16.000px); opacity: 0.000; }
-  3.333% { transform: translateY(-14.658px); opacity: 0.220; }
-  6.667% { transform: translateY(-13.160px); opacity: 0.412; }
-  10.000% { transform: translateY(-11.549px); opacity: 0.577; }
-  13.333% { transform: translateY(-9.870px); opacity: 0.716; }
-  16.667% { transform: translateY(-8.170px); opacity: 0.826; }
-  20.000% { transform: translateY(-6.493px); opacity: 0.910; }
+  0% { transform: translateY(-16px); opacity: 0; }
+  3.333% { transform: translateY(-14.658px); opacity: 0.22; }
+  6.667% { transform: translateY(-13.16px); opacity: 0.412; }
+  10% { transform: translateY(-11.549px); opacity: 0.577; }
+  13.333% { transform: translateY(-9.87px); opacity: 0.716; }
+  16.667% { transform: translateY(-8.17px); opacity: 0.826; }
+  20% { transform: translateY(-6.493px); opacity: 0.91; }
   23.333% { transform: translateY(-4.879px); opacity: 0.966; }
   26.667% { transform: translateY(-3.365px); opacity: 0.996; }
-  30.000% { transform: translateY(-1.983px); opacity: 1.000; }
-  33.333% { transform: translateY(-0.759px); opacity: 1.000; }
-  36.667% { transform: translateY(0.291px); opacity: 1.000; }
-  40.000% { transform: translateY(1.154px); opacity: 1.000; }
-  43.333% { transform: translateY(1.826px); opacity: 1.000; }
-  46.667% { transform: translateY(2.310px); opacity: 1.000; }
-  50.000% { transform: translateY(2.615px); opacity: 1.000; }
-  53.333% { transform: translateY(2.756px); opacity: 1.000; }
-  56.667% { transform: translateY(2.752px); opacity: 1.000; }
-  60.000% { transform: translateY(2.626px); opacity: 1.000; }
-  63.333% { transform: translateY(2.405px); opacity: 1.000; }
-  66.667% { transform: translateY(2.115px); opacity: 1.000; }
-  70.000% { transform: translateY(1.785px); opacity: 1.000; }
-  73.333% { transform: translateY(1.441px); opacity: 1.000; }
-  76.667% { transform: translateY(1.105px); opacity: 1.000; }
-  80.000% { transform: translateY(0.796px); opacity: 1.000; }
-  83.333% { transform: translateY(0.529px); opacity: 1.000; }
-  86.667% { transform: translateY(0.315px); opacity: 1.000; }
-  90.000% { transform: translateY(0.158px); opacity: 1.000; }
-  93.333% { transform: translateY(0.059px); opacity: 1.000; }
-  96.667% { transform: translateY(0.010px); opacity: 1.000; }
-  100.000% { transform: translateY(0.000px); opacity: 1.000; }
+  30% { transform: translateY(-1.983px); opacity: 1; }
+  33.333% { transform: translateY(-0.759px); opacity: 1; }
+  36.667% { transform: translateY(0.291px); opacity: 1; }
+  40% { transform: translateY(1.154px); opacity: 1; }
+  43.333% { transform: translateY(1.826px); opacity: 1; }
+  46.667% { transform: translateY(2.31px); opacity: 1; }
+  50% { transform: translateY(2.615px); opacity: 1; }
+  53.333% { transform: translateY(2.756px); opacity: 1; }
+  56.667% { transform: translateY(2.752px); opacity: 1; }
+  60% { transform: translateY(2.626px); opacity: 1; }
+  63.333% { transform: translateY(2.405px); opacity: 1; }
+  66.667% { transform: translateY(2.115px); opacity: 1; }
+  70% { transform: translateY(1.785px); opacity: 1; }
+  73.333% { transform: translateY(1.441px); opacity: 1; }
+  76.667% { transform: translateY(1.105px); opacity: 1; }
+  80% { transform: translateY(0.796px); opacity: 1; }
+  83.333% { transform: translateY(0.529px); opacity: 1; }
+  86.667% { transform: translateY(0.315px); opacity: 1; }
+  90% { transform: translateY(0.158px); opacity: 1; }
+  93.333% { transform: translateY(0.059px); opacity: 1; }
+  96.667% { transform: translateY(0.01px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
 }
 
 /* 逐项延迟：左栏 max(15-i,7)*2ms；右栏每项 25ms */
-.alx-nav > *:nth-child(1) { animation-delay: 30ms; }
-.alx-nav > *:nth-child(2) { animation-delay: 28ms; }
-.alx-nav > *:nth-child(3) { animation-delay: 26ms; }
-.alx-nav > *:nth-child(4) { animation-delay: 24ms; }
-.alx-nav > *:nth-child(5) { animation-delay: 22ms; }
-.alx-nav > *:nth-child(6) { animation-delay: 20ms; }
-.alx-nav > *:nth-child(7) { animation-delay: 18ms; }
-.alx-nav > *:nth-child(8) { animation-delay: 16ms; }
-.alx-nav > *:nth-child(9) { animation-delay: 14ms; }
-.alx-nav > *:nth-child(10) { animation-delay: 14ms; }
-.alx-nav > *:nth-child(11) { animation-delay: 14ms; }
-.alx-nav > *:nth-child(12) { animation-delay: 14ms; }
-.alx-page__right > *:nth-child(1) { animation-delay: 0ms; }
-.alx-page__right > *:nth-child(2) { animation-delay: 25ms; }
-.alx-page__right > *:nth-child(3) { animation-delay: 50ms; }
-.alx-page__right > *:nth-child(4) { animation-delay: 75ms; }
-.alx-page__right > *:nth-child(5) { animation-delay: 100ms; }
-.alx-page__right > *:nth-child(6) { animation-delay: 125ms; }
-.alx-page__right > *:nth-child(7) { animation-delay: 150ms; }
-.alx-page__right > *:nth-child(8) { animation-delay: 175ms; }
-.alx-page__right > *:nth-child(9) { animation-delay: 200ms; }
-.alx-page__right > *:nth-child(10) { animation-delay: 225ms; }
-.alx-page__right > *:nth-child(11) { animation-delay: 250ms; }
-.alx-page__right > *:nth-child(12) { animation-delay: 275ms; }
+.alx-nav > *:nth-child(1) { animation-delay: calc(var(--alx-enter-base, 0ms) + 30ms); }
+.alx-nav > *:nth-child(2) { animation-delay: calc(var(--alx-enter-base, 0ms) + 28ms); }
+.alx-nav > *:nth-child(3) { animation-delay: calc(var(--alx-enter-base, 0ms) + 26ms); }
+.alx-nav > *:nth-child(4) { animation-delay: calc(var(--alx-enter-base, 0ms) + 24ms); }
+.alx-nav > *:nth-child(5) { animation-delay: calc(var(--alx-enter-base, 0ms) + 22ms); }
+.alx-nav > *:nth-child(6) { animation-delay: calc(var(--alx-enter-base, 0ms) + 20ms); }
+.alx-nav > *:nth-child(7) { animation-delay: calc(var(--alx-enter-base, 0ms) + 18ms); }
+.alx-nav > *:nth-child(8) { animation-delay: calc(var(--alx-enter-base, 0ms) + 16ms); }
+.alx-nav > *:nth-child(9) { animation-delay: calc(var(--alx-enter-base, 0ms) + 14ms); }
+.alx-nav > *:nth-child(10) { animation-delay: calc(var(--alx-enter-base, 0ms) + 14ms); }
+.alx-nav > *:nth-child(11) { animation-delay: calc(var(--alx-enter-base, 0ms) + 14ms); }
+.alx-nav > *:nth-child(12) { animation-delay: calc(var(--alx-enter-base, 0ms) + 14ms); }
+.alx-page__right > *:nth-child(1) { animation-delay: calc(var(--alx-enter-base, 0ms) + 0ms); }
+.alx-page__right > *:nth-child(2) { animation-delay: calc(var(--alx-enter-base, 0ms) + 25ms); }
+.alx-page__right > *:nth-child(3) { animation-delay: calc(var(--alx-enter-base, 0ms) + 50ms); }
+.alx-page__right > *:nth-child(4) { animation-delay: calc(var(--alx-enter-base, 0ms) + 75ms); }
+.alx-page__right > *:nth-child(5) { animation-delay: calc(var(--alx-enter-base, 0ms) + 100ms); }
+.alx-page__right > *:nth-child(6) { animation-delay: calc(var(--alx-enter-base, 0ms) + 125ms); }
+.alx-page__right > *:nth-child(7) { animation-delay: calc(var(--alx-enter-base, 0ms) + 150ms); }
+.alx-page__right > *:nth-child(8) { animation-delay: calc(var(--alx-enter-base, 0ms) + 175ms); }
+.alx-page__right > *:nth-child(9) { animation-delay: calc(var(--alx-enter-base, 0ms) + 200ms); }
+.alx-page__right > *:nth-child(10) { animation-delay: calc(var(--alx-enter-base, 0ms) + 225ms); }
+.alx-page__right > *:nth-child(11) { animation-delay: calc(var(--alx-enter-base, 0ms) + 250ms); }
+.alx-page__right > *:nth-child(12) { animation-delay: calc(var(--alx-enter-base, 0ms) + 275ms); }
 
 .alx-nav > * {
   animation-name: alx-item-in;
@@ -426,7 +569,13 @@
   animation-fill-mode: both;
 }
 
-/* ===================== 左栏导航项 ===================== */
+/* ============================================================================
+ * 左栏导航项（对应源码 MyListItem，RadioBox 型）
+ *   高 36 · 选中条 5px（圆角 2，#1370f3，上下内缩 6）
+ *   图标列宽 34 · 标题 14px · 副文本 12px（60% 透明）
+ *   悬停底 #e0eafd → #bee0eafd，1px #d5e6fd 边框
+ *   高度 <40 且未启用缩放动画 → 悬停底圆角 0
+ * ========================================================================== */
 .alx-nav {
   display: flex;
   flex-direction: column;
@@ -435,72 +584,66 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 0;
   width: 100%;
   height: 36px;
   padding: 0 10px 0 0;
   border: none;
   background: transparent;
   color: var(--alx-1);
-  font-size: 13px;
+  font-size: 14px;
   font-family: inherit;
   text-align: left;
   cursor: pointer;
   transform-origin: 50% 50%;
-  transition: color var(--alx-dur-check) var(--alx-ease-out-fluent),
+  transition: color var(--alx-dur-check) linear,
     transform 540ms var(--alx-ease-out-fluent);
 }
-/* 悬停底色：独立背景块，.8 缩放展开 + 淡入；离开时反向收起 */
-.alx-nav-item::before {
-  content: '';
-  position: absolute;
-  inset: 0 4px;
-  border-radius: var(--alx-radius-control);
-  background: var(--alx-7);
-  opacity: 0;
-  transform: scale(0.8);
-  pointer-events: none;
-  transition: opacity 180ms var(--alx-ease-out-fluent),
-    transform 540ms var(--alx-ease-out-fluent);
-}
-.alx-nav-item:hover::before {
-  opacity: 1;
-  transform: scale(1);
-  transition: opacity 120ms var(--alx-ease-out-fluent),
-    transform 192ms var(--alx-ease-out-fluent);
-}
-.alx-nav-item:active {
-  transform: scale(0.98);
-  transition: transform 108ms var(--alx-ease-out-fluent);
+/* 根元素为 div（避免 button 套 button），补上键盘焦点样式 */
+.alx-nav-item:focus-visible {
+  outline: 2px solid var(--alx-3);
+  outline-offset: -2px;
 }
 .alx-nav-item__check {
   position: absolute;
   left: 0;
-  top: 0;
-  bottom: 0;
-  width: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 5px;
+  border-radius: 2px;
   background: var(--alx-3);
   opacity: 0;
-  transition: opacity var(--alx-dur-check) var(--alx-ease-out-fluent);
+  transition: opacity var(--alx-dur-check) linear;
 }
 .alx-nav-item__logo {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  margin-left: 14px;
+  width: 24px;
+  height: 24px;
+  margin: 0 5px 0 13px;
   color: var(--alx-1);
-  transition: color var(--alx-dur-check) var(--alx-ease-out-fluent);
+  transition: color var(--alx-dur-check) linear;
 }
 .alx-nav-item__title {
   position: relative;
+  display: block;
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.alx-nav-item__info {
+  position: relative;
+  display: block;
+  font-size: 12px;
+  opacity: 0.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
 }
 .alx-nav-item.is-active {
   color: var(--alx-3);
@@ -511,6 +654,7 @@
 .alx-nav-item.is-active .alx-nav-item__check {
   opacity: 1;
 }
+/* 分组标题：12px / 60% 透明 / margin 13,20,5,4 */
 .alx-nav-group {
   margin: 20px 5px 4px 13px;
   font-size: 12px;
@@ -518,14 +662,21 @@
   opacity: 0.6;
 }
 
-/* ===================== 卡片 ===================== */
+/* ============================================================================
+ * 卡片（对应源码 MyCard）
+ *   圆角 5 · 底 rgba(255,255,255,.961)
+ *   阴影 3px 模糊，透明度 .07 → 悬停 .4 且色转 #4890f5
+ *   标题粗体 13px 靠左，margin 15,12,0,0；悬停转 #0b5bcb
+ *   折叠箭头 10×6，margin 0,17,16,0
+ *   折叠态高度 40
+ * ========================================================================== */
 .alx-card {
   position: relative;
   background: var(--alx-white-96);
   border-radius: var(--alx-radius-card);
   box-shadow: 0 1px 4px rgba(52, 61, 74, 0.07);
-  transition: box-shadow 90ms var(--alx-ease-out-fluent);
-  margin-bottom: 16px;
+  transition: box-shadow var(--alx-dur-card) linear;
+  margin-bottom: 15px;
 }
 .alx-card:hover {
   box-shadow: 0 3px 12px rgba(72, 144, 245, 0.4);
@@ -539,7 +690,7 @@
   font-size: 13px;
   font-weight: 700;
   color: var(--alx-1);
-  transition: color 90ms var(--alx-ease-out-fluent);
+  transition: color var(--alx-dur-card) linear;
 }
 .alx-card:hover .alx-card__title {
   color: var(--alx-2);
@@ -554,10 +705,13 @@
   cursor: pointer;
 }
 .alx-card__body {
-  padding: 10px 15px 15px;
+  padding: 25px 20px 18px;
+}
+.alx-card__body--tight {
+  padding: 12px 15px 15px;
 }
 .alx-card__body--flush {
-  padding: 4px 8px 8px;
+  padding: 0;
 }
 .alx-card--accent .alx-card__title {
   color: var(--alx-3);
@@ -573,8 +727,8 @@
   color: var(--alx-1);
   cursor: pointer;
   border-radius: var(--alx-radius-control);
-  transition: transform var(--alx-dur-out) var(--alx-ease-out-fluent),
-    background var(--alx-dur-in) var(--alx-ease-out-fluent);
+  transition: transform 250ms var(--alx-ease-out-fluent-strong),
+    background var(--alx-dur-in) linear;
 }
 .alx-card__toggle:hover {
   background: var(--alx-7);
@@ -583,14 +737,22 @@
   transform: rotate(180deg);
 }
 
-/* ===================== 按钮 ===================== */
+/* ============================================================================
+ * 按钮（对应源码 MyButton）
+ *   外层底 rgba(255,255,255,.733)；内层底 rgba(255,255,255,.333)
+ *   圆角 3 · 边框 1px #343d4a（文字色 = 边框色）
+ *   悬停：边框+文字 #1370f3，底 #e0eafd，100ms
+ *   常态色变 200ms；按下 scale .955 / 80ms
+ *   Highlight 型：常态边框 #0b5bcb；Red 型：#ce2111 / 悬停 #ff4c4c
+ *   禁用：边框与文字 #a6a6a6
+ * ========================================================================== */
 .alx-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 34px;
-  padding: 0 16px;
+  height: 35px;
+  padding: 0 13px;
   border: 1px solid var(--alx-1);
   border-radius: var(--alx-radius-control);
   background: var(--alx-white-33);
@@ -598,10 +760,10 @@
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
-  transition: background var(--alx-dur-in) var(--alx-ease-out-fluent),
-    border-color var(--alx-dur-in) var(--alx-ease-out-fluent),
-    color var(--alx-dur-in) var(--alx-ease-out-fluent),
-    transform 80ms var(--alx-ease-out-back);
+  transition: background var(--alx-dur-in) linear,
+    border-color var(--alx-dur-out) linear,
+    color var(--alx-dur-out) linear,
+    transform 80ms var(--alx-ease-out-fluent-strong);
 }
 .alx-btn:hover {
   background: var(--alx-7);
@@ -612,19 +774,28 @@
   transform: scale(0.955);
 }
 .alx-btn:disabled {
-  opacity: 0.55;
+  border-color: var(--alx-gray-4);
+  color: var(--alx-gray-4);
   cursor: default;
   transform: none;
+  background: var(--alx-white-33);
 }
 .alx-btn--primary {
-  border-color: var(--alx-3);
-  background: var(--alx-3);
-  color: #fff;
+  border-color: var(--alx-2);
+  color: var(--alx-2);
 }
 .alx-btn--primary:hover {
-  background: var(--alx-2);
-  border-color: var(--alx-2);
-  color: #fff;
+  border-color: var(--alx-3);
+  color: var(--alx-3);
+}
+.alx-btn--danger {
+  border-color: #ce2111;
+  color: #ce2111;
+}
+.alx-btn--danger:hover {
+  border-color: #ff4c4c;
+  color: #ff4c4c;
+  background: rgba(251, 221, 221, 0.5);
 }
 .alx-btn--block {
   width: 100%;
@@ -634,101 +805,127 @@
   font-size: 14px;
 }
 
-/* ===================== 表单行 ===================== */
-.alx-form-row {
-  display: flex;
+/* 底部悬浮大按钮（对应源码 MyExtraTextButton）
+ *   高 52 · 圆角 = 高 × 0.4 = 20.8 · 底 #1370f3 · 悬停 #4890f5
+ *   文字 16px #eaf2fe · 阴影 blur 10 opacity .2 */
+.alx-float-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 16px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--alx-gray-6);
+  justify-content: center;
+  gap: 12px;
+  height: 52px;
+  padding: 0 28px;
+  border: none;
+  border-radius: 20.8px;
+  background: var(--alx-3);
+  color: var(--alx-8);
+  font-size: 16px;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  transition: background 120ms linear, transform 800ms var(--alx-ease-out-fluent-strong);
+}
+.alx-float-btn:hover {
+  background: var(--alx-4);
+}
+.alx-float-btn:active {
+  transform: scale(0.85);
+}
+.alx-float-btn:disabled {
+  background: var(--alx-gray-4);
+  cursor: default;
+}
+
+/* ============================================================================
+ * 表单行：标签 + 控件
+ *   标签 13px 右对齐；控件行高 28
+ * ========================================================================== */
+.alx-form-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 18px;
+  min-height: 28px;
+  margin-bottom: 9px;
 }
 .alx-form-row:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 .alx-form-row__label {
-  flex: 0 0 150px;
   font-size: 13px;
   color: var(--alx-1);
   text-align: right;
+  white-space: nowrap;
 }
 .alx-form-row__control {
-  flex: 1;
   min-width: 0;
 }
+.alx-form-row__control--split {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px;
+  align-items: center;
+}
 
-/* 输入框 / 下拉 */
+/* 输入框 / 下拉（对应源码 MyTextBox / MyComboBox）
+ *   高 28 · 圆角 3 · 边框 1px #96c0f9 · 底 rgba(255,255,255,.333)
+ *   聚焦：边框 #1370f3 + 底 #e0eafd（10ms）
+ *   悬停：边框 #4890f5 + 底 #e0eafd（100ms）
+ *   下拉内容左边距 8.5，右侧箭头区 21.5
+ */
 .alx-input,
 .alx-select {
   width: 100%;
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--alx-3);
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--alx-5);
   border-radius: var(--alx-radius-control);
-  background: #fff;
+  background: var(--alx-white-33);
   color: var(--alx-1);
   font-size: 13px;
   font-family: inherit;
   outline: none;
-  transition: border-color var(--alx-dur-in) var(--alx-ease-out-fluent),
-    box-shadow var(--alx-dur-in) var(--alx-ease-out-fluent);
+  transition: border-color var(--alx-dur-in) linear,
+    background var(--alx-dur-in) linear;
 }
 .alx-input::placeholder {
-  color: var(--alx-gray-3);
+  color: var(--alx-gray-4);
+}
+.alx-input:hover,
+.alx-select:hover {
+  border-color: var(--alx-4);
+  background: var(--alx-7);
 }
 .alx-input:focus,
 .alx-select:focus {
-  border-color: var(--alx-2);
-  box-shadow: 0 0 0 2px rgba(19, 112, 243, 0.18);
+  border-color: var(--alx-3);
+  background: var(--alx-7);
+}
+.alx-input:disabled,
+.alx-select:disabled {
+  border-color: var(--alx-gray-5);
+  background: var(--alx-gray-6);
+  color: var(--alx-gray-4);
 }
 .alx-select {
   appearance: none;
-  padding-right: 28px;
-  background-image: linear-gradient(45deg, transparent 50%, var(--alx-1) 50%),
-    linear-gradient(135deg, var(--alx-1) 50%, transparent 50%);
-  background-position: calc(100% - 15px) 13px, calc(100% - 10px) 13px;
+  padding-right: 26px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--alx-5) 50%),
+    linear-gradient(135deg, var(--alx-5) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 12px, calc(100% - 10px) 12px;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
   cursor: pointer;
 }
 
-/* 单选 / 复选 */
-.alx-radio {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--alx-1);
-  cursor: pointer;
-}
-.alx-radio__box {
-  width: 17px;
-  height: 17px;
-  border-radius: 50%;
-  border: 1.5px solid var(--alx-1);
-  display: grid;
-  place-items: center;
-  transition: border-color var(--alx-dur-in) var(--alx-ease-out-fluent);
-}
-.alx-radio__dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--alx-3);
-  transform: scale(0);
-  transition: transform var(--alx-dur-check) var(--alx-ease-out-back);
-}
-.alx-radio input:checked + .alx-radio__box {
-  border-color: var(--alx-3);
-}
-.alx-radio input:checked + .alx-radio__box .alx-radio__dot {
-  transform: scale(1);
-}
-.alx-radio input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
+/* ============================================================================
+ * 单选 / 复选（对应源码 MyRadioBox / MyCheckBox）
+ *   外框 18×18 · 单选圆 / 复选圆角 3 · 描边 1.1px
+ *   选中：边框 #0b5bcb，单选点 9×9，复选打勾
+ *   悬停：边框与文字 #1370f3（100ms）；离开 200ms
+ *   文字左边距 26 · 字号 13
+ * ========================================================================== */
+.alx-radio,
 .alx-check {
   display: inline-flex;
   align-items: center;
@@ -736,24 +933,64 @@
   font-size: 13px;
   color: var(--alx-1);
   cursor: pointer;
+  transition: color var(--alx-dur-in) linear;
 }
+.alx-radio:hover,
+.alx-check:hover {
+  color: var(--alx-3);
+}
+.alx-radio__box,
 .alx-check__box {
-  width: 17px;
-  height: 17px;
-  border-radius: var(--alx-radius-control);
-  border: 1.5px solid var(--alx-1);
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border: 1.1px solid var(--alx-1);
+  background: var(--alx-white-33);
   display: grid;
   place-items: center;
-  color: transparent;
-  transition: background var(--alx-dur-in) var(--alx-ease-out-fluent),
-    border-color var(--alx-dur-in) var(--alx-ease-out-fluent),
-    color var(--alx-dur-in) var(--alx-ease-out-fluent);
+  transition: border-color var(--alx-dur-in) linear,
+    background var(--alx-dur-in) linear;
+}
+.alx-radio__box {
+  border-radius: 50%;
+}
+.alx-check__box {
+  border-radius: var(--alx-radius-control);
+}
+.alx-radio:hover .alx-radio__box,
+.alx-check:hover .alx-check__box {
+  border-color: var(--alx-3);
+}
+.alx-radio__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--alx-2);
+  transform: scale(0);
+  transition: transform 300ms var(--alx-ease-out-back);
+}
+.alx-radio input:checked + .alx-radio__box {
+  border-color: var(--alx-2);
+}
+.alx-radio input:checked + .alx-radio__box .alx-radio__dot {
+  transform: scale(1);
+}
+.alx-check__mark {
+  width: 12px;
+  height: 12px;
+  color: var(--alx-2);
+  transform: scale(0);
+  transition: transform 300ms var(--alx-ease-out-back);
 }
 .alx-check input:checked + .alx-check__box {
-  background: var(--alx-3);
-  border-color: var(--alx-3);
-  color: #fff;
+  border-color: var(--alx-2);
+  background: var(--alx-7);
 }
+.alx-check input:checked + .alx-check__box .alx-check__mark {
+  transform: scale(1);
+}
+.alx-radio input,
 .alx-check input {
   position: absolute;
   opacity: 0;
@@ -761,273 +998,477 @@
   height: 0;
 }
 
-/* 滑块 */
+/* ============================================================================
+ * 滑块（对应源码 MySlider）
+ *   轨道高 4（描边 1，透明 .3）· 进度描边 2 · 滑块圆点 10×10 描边 1.2
+ *   常态 #96c0f9，悬停/拖动 #1370f3；拖动时圆点放大 1.3
+ * ========================================================================== */
 .alx-slider {
   position: relative;
   flex: 1;
-  height: 20px;
+  height: 16px;
+  min-height: 16px;
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 .alx-slider__track {
   width: 100%;
-  height: 3px;
+  height: 4px;
   border-radius: 2px;
-  background: var(--alx-gray-5);
+  background: var(--alx-5);
+  opacity: 0.4;
 }
 .alx-slider__fill {
   position: absolute;
   left: 0;
-  height: 3px;
+  height: 4px;
   border-radius: 2px;
-  background: var(--alx-3);
+  background: var(--alx-5);
 }
 .alx-slider__dot {
   position: absolute;
-  width: 13px;
-  height: 13px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: var(--alx-gray-4);
+  border: 1.2px solid var(--alx-5);
+  background: var(--alx-5);
   transform: translateX(-50%);
-  transition: background var(--alx-dur-in) var(--alx-ease-out-fluent);
+  transition: background 40ms linear, border-color 40ms linear,
+    transform 40ms var(--alx-ease-out-fluent);
+}
+.alx-slider:hover .alx-slider__dot,
+.alx-slider:hover .alx-slider__fill,
+.alx-slider:hover .alx-slider__track {
+  background: var(--alx-3);
+  border-color: var(--alx-3);
 }
 .alx-slider:hover .alx-slider__dot {
-  background: var(--alx-3);
+  transform: translateX(-50%) scale(1.3);
 }
 
-/* 搜索框 */
-.alx-search {
+/* ============================================================================
+ * 搜索框（对应源码 MySearchBox，本体即一张 MyCard）
+ *   高 40 · 圆角 5 · 放大镜 14×14 左边距 14 · 输入文字左边距 32
+ *   字号 13.5 · 清除按钮 24×24 右边距 10
+ * ========================================================================== */
+.alx-searchbox {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 36px;
-  padding: 0 14px;
-  background: #fff;
+  height: 40px;
+  padding: 0 10px 0 14px;
+  background: var(--alx-white-96);
   border-radius: var(--alx-radius-card);
   box-shadow: 0 1px 4px rgba(52, 61, 74, 0.07);
-  margin-bottom: 16px;
+  transition: box-shadow var(--alx-dur-card) linear;
+  margin-bottom: 15px;
 }
-.alx-search input {
+.alx-searchbox:hover {
+  box-shadow: 0 3px 12px rgba(72, 144, 245, 0.4);
+}
+.alx-searchbox__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  color: var(--alx-1);
+}
+.alx-searchbox input {
   flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
   background: transparent;
-  font-size: 13px;
+  font-size: 13.5px;
   font-family: inherit;
   color: var(--alx-1);
+  padding: 0 8px 0 18px;
 }
-.alx-search input::placeholder {
-  color: var(--alx-gray-3);
+.alx-searchbox input::placeholder {
+  color: var(--alx-gray-4);
 }
-.alx-search svg {
-  color: var(--alx-1);
-}
-
-/* 底部标签页 */
-.alx-tabs {
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  border-bottom: 1px solid var(--alx-gray-6);
-  padding: 0 15px;
-}
-.alx-tabs__item {
-  position: relative;
-  padding: 10px 0;
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  font-family: inherit;
-  color: var(--alx-1);
-  cursor: pointer;
-}
-.alx-tabs__item.is-active {
-  color: var(--alx-3);
-  font-weight: 600;
-}
-.alx-tabs__item.is-active::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  background: var(--alx-3);
-}
-
-/* ===================== 启动页 ===================== */
-.alx-launch {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  height: 100%;
-  padding: 20px 14px 18px;
-  text-align: center;
-}
-.alx-launch__account {
+.alx-searchbox__clear {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  color: var(--alx-3);
-  background: none;
-  border: none;
-  font-family: inherit;
-  cursor: pointer;
-}
-.alx-launch__avatar {
-  width: 72px;
-  height: 72px;
-  margin: 34px 0 12px;
-  border-radius: 4px;
-  object-fit: cover;
-  background: var(--alx-7);
-}
-.alx-launch__name {
-  font-size: 15px;
-  color: var(--alx-1);
-}
-.alx-launch__mail {
-  font-size: 12px;
-  color: var(--alx-1);
-  opacity: 0.75;
-  margin-top: 4px;
-}
-.alx-launch__spacer {
-  flex: 1;
-}
-.alx-launch__btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
-  gap: 2px;
-  width: 100%;
-  height: 54px;
-  border: 1px solid var(--alx-3);
-  border-radius: var(--alx-radius-control);
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border: none;
   background: transparent;
-  color: var(--alx-3);
-  font-family: inherit;
+  color: rgba(0, 0, 0, 0.63);
   cursor: pointer;
-  transition: background var(--alx-dur-in) var(--alx-ease-out-fluent),
-    transform 80ms var(--alx-ease-out-back);
+  border-radius: 50%;
+  transition: background var(--alx-dur-in) linear;
 }
-.alx-launch__btn:hover {
+.alx-searchbox__clear:hover {
   background: var(--alx-7);
-}
-.alx-launch__btn:active {
-  transform: scale(0.955);
-}
-.alx-launch__btn:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-.alx-launch__btn-title {
-  font-size: 15px;
-}
-.alx-launch__btn-sub {
-  font-size: 11px;
-  opacity: 0.85;
-}
-.alx-launch__row {
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
-  width: 100%;
-}
-.alx-launch__row .alx-btn {
-  flex: 1;
+  color: rgba(0, 0, 0, 0.9);
 }
 
-/* ===================== 版本条目 ===================== */
-.alx-ver {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 4px;
-  border-bottom: 1px solid var(--alx-gray-6);
-}
-.alx-ver:last-child {
-  border-bottom: none;
-}
-.alx-ver__icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
-  object-fit: contain;
-  flex: 0 0 auto;
-}
-.alx-ver__id {
-  font-size: 14px;
-  color: var(--alx-1);
-}
-.alx-ver__desc {
-  font-size: 12px;
-  color: var(--alx-1);
-  opacity: 0.65;
-  margin-top: 2px;
-}
-
-/* ===================== 指南条目 ===================== */
-.alx-guide {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: var(--alx-radius-control);
-  background: var(--alx-8);
-  margin-bottom: 8px;
-}
-.alx-guide__icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
-  object-fit: contain;
-  flex: 0 0 auto;
-}
-.alx-guide__title {
-  font-size: 14px;
-  color: var(--alx-1);
-}
-.alx-guide__desc {
-  font-size: 12px;
-  color: var(--alx-1);
-  opacity: 0.6;
-  margin-top: 2px;
-}
-
-/* ===================== 提示条 ===================== */
+/* ============================================================================
+ * 提示条（对应源码 MyHint）
+ *   左边框 3px · 圆角 2 · 文字 padding 12,9 · 行高 16
+ *   Blue / Red / Yellow 三主题
+ * ========================================================================== */
 .alx-hint {
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  padding: 10px 13px;
-  margin-bottom: 14px;
-  background: var(--alx-8);
-  border: 1px solid var(--alx-6);
+  padding: 9px 12px;
+  margin-bottom: 15px;
+  border-left: 3px solid var(--alx-hint-blue-border);
   border-radius: var(--alx-radius-control);
-  font-size: 12.5px;
-  color: var(--alx-1);
+  background: var(--alx-hint-blue-bg);
+  font-size: 13px;
+  line-height: 16px;
+  color: var(--alx-hint-blue-text);
+}
+.alx-hint--red {
+  border-left-color: var(--alx-hint-red-border);
+  background: var(--alx-hint-red-bg);
+  color: var(--alx-hint-red-text);
+}
+.alx-hint--yellow {
+  border-left-color: var(--alx-hint-yellow-border);
+  background: var(--alx-hint-yellow-bg);
+  color: var(--alx-hint-yellow-text);
+}
+.alx-hint__close {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 50%;
+  opacity: 0.7;
+}
+.alx-hint__close:hover {
+  opacity: 1;
 }
 
-/* ===================== 滚动条 ===================== */
+/* ============================================================================
+ * 胶囊标签（对应源码 MyRadioButton，Highlight 型）
+ *   圆角 13.5 · 高 27 · 未选中近透明底 + #1370f3 文字
+ *   选中：底 #1370f3 + 白色文字
+ * ========================================================================== */
+.alx-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 27px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--alx-radius-tab);
+  background: var(--alx-white-01);
+  color: var(--alx-3);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--alx-dur-out) linear, color var(--alx-dur-out) linear;
+}
+.alx-pill:hover {
+  background: var(--alx-bg1);
+}
+.alx-pill:active {
+  background: var(--alx-6);
+}
+.alx-pill.is-active {
+  background: var(--alx-3);
+  color: #fff;
+  transition-duration: var(--alx-dur-check);
+}
+/* 淡色胶囊：常态浅蓝底 + 蓝字，选中转深蓝底白字。
+   用于分类筛选一类的标签（如 Mod 管理页的分类），与高亮型胶囊区分。 */
+.alx-pill--soft {
+  background: var(--alx-7);
+  color: var(--alx-3);
+}
+.alx-pill--soft:hover {
+  background: var(--alx-6);
+}
+.alx-pill--soft.is-active {
+  background: var(--alx-3);
+  color: #fff;
+}
+
+/* ============================================================================
+ * 列表条目（对应源码 MyListItem，Clickable 型，高 42）
+ *   图标 34px 列 · 标题 14px · 副文本 12px（60% 透明）
+ *   右侧图标按钮 25×25，默认隐藏，悬停淡入
+ * ========================================================================== */
+.alx-listitem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 42px;
+  padding: 0 5px 0 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--alx-1);
+}
+.alx-listitem__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  margin: 0 4px;
+  border-radius: var(--alx-radius-thumb);
+  overflow: hidden;
+}
+.alx-listitem__main {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  /* 标题与副文本各占一行：两者都是 span，必须转块级才会换行 */
+  display: block;
+}
+.alx-listitem__title {
+  display: block;
+  font-size: 14px;
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.alx-listitem__info {
+  display: block;
+  font-size: 12px;
+  opacity: 0.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+.alx-listitem__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 84ms linear;
+}
+.alx-listitem:hover .alx-listitem__actions {
+  opacity: 1;
+}
+.alx-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  border: none;
+  background: transparent;
+  color: var(--alx-4);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background var(--alx-dur-in) linear, color var(--alx-dur-in) linear;
+}
+.alx-iconbtn:hover {
+  background: var(--alx-7);
+  color: var(--alx-2);
+}
+.alx-iconbtn--black {
+  color: rgba(0, 0, 0, 0.63);
+}
+.alx-iconbtn--black:hover {
+  color: rgba(0, 0, 0, 0.9);
+}
+
+/* ============================================================================
+ * 资源条目（对应源码 MyResourceItem）
+ *   高 64 · 缩略图 50×50 圆角 6 · 标题 14px
+ *   后缀标签 12px #404040 / 40% 透明
+ *   分类标签：底 rgba(0,0,0,.067) · 圆角 3 · 字号 11 · 字色 #868686
+ *   描述 12px #8c8c8c
+ *   底部元信息：12px #a6a6a6，兼容版本 / 下载量 / 更新时间 / 来源
+ * ========================================================================== */
+.alx-resource {
+  position: relative;
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  gap: 8px;
+  min-height: 64px;
+  padding: 6px 7px;
+  border-radius: 3px;
+  transition: background 120ms linear;
+}
+.alx-resource:hover {
+  background: var(--alx-7);
+}
+.alx-resource__icon {
+  width: 50px;
+  height: 50px;
+  border-radius: var(--alx-radius-thumb);
+  overflow: hidden;
+  background: var(--alx-8);
+  display: grid;
+  place-items: center;
+  align-self: start;
+}
+.alx-resource__icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.alx-resource__head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.alx-resource__title {
+  font-size: 14px;
+  color: var(--alx-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.alx-resource__suffix {
+  font-size: 12px;
+  color: var(--alx-gray-1);
+  opacity: 0.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: none;
+}
+.alx-resource__tags {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+.alx-resource__tag {
+  padding: 1px 3px;
+  border-radius: var(--alx-radius-control);
+  background: rgba(0, 0, 0, 0.067);
+  font-size: 11px;
+  color: #868686;
+  white-space: nowrap;
+}
+.alx-resource__desc {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--alx-gray-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.alx-resource__meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--alx-gray-4);
+  white-space: nowrap;
+}
+.alx-resource__meta svg {
+  flex: none;
+}
+.alx-resource__meta-sep {
+  flex: 1;
+}
+
+/* ============================================================================
+ * 弹窗（对应源码 MyMsgText）
+ *   圆角 7 · 底 #fbfbfb · 阴影 blur 20 depth 4 opacity .8
+ *   标题 23px #0b5bcb · 分隔线 2px · 正文 15px #5c5c5c
+ * ========================================================================== */
+.alx-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.35);
+  animation: alx-fade-in 200ms linear both;
+}
+@keyframes alx-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.alx-modal__box {
+  min-width: 400px;
+  max-width: 560px;
+  border-radius: 7px;
+  background: #fbfbfb;
+  box-shadow: 0 4px 20px rgba(52, 61, 74, 0.8);
+  padding: 22px 22px 23px;
+  animation: alx-modal-in 300ms var(--alx-ease-out-back) both;
+}
+@keyframes alx-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px) rotate(-4deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0);
+  }
+}
+.alx-modal__title {
+  font-size: 23px;
+  color: var(--alx-2);
+  margin: 0 0 9px;
+  padding-bottom: 9px;
+  border-bottom: 2px solid var(--alx-2);
+}
+.alx-modal__body {
+  font-size: 15px;
+  line-height: 18px;
+  color: #5c5c5c;
+  margin: 13px 0 17px;
+}
+.alx-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* ============================================================================
+ * 滚动条（对应源码 MyScrollBar）
+ *   宽 8 · 滑块 4px 圆角 3 · 常态 #4890f5 透明 .5
+ * ========================================================================== */
 .alx-page__left::-webkit-scrollbar,
 .alx-page__right::-webkit-scrollbar,
 .aelux-content::-webkit-scrollbar {
-  width: 9px;
+  width: 8px;
+}
+.alx-page__left::-webkit-scrollbar-track,
+.alx-page__right::-webkit-scrollbar-track,
+.aelux-content::-webkit-scrollbar-track {
+  background: transparent;
 }
 .alx-page__left::-webkit-scrollbar-thumb,
 .alx-page__right::-webkit-scrollbar-thumb,
 .aelux-content::-webkit-scrollbar-thumb {
-  background: rgba(52, 61, 74, 0.22);
-  border-radius: 2px;
+  background: rgba(72, 144, 245, 0.5);
+  border-radius: 3px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 .alx-page__left::-webkit-scrollbar-thumb:hover,
 .alx-page__right::-webkit-scrollbar-thumb:hover {
-  background: rgba(52, 61, 74, 0.38);
+  background: rgba(19, 112, 243, 0.9);
   background-clip: content-box;
 }
