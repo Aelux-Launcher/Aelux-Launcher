@@ -19,6 +19,44 @@
  * ========================================================================== */
 
 :root {
+  /* ---- 组件库令牌覆盖 ----
+   * 组件库自带一套青色主色（#28a4e0），若不覆盖，同一界面会出现「外壳深蓝 +
+   * 组件青蓝」两套蓝。这里把组件库的主色/信息色/文字色统一到下面的色阶，
+   * 使 Button / Badge / Alert / Progress / Input / TaskList 等与外壳同色系。 */
+  --aelux-primary-50: #eaf2fe;
+  --aelux-primary-100: #d5e6fd;
+  --aelux-primary-200: #b5d4f4;
+  --aelux-primary-300: #96c0f9;
+  --aelux-primary-400: #4890f5;
+  --aelux-primary-500: #1370f3;
+  --aelux-primary-600: #0b5bcb;
+  --aelux-primary-700: #0b5bcb;
+  --aelux-primary-800: #0a4ea3;
+  --aelux-primary-900: #083f85;
+  --aelux-primary: #1370f3;
+  --aelux-primary-hover: #0b5bcb;
+  --aelux-primary-active: #0a4ea3;
+  --aelux-primary-soft: #eaf2fe;
+  --aelux-primary-soft-border: #b5d4f4;
+  --aelux-primary-text: #0b5bcb;
+  --aelux-primary-contrast: #ffffff;
+
+  /* 信息色也并入蓝系，避免青色混进来 */
+  --aelux-info: #4890f5;
+  --aelux-info-hover: #1370f3;
+  --aelux-info-soft: #eaf2fe;
+  --aelux-info-soft-border: #b5d4f4;
+  --aelux-info-text: #0b5bcb;
+
+  /* 文字与表面 */
+  --aelux-text: #343d4a;
+  --aelux-text-secondary: #737373;
+  --aelux-text-tertiary: #8c8c8c;
+  --aelux-bg-page: #f5f5f5;
+  --aelux-surface: #ffffff;
+  --aelux-surface-subtle: #f7f9fc;
+  --aelux-surface-hover: #eef1f4;
+
   /* ---- 主色阶 ---- */
   --alx-1: #343d4a; /* 正文 */
   --alx-2: #0b5bcb; /* 主蓝·深 */
@@ -65,11 +103,27 @@
   --alx-ease-in-fluent: cubic-bezier(0.3332, 0, 0.6667, 0);
 }
 
+/* 深色主题下同样并入蓝系，避免出现青色 */
+[data-theme='dark'] {
+  --aelux-primary-500: #4890f5;
+  --aelux-primary-600: #1370f3;
+  --aelux-primary-soft: rgba(72, 144, 245, 0.16);
+  --aelux-primary-soft-border: rgba(72, 144, 245, 0.34);
+  --aelux-primary-text: #96c0f9;
+  --aelux-info: #4890f5;
+  --aelux-info-hover: #96c0f9;
+  --aelux-info-soft: rgba(72, 144, 245, 0.16);
+  --aelux-info-soft-border: rgba(72, 144, 245, 0.34);
+  --aelux-info-text: #96c0f9;
+}
+
 /* ===================== 窗口外壳 ===================== */
 .aelux-app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  /* 四周有 8px 外边距（窗口透明，露出桌面），高度必须扣掉这两条边距，
+     否则内容比窗口高 16px，底部会被裁掉一截（启动页的「启动游戏」按钮就是被这样切掉的）。 */
+  height: calc(100vh - 16px);
   margin: 8px;
   border-radius: var(--alx-radius-window);
   overflow: hidden;
@@ -256,7 +310,8 @@
   min-width: 0;
   overflow-y: auto;
   padding: 16px 20px 24px;
-  background: linear-gradient(135deg, #e7f0ff 0%, #d6e7fd 46%, #c4dcf9 100%);
+  /* 右侧底色要足够蓝，白色卡片才能拉开层次（太淡会和卡片糊在一起） */
+  background: linear-gradient(135deg, #dbe9fd 0%, #c9def9 50%, #b6d0f6 100%);
 }
 
 /* ===================== 进入动画关键帧 =====================

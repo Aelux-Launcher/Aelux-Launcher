@@ -42,25 +42,29 @@ export function App() {
 
       <div className="aelux-body">
         <main className="aelux-content">
-          {initError && (
-            <Alert
-              type="warning"
-              title="部分平台能力不可用"
-              description={initError}
-              className="aelux-init-alert"
-            >
-              <Button variant="ghost" size="sm" onClick={() => init()}>
-                重试
-              </Button>
-            </Alert>
-          )}
-          {browserMode && (
-            <Alert
-              type="info"
-              title="浏览器预览模式"
-              description="未检测到 Tauri 运行时，版本清单、下载与启动均为模拟实现；界面布局与桌面端一致。"
-              className="aelux-init-alert"
-            />
+          {(initError || browserMode) && (
+            <div className="aelux-init-alerts">
+              {initError && (
+                <Alert
+                  type="warning"
+                  title="部分平台能力不可用"
+                  description={initError}
+                  className="aelux-init-alert"
+                >
+                  <Button variant="ghost" size="sm" onClick={() => init()}>
+                    重试
+                  </Button>
+                </Alert>
+              )}
+              {browserMode && (
+                <Alert
+                  type="info"
+                  title="浏览器预览模式"
+                  description="未检测到 Tauri 运行时，版本清单、下载与启动均为模拟实现；界面布局与桌面端一致。"
+                  className="aelux-init-alert"
+                />
+              )}
+            </div>
           )}
 
           <div className={`alx-stage${leaving ? ' alx-stage--leave' : ''}`} key={shown}>

@@ -500,21 +500,53 @@ pub fn close_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// 官方启动器的 .minecraft 目录候选路径（按平台）。
+///
+/// - Windows: `%APPDATA%\.minecraft`
+/// - macOS:   `~/Library/Application Support/minecraft`
+/// - Linux:   `~/.minecraft`（多数发行版）
+fn official_minecraft_dirs() -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    if cfg!(target_os = "windows") {
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            dirs.push(PathBuf::from(appdata).join(".minecraft"));
+        }
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            dirs.push(PathBuf::from(local).join(".minecraft"));
+        }
+    } else if cfg!(target_os = "macos") {
+        if let Some(home) = dirs::home_dir() {
+            dirs.push(
+                home.join("Library")
+                    .join("Application Support")
+                    .join("minecraft"),
+            );
+        }
+    } else {
+        if let Some(home) = dirs::home_dir() {
+            dirs.push(home.join(".minecraft"));
+        }
+    }
+    dirs
+}
+
 #[tauri::command]
 pub fn detect_official_launcher() -> Option<FolderInfo> {
-    let appdata = std::env::var("APPDATA").ok()?;
-    let mc_path = PathBuf::from(appdata).join(".minecraft");
-    
-    if mc_path.exists() {
-        let version_count = count_versions(&mc_path);
-        Some(FolderInfo {
+    for mc_path in official_minecraft_dirs() {
+        if !mc_path.exists() {
+            continue;
+        }
+        // 官方目录必须有 versions 子目录才是有效的启动器数据目录
+        if !mc_path.join("versions").is_dir() {
+            continue;
+        }
+        return Some(FolderInfo {
             name: "官方启动器".to_string(),
             path: mc_path.to_string_lossy().to_string(),
-            version_count,
-        })
-    } else {
-        None
+            version_count: count_versions(&mc_path),
+        });
     }
+    None
 }
 
 #[tauri::command]
@@ -634,12 +666,28 @@ pub fn get_tags(state: State<Mutex<LauncherState>>) -> Vec<TagInfo> {
     state.tags.clone()
 }
 
+/// 打开目录：Windows 用 explorer，macOS 用 open，Linux 用 xdg-open。
 #[tauri::command]
 pub fn open_folder_in_explorer(path: String) -> Result<(), String> {
-    std::process::Command::new("explorer")
-        .arg(&path)
-        .spawn()
-        .map_err(|e| e.to_string())?;
+    let p = PathBuf::from(&path);
+    if !p.exists() {
+        return Err(format!("目录不存在：{}", p.display()));
+    }
+    let mut cmd = if cfg!(target_os = "windows") {
+        let mut c = std::process::Command::new("explorer");
+        // explorer 会把路径当 glob 解析，含特殊字符时必须转成绝对规范路径
+        c.arg(p.canonicalize().unwrap_or(p.clone()));
+        c
+    } else if cfg!(target_os = "macos") {
+        let mut c = std::process::Command::new("open");
+        c.arg(&p);
+        c
+    } else {
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(&p);
+        c
+    };
+    cmd.spawn().map_err(|e| e.to_string())?;
     Ok(())
 }
 

@@ -36,9 +36,24 @@ body {
   animation: alx-stage-out 110ms var(--alx-ease-in-fluent-weak) both;
 }
 
-/* 初始化提示条 */
-.aelux-init-alert {
-  margin: 12px 20px 0;
+/* 初始化提示条：浮在内容区右上角，不要横跨整个窗口把左栏也盖住 */
+.aelux-content {
+  position: relative;
+}
+.aelux-init-alerts {
+  position: absolute;
+  right: 20px;
+  top: 12px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 460px;
+  pointer-events: none;
+}
+.aelux-init-alerts .aelux-alert {
+  pointer-events: auto;
+  box-shadow: 0 3px 12px rgba(72, 144, 245, 0.28);
 }
 .aelux-init-alert .aelux-alert__body {
   display: flex;
@@ -131,11 +146,10 @@ body {
   font-size: 12px;
   line-height: 1.7;
   color: var(--alx-1);
-  opacity: 0.85;
 }
 .alx-log__empty {
   font-family: var(--aelux-font-sans);
-  opacity: 0.6;
+  color: var(--alx-gray-2);
 }
 .alx-log__line {
   white-space: pre-wrap;
