@@ -1,20 +1,66 @@
 /* ============================================================================
- * Aelux Launcher 壳层样式 · 浅色主题（冰蓝主色 + 灰白表面，拒绝黑色）
- * 组件自身样式由 aelux-components（基于 --aelux-* 令牌，默认浅色）提供，
- * 这里只做布局编排与少量强调样式。
+ * Aelux Launcher · 桌面壳样式
+ *
+ * 视觉基线来自 PCL（Plain Craft Launcher 2）的 Application.xaml 配色：
+ *   ColorObject1 #343d4a  文字        ColorObject2 #0b5bcb  主蓝·深
+ *   ColorObject3 #1370f3  主蓝        ColorObject4 #4890f5  标题栏
+ *   ColorObject5 #96c0f9  主蓝·浅     ColorObject8 #eaf2fe  浅蓝底
+ *   Gray1-8     #404040 → #f5f5f5    中性灰阶
+ *
+ * 布局基线来自 PCL 的 FormMain.xaml：
+ *   PanTitle(48px 蓝色标题栏 + 居中水平导航) / PanMain(PanMainLeft | PanMainRight)
+ *
+ * 组件自身样式由 aelux-components 提供；这里做布局编排 + PCL 主题覆写。
  * ========================================================================== */
+
 :root {
-  --app-page: #f4f6f9;
+  /* ---- PCL 蓝主题：覆写组件库令牌，使所有组件统一到 PCL 配色 ---- */
+  --aelux-primary-50: #eaf2fe;
+  --aelux-primary-100: #d5e6fd;
+  --aelux-primary-200: #b5d4f4;
+  --aelux-primary-300: #96c0f9;
+  --aelux-primary-400: #4890f5;
+  --aelux-primary-500: #1370f3;
+  --aelux-primary-600: #0b5bcb;
+  --aelux-primary-700: #0b5bcb;
+  --aelux-primary-800: #0a4ea3;
+  --aelux-primary-900: #083f85;
+  --aelux-primary: #1370f3;
+  --aelux-primary-hover: #0b5bcb;
+  --aelux-primary-active: #0a4ea3;
+  --aelux-primary-soft: #eaf2fe;
+  --aelux-primary-soft-border: #b5d4f4;
+  --aelux-primary-text: #0b5bcb;
+  --aelux-primary-contrast: #ffffff;
+
+  --aelux-bg-page: #f5f5f5;
+  --aelux-surface: #ffffff;
+  --aelux-surface-subtle: #f7f9fc;
+  --aelux-surface-hover: #eef1f4;
+  --aelux-surface-active: #e4e8ec;
+  --aelux-text: #343d4a;
+  --aelux-text-secondary: #737373;
+  --aelux-text-tertiary: #8c8c8c;
+  --aelux-text-inverse: #ffffff;
+
+  /* ---- 应用级变量 ---- */
+  --app-page: #f0f2f5;
   --app-surface: #ffffff;
-  --app-surface-2: #f7f9fc;
-  --app-border: var(--aelux-border);
-  --app-text: var(--aelux-text);
-  --app-text-sub: var(--aelux-text-secondary);
-  --app-primary: var(--aelux-primary);
-  --app-primary-soft: var(--aelux-primary-soft);
-  --app-radius: var(--aelux-radius-lg);
-  --app-shadow: var(--aelux-shadow-md);
-  --app-shadow-sm: var(--aelux-shadow-sm);
+  --app-surface-2: #f5f5f5;
+  --app-surface-3: #ebebeb;
+  --app-border: #dfe3e8;
+  --app-border-soft: #e8ebef;
+  --app-text: #343d4a;
+  --app-text-sub: #737373;
+  --app-text-mute: #8c8c8c;
+  --app-primary: #1370f3;
+  --app-primary-deep: #0b5bcb;
+  --app-titlebar: #4890f5;
+  --app-titlebar-2: #1370f3;
+  --app-radius: 6px;
+  --app-shadow-sm: 0 1px 3px rgba(52, 61, 74, 0.08);
+  --app-shadow: 0 2px 10px rgba(52, 61, 74, 0.1);
+  --app-shadow-lg: 0 6px 24px rgba(52, 61, 74, 0.14);
 }
 
 * {
@@ -28,54 +74,150 @@ body,
 }
 body {
   font-family: var(--aelux-font-sans);
-  background: var(--app-page);
+  background: transparent;
   color: var(--app-text);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
+/* PCL 的窗口是「浮在桌面上的圆角卡片」：窗口透明 + 8px 外边距 + 圆角。 */
 .aelux-app {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  margin: 8px;
+  border-radius: var(--app-radius);
+  overflow: hidden;
   background: var(--app-page);
+  box-shadow: var(--app-shadow-lg);
 }
 
-/* ===================== 标题栏 ===================== */
+/* ===================== 标题栏（PCL PanTitle） ===================== */
 .aelux-titlebar {
-  height: 40px;
-  flex: 0 0 40px;
-  display: flex;
+  height: 48px;
+  flex: 0 0 48px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 10px;
-  padding: 0 8px 0 14px;
-  background: var(--app-surface);
-  border-bottom: 1px solid var(--app-border);
+  gap: 12px;
+  padding: 0 8px 0 16px;
+  background: linear-gradient(90deg, var(--app-titlebar), var(--app-titlebar-2));
+  color: #fff;
   user-select: none;
 }
-.aelux-titlebar__title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--app-text);
-  letter-spacing: 0.01em;
-}
-.aelux-titlebar__center {
-  flex: 1;
+.aelux-titlebar__brand {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
+  justify-self: start;
 }
+.aelux-titlebar__logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+}
+.aelux-titlebar__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+.aelux-titlebar__preview {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+
+/* 居中水平导航（PCL PanTitleSelect：启动/下载/联机/设置/更多） */
+.aelux-titlebar__nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  justify-self: center;
+}
+.aelux-titlebar__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--aelux-transition), color var(--aelux-transition);
+}
+.aelux-titlebar__tab:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+.aelux-titlebar__tab.is-active {
+  background: rgba(255, 255, 255, 0.24);
+  color: #fff;
+  font-weight: 600;
+}
+.aelux-titlebar__tab-icon {
+  display: inline-flex;
+  opacity: 0.9;
+}
+
 .aelux-titlebar__actions {
   display: flex;
   align-items: center;
   gap: 2px;
+  justify-self: end;
 }
-.aelux-titlebar__close:hover {
-  background: var(--aelux-danger) !important;
-  color: #fff !important;
+.aelux-titlebar__badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  margin-right: 6px;
+}
+.aelux-titlebar__win {
+  width: 32px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-family: inherit;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background var(--aelux-transition);
+}
+.aelux-titlebar__win:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.aelux-titlebar__win--close:hover {
+  background: #e24b4a;
+  color: #fff;
+}
+/* 标题栏上的图标按钮在蓝底上要反色 */
+.aelux-titlebar__actions .aelux-icon-btn {
+  color: rgba(255, 255, 255, 0.9);
+}
+.aelux-titlebar__actions .aelux-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
 }
 
-/* ===================== 主体布局 ===================== */
+/* ===================== 主体 ===================== */
 .aelux-body {
   flex: 1;
   display: flex;
@@ -83,128 +225,391 @@ body {
 }
 .aelux-content {
   flex: 1;
-  overflow-y: auto;
-  padding: 24px 28px 40px;
-  background: transparent;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--app-page);
 }
-
-/* 侧边导航激活项 accent（库已处理底色，这里加左侧强调条） */
-.aelux-sidebar__item--active {
-  box-shadow: inset 3px 0 0 var(--aelux-primary);
+.aelux-content > .pcl-page {
+  flex: 1;
+  min-height: 0;
 }
-
-/* 品牌区 */
-.aelux-brand {
+.aelux-init-alert {
+  margin: 12px 20px 0;
+}
+.aelux-init-alert .aelux-alert__body {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 4px 8px 14px;
-}
-.aelux-brand__logo {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--aelux-primary), var(--aelux-primary-700));
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 18px;
-}
-.aelux-brand__name {
-  font-weight: 700;
-  font-size: 15px;
-  line-height: 1.1;
-}
-.aelux-brand__sub {
-  font-size: 11px;
-  color: var(--app-text-sub);
+  gap: 12px;
 }
 
-/* ===================== 视图通用 ===================== */
-.view__header {
+/* 加载态（PCL 的加载动画） */
+.pcl-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--app-text-sub);
+  font-size: 13px;
+}
+.pcl-loading__spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid var(--app-surface-3);
+  border-top-color: var(--app-primary);
+  animation: pcl-spin 0.9s linear infinite;
+}
+@keyframes pcl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===================== PCL 两栏页面（PanMain） ===================== */
+.pcl-page {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+}
+.pcl-page__left {
+  flex: 0 0 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--app-surface-2);
+  border-right: 1px solid var(--app-border);
+  padding: 12px 0;
+}
+.pcl-page__right {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 20px 25px 28px;
+  background: var(--app-page);
+}
+
+/* 左栏列表项（PCL ItemXXX：36px 高） */
+.pcl-page__nav-item {
+  min-height: 36px;
+  margin: 0 8px 2px;
+  border-radius: 4px;
+  padding: 6px 10px;
+  background: transparent;
+  transition: background var(--aelux-transition);
+}
+.pcl-page__nav-item:hover {
+  background: var(--app-surface-3);
+}
+.pcl-page__nav-item.aelux-list-item--selected {
+  background: var(--app-primary);
+  color: #fff;
+}
+.pcl-page__nav-item.aelux-list-item--selected .aelux-list-item__description,
+.pcl-page__nav-item.aelux-list-item--selected .aelux-list-item__meta {
+  color: rgba(255, 255, 255, 0.8);
+}
+.pcl-page__nav-item.aelux-list-item--selected .aelux-list-item__title {
+  color: #fff;
+}
+.pcl-nav-btn {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 0 8px 2px;
+  height: 36px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  text-align: left;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--app-text);
+  cursor: pointer;
+  transition: background var(--aelux-transition);
+}
+.pcl-nav-btn:hover {
+  background: var(--app-surface-3);
+}
+.pcl-nav-btn.is-active {
+  background: var(--app-primary);
+  color: #fff;
+  font-weight: 600;
+}
+.pcl-nav-host {
+  font-size: 11px;
+  color: var(--app-text-mute);
+  font-family: var(--aelux-font-mono);
+}
+
+/* ===================== 区块标题 ===================== */
+.pcl-section {
+  margin-bottom: 22px;
+}
+.pcl-section__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
   gap: 12px;
+  margin-bottom: 12px;
 }
-.view h2 {
-  margin: 0 0 16px;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+.pcl-section__head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--app-text);
 }
-.view__lead {
-  color: var(--app-text-sub);
-  margin: -8px 0 18px;
-  font-size: 13px;
+.pcl-section__count {
+  font-size: 12px;
+  color: var(--app-text-mute);
+}
+.pcl-section__note {
+  margin-top: 12px;
 }
 
-/* ===================== 实例卡片（主页） ===================== */
-.instance-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
-}
-.instance-card {
-  transition: transform var(--aelux-transition), box-shadow var(--aelux-transition);
-}
-.instance-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--aelux-shadow-lg);
-}
-.instance-card__meta {
+/* PCL 的蓝色提示条 */
+.pcl-hint {
   display: flex;
-  gap: 6px;
-  margin: 10px 0;
-  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  margin-bottom: 20px;
+  background: var(--app-primary-soft);
+  border: 1px solid var(--aelux-primary-soft-border);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--app-text);
 }
-.instance-card__time {
-  color: var(--app-text-sub);
-  font-size: 12px;
-  margin: 4px 0 14px;
+.pcl-hint__title {
+  flex: 0 0 auto;
+  font-weight: 600;
+  color: var(--app-primary-deep);
 }
-.instance-card__play {
+
+/* ===================== 启动页（PageLaunch） ===================== */
+.pcl-launch {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 14px;
+}
+.pcl-launch__row {
+  display: flex;
+  gap: 8px;
+}
+.pcl-launch__login {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.pcl-launch__login-icon {
+  display: inline-flex;
+  color: var(--app-text-mute);
+}
+.pcl-launch__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  height: 54px;
+  border: none;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #4890f5, #1370f3);
+  color: #fff;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(19, 112, 243, 0.3);
+  transition: filter var(--aelux-transition), transform var(--aelux-transition);
+}
+.pcl-launch__btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.pcl-launch__btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.pcl-launch__btn:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+.pcl-launch__btn-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+.pcl-launch__btn-sub {
+  font-size: 11px;
+  opacity: 0.9;
+}
+.pcl-launch__select {
+  width: 100%;
+}
+.pcl-launch__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pcl-launch__progress-text {
+  font-size: 12px;
+  color: var(--app-text-sub);
 }
 
-/* ===================== 登录网格（账号） ===================== */
-.login-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
-}
-.account-card__meta {
+/* 实例列表 */
+.pcl-instance-list {
   display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 6px;
 }
-.account-card__uuid {
-  color: var(--app-text-sub);
-  font-size: 13px;
-  margin: 4px 0 16px;
+.pcl-instance-list__row {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border-soft);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.pcl-instance-list__row:hover {
+  border-color: var(--aelux-primary-soft-border);
+  box-shadow: var(--app-shadow-sm);
+}
+.pcl-instance-list__badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  background: var(--app-primary-soft);
+  color: var(--app-primary-deep);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* 启动日志 */
+.pcl-log {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border-soft);
+  border-radius: 4px;
+  padding: 12px 14px;
+  min-height: 96px;
+  max-height: 220px;
+  overflow-y: auto;
   font-family: var(--aelux-font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--app-text-sub);
+}
+.pcl-log__empty {
+  color: var(--app-text-mute);
+  font-family: var(--aelux-font-sans);
+}
+.pcl-log__line {
+  white-space: pre-wrap;
   word-break: break-all;
 }
 
-/* ===================== 设置行 ===================== */
+/* ===================== 联机页（PageLink） ===================== */
+.pcl-link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 14px;
+}
+.pcl-link__empty {
+  padding: 20px 6px;
+  font-size: 12px;
+  color: var(--app-text-mute);
+  text-align: center;
+}
+.pcl-link__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pcl-server-detail {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border-soft);
+  border-radius: 4px;
+  padding: 14px 16px;
+}
+.pcl-server-detail__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--app-border-soft);
+  font-size: 13px;
+}
+.pcl-server-detail__row code {
+  font-family: var(--aelux-font-mono);
+  font-size: 12px;
+  color: var(--app-text);
+}
+.pcl-server-detail__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* ===================== 表单 ===================== */
+.pcl-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border-soft);
+  border-radius: 4px;
+  padding: 14px 16px;
+}
+.pcl-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 180px;
+}
+.pcl-form__field--narrow {
+  min-width: 110px;
+}
+.pcl-form__field > span {
+  font-size: 12px;
+  color: var(--app-text-sub);
+}
+.pcl-input--narrow {
+  width: 120px;
+}
+.pcl-input--wide {
+  width: 280px;
+}
+
+/* ===================== 设置 ===================== */
+.pcl-settings {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border-soft);
+  border-radius: 4px;
+  padding: 4px 16px;
+}
+.pcl-settings__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
 .setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: 12px 0;
-  border-bottom: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border-soft);
 }
 .setting-row:last-child {
   border-bottom: none;
 }
 .setting-row__label {
   font-weight: 600;
+  font-size: 13px;
 }
 .setting-row__desc {
   color: var(--app-text-sub);
@@ -212,28 +617,70 @@ body {
   margin-top: 3px;
 }
 
-/* ===================== 模组 ===================== */
-.mods__hint {
-  color: var(--app-text-sub);
+/* ===================== 关于 ===================== */
+.pcl-about {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border-soft);
+  border-radius: 4px;
+  padding: 22px 24px;
+}
+.pcl-about__logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #4890f5, #1370f3);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.pcl-about__name {
+  font-size: 17px;
+  font-weight: 600;
+}
+.pcl-about__version {
+  font-size: 12px;
+  color: var(--app-text-mute);
+  margin: 3px 0 14px;
+}
+.pcl-about__desc {
   font-size: 13px;
+  line-height: 1.8;
+  color: var(--app-text-sub);
+  margin: 0 0 10px;
 }
 
-/* 分段筛选器（下载页） */
+/* ===================== 下载页 ===================== */
+.dl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.dl-toolbar__spacer {
+  flex: 1;
+}
+.dl-search {
+  max-width: 220px;
+}
 .dl-seg {
   display: inline-flex;
-  background: var(--app-surface-2);
-  border: 1px solid var(--app-border);
-  border-radius: var(--aelux-radius-md);
-  padding: 3px;
+  background: var(--app-surface-3);
+  border-radius: 4px;
+  padding: 2px;
   gap: 2px;
 }
 .dl-seg__btn {
   border: none;
   background: transparent;
   color: var(--app-text-sub);
-  font-size: 13px;
-  padding: 5px 12px;
-  border-radius: var(--aelux-radius-sm);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 4px 12px;
+  border-radius: 3px;
   cursor: pointer;
   transition: background var(--aelux-transition), color var(--aelux-transition);
 }
@@ -242,49 +689,31 @@ body {
 }
 .dl-seg__btn.is-active {
   background: var(--app-surface);
-  color: var(--aelux-primary-700);
+  color: var(--app-primary-deep);
   font-weight: 600;
   box-shadow: var(--app-shadow-sm);
 }
 .dl-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   color: var(--aelux-danger);
   font-size: 13px;
   margin: 8px 0;
 }
-.dl-tasks-card {
-  margin-top: 18px;
-}
-
-/* ===================== 下载（版本列表） ===================== */
-.dl-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-.dl-toolbar__spacer {
-  flex: 1;
-}
-.dl-search {
-  max-width: 240px;
-}
-.server-port {
-  width: 110px;
-}
 .version-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .version-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 9px 13px;
   background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: var(--aelux-radius-md);
+  border: 1px solid var(--app-border-soft);
+  border-radius: 4px;
   transition: border-color var(--aelux-transition), box-shadow var(--aelux-transition);
 }
 .version-row:hover {
@@ -293,7 +722,7 @@ body {
 }
 .version-row__id {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
 }
 .version-row__type {
   font-size: 11px;
@@ -303,7 +732,7 @@ body {
 }
 .version-row__time {
   font-size: 12px;
-  color: var(--app-text-sub);
+  color: var(--app-text-mute);
 }
 .version-row__spacer {
   flex: 1;
@@ -314,92 +743,45 @@ body {
 .version-row--snapshot {
   border-left: 3px solid var(--aelux-warning);
 }
+.version-row--other {
+  border-left: 3px solid var(--app-border);
+}
 
-/* ===================== 联机（服务器） ===================== */
-.server-grid {
+/* ===================== 账号 / 模组 ===================== */
+.login-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 14px;
 }
-.server-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 14px 16px;
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: var(--aelux-radius-md);
-  transition: border-color var(--aelux-transition), box-shadow var(--aelux-transition);
-}
-.server-card:hover {
-  border-color: var(--aelux-primary-soft-border);
-  box-shadow: var(--app-shadow-sm);
-}
-.server-card__name {
-  font-weight: 600;
-  font-size: 15px;
-}
-.server-card__host {
-  font-family: var(--aelux-font-mono);
-  font-size: 12px;
-  color: var(--app-text-sub);
-}
-.server-card__actions {
+.account-card__meta {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
-}
-.server-form {
-  display: flex;
-  gap: 10px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
-  align-items: flex-end;
-  padding: 16px;
-  background: var(--app-surface-2);
-  border: 1px dashed var(--app-border);
-  border-radius: var(--aelux-radius-md);
-  margin-bottom: 18px;
 }
-.server-form__field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.server-form__field label {
-  font-size: 12px;
+.account-card__uuid {
   color: var(--app-text-sub);
+  font-size: 12px;
+  margin: 4px 0 14px;
+  font-family: var(--aelux-font-mono);
+  word-break: break-all;
 }
-
-/* ===================== 杂项 ===================== */
-.aelux-update-badge {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-}
-.empty-cta {
-  margin-top: 4px;
+.mods__hint {
+  color: var(--app-text-sub);
+  font-size: 12px;
 }
 
 /* 细滚动条 */
-.aelux-content::-webkit-scrollbar {
-  width: 10px;
+.aelux-content::-webkit-scrollbar,
+.pcl-page__left::-webkit-scrollbar,
+.pcl-page__right::-webkit-scrollbar,
+.pcl-log::-webkit-scrollbar {
+  width: 8px;
 }
-.aelux-content::-webkit-scrollbar-thumb {
-  background: var(--aelux-border-strong);
+.aelux-content::-webkit-scrollbar-thumb,
+.pcl-page__left::-webkit-scrollbar-thumb,
+.pcl-page__right::-webkit-scrollbar-thumb,
+.pcl-log::-webkit-scrollbar-thumb {
+  background: #cfd4da;
   border-radius: 999px;
-  border: 3px solid var(--app-page);
-}
-
-/* 进度对话框细节 */
-.progress-detail-log {
-  font-family: var(--aelux-font-mono);
-  font-size: 12px;
-  background: var(--app-surface-2);
-  border: 1px solid var(--app-border);
-  border-radius: var(--aelux-radius-sm);
-  padding: 10px;
-  max-height: 180px;
-  overflow: auto;
-  white-space: pre-wrap;
-  color: var(--app-text-sub);
 }

@@ -1,51 +1,15 @@
 import { useEffect } from 'react'
-import {
-  SidebarNav,
-  Card,
-  Button,
-  Badge,
-  Dialog,
-  IconGrid,
-  IconDownload,
-  IconUser,
-  IconPackage,
-  IconExternal,
-  IconSettings,
-} from 'aelux-components'
+import { Button, Dialog, Alert } from 'aelux-components'
 import { TitleBar } from './components/TitleBar'
 import { useApp, announcements } from './store'
 import { Home } from './views/Home'
 import { Download } from './views/Download'
-import { Account } from './views/Account'
-import { Mods } from './views/Mods'
 import { Multiplayer } from './views/Multiplayer'
 import { Settings } from './views/Settings'
-
-type ViewKey = 'home' | 'download' | 'account' | 'mods' | 'multiplayer' | 'settings'
-
-const NAV_GROUPS = [
-  {
-    key: 'game',
-    label: '游戏',
-    items: [
-      { key: 'home', label: '主页', icon: <IconGrid size={18} /> },
-      { key: 'download', label: '下载', icon: <IconDownload size={18} /> },
-      { key: 'mods', label: '模组', icon: <IconPackage size={18} /> },
-      { key: 'multiplayer', label: '联机', icon: <IconExternal size={18} /> },
-    ],
-  },
-  {
-    key: 'sys',
-    label: '账户与设置',
-    items: [
-      { key: 'account', label: '账号', icon: <IconUser size={18} /> },
-      { key: 'settings', label: '设置', icon: <IconSettings size={18} /> },
-    ],
-  },
-]
+import { More } from './views/More'
 
 export function App() {
-  const { ready, view, setView, init, pendingAnnouncements, updateAvailable } = useApp()
+  const { ready, view, init, pendingAnnouncements, initError, browserMode } = useApp()
 
   useEffect(() => {
     void init()
@@ -55,37 +19,43 @@ export function App() {
 
   return (
     <div className="aelux-app">
-      <TitleBar updateAvailable={updateAvailable} />
+      <TitleBar />
 
       <div className="aelux-body">
-        <SidebarNav
-          groups={NAV_GROUPS}
-          value={view}
-          onValueChange={(k) => setView(k as ViewKey)}
-          header={
-            <div className="aelux-brand">
-              <span className="aelux-brand__logo">A</span>
-              <div>
-                <div className="aelux-brand__name">Aelux</div>
-                <div className="aelux-brand__sub">启动器</div>
-              </div>
-            </div>
-          }
-        />
-
         <main className="aelux-content">
           {!ready ? (
-            <Card title="加载中">
+            <div className="pcl-loading">
+              <span className="pcl-loading__spinner" aria-hidden="true" />
               <p>正在初始化本地数据与版本清单…</p>
-            </Card>
+            </div>
           ) : (
             <>
+              {initError && (
+                <Alert
+                  type="warning"
+                  title="部分平台能力不可用"
+                  description={initError}
+                  className="aelux-init-alert"
+                >
+                  <Button variant="ghost" size="sm" onClick={() => init()}>
+                    重试初始化
+                  </Button>
+                </Alert>
+              )}
+              {browserMode && (
+                <Alert
+                  type="info"
+                  title="浏览器预览模式"
+                  description="未检测到 Tauri 运行时，版本清单、下载与启动均为模拟实现；功能布局与桌面端一致。"
+                  className="aelux-init-alert"
+                />
+              )}
+
               {view === 'home' && <Home />}
               {view === 'download' && <Download />}
-              {view === 'account' && <Account />}
-              {view === 'mods' && <Mods />}
               {view === 'multiplayer' && <Multiplayer />}
               {view === 'settings' && <Settings />}
+              {view === 'more' && <More />}
             </>
           )}
         </main>
@@ -101,12 +71,6 @@ export function App() {
           知道了
         </Button>
       </Dialog>
-
-      {updateAvailable && (
-        <Badge status="warning" className="aelux-update-badge">
-          有新版本可用
-        </Badge>
-      )}
     </div>
   )
 }

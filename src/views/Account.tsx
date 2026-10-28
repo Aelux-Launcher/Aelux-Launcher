@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Card, Button, Badge, Input, toast, IconUser } from 'aelux-components'
-import { useApp, auth, tauriAdapter } from '../store'
+import { useApp, auth, platform } from '../store'
 
+/** 账号页内容（渲染在「更多」页的右栏）。 */
 export function Account() {
   const { session } = useApp()
   const [name, setName] = useState('')
@@ -25,11 +26,11 @@ export function Account() {
   async function microsoft() {
     // 真实流程：打开系统浏览器走 OAuth，由 app 注入的 acquireCode / exchangeCode 完成令牌换发。
     // 当前 lib 未注入 microsoft 依赖，这里仅演示打开授权页。
-    await tauriAdapter.openExternal('https://login.live.com/oauth20_authorize.srf')
+    await platform.openExternal('https://login.live.com/oauth20_authorize.srf')
   }
 
   async function thirdParty() {
-    await tauriAdapter.openExternal('https://account.aelux.app/oauth/authorize')
+    await platform.openExternal('https://account.aelux.app/oauth/authorize')
   }
 
   async function logout() {
@@ -40,8 +41,10 @@ export function Account() {
 
   if (session) {
     return (
-      <div className="view">
-        <h2>当前账号</h2>
+      <div className="pcl-section">
+        <div className="pcl-section__head">
+          <h3>当前账号</h3>
+        </div>
         <Card title={session.username} className="account-card">
           <div className="account-card__meta">
             <Badge status={session.type === 'offline' ? 'info' : 'success'}>{session.type}</Badge>
@@ -57,8 +60,10 @@ export function Account() {
   }
 
   return (
-    <div className="view">
-      <h2>登录</h2>
+    <div className="pcl-section">
+      <div className="pcl-section__head">
+        <h3>登录</h3>
+      </div>
       <div className="login-grid">
         <Card title="微软登录（正版）">
           <p>使用微软 / Xbox / Minecraft 账号登录，享受正版校验与皮肤同步。</p>
@@ -77,13 +82,7 @@ export function Account() {
         <Card title="离线登录">
           <p>输入昵称即可离线游玩，完全本地可用，无需网络。</p>
           <Input placeholder="昵称" value={name} onChange={(e: any) => setName(e.target.value)} />
-          <Button
-            variant="secondary"
-            block
-            loading={busy}
-            disabled={!name.trim()}
-            onClick={offline}
-          >
+          <Button variant="secondary" block loading={busy} disabled={!name.trim()} onClick={offline}>
             离线启动
           </Button>
         </Card>

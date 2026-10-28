@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Card,
   Button,
   Badge,
   Empty,
@@ -11,17 +10,34 @@ import {
   IconDownload,
   IconRefresh,
   IconSearch,
+  IconPackage,
   type TaskItem,
 } from 'aelux-components'
 import { useApp } from '../store'
+import { PclPage } from '../components/PclPage'
 
 type Filter = 'all' | 'release' | 'snapshot'
+
+/** 下载页左栏的资源类型，对应 PCL `PageDownloadLeft` 的 ItemXXX 列表。 */
+const RESOURCE_TABS = [
+  { key: 'vanilla', title: '原版游戏' },
+  { key: 'mod', title: 'Mod' },
+  { key: 'pack', title: '整合包' },
+  { key: 'datapack', title: '数据包' },
+  { key: 'resourcepack', title: '资源包' },
+  { key: 'shader', title: '光影包' },
+]
 
 function statusOf(s: string): TaskItem['status'] {
   if (s === 'canceled') return 'error'
   return s as TaskItem['status']
 }
 
+/**
+ * 下载页 —— 对应 PCL 的 `PageDownload`（PageDownloadLeft + PageDownloadInstall）：
+ *   左栏：资源类型列表（原版游戏 / Mod / 整合包 / 数据包 / 资源包 / 光影包）
+ *   右栏：版本列表 + 搜索筛选 + 下载任务
+ */
 export function Download() {
   const {
     versions,
@@ -34,6 +50,7 @@ export function Download() {
     downloadState,
   } = useApp()
 
+  const [resource, setResource] = useState('vanilla')
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -80,94 +97,123 @@ export function Download() {
   async function handleInstall(id: string) {
     try {
       await installVersion(id)
-      toast.success(`已安装 ${id}，可在「主页」一键启动`)
+      toast.success(`已安装 ${id}，可在「启动」页一键启动`)
     } catch (e) {
       toast.error(`安装失败：${(e as Error).message}`)
     }
   }
 
+  const nav = RESOURCE_TABS.map((t) => ({
+    ...t,
+    badge: t.key === 'vanilla' ? versions.length || undefined : undefined,
+  }))
+
   return (
-    <div className="view">
-      <div className="view__header">
-        <h2>下载游戏</h2>
-        <Button variant="ghost" size="sm" leftIcon={<IconRefresh size={15} />} loading={versionsLoading} onClick={() => loadVersions()}>
-          刷新列表
-        </Button>
-      </div>
-
-      <div className="dl-toolbar">
-        <div className="dl-seg">
-          {(['all', 'release', 'snapshot'] as Filter[]).map((f) => (
-            <button
-              key={f}
-              className={`dl-seg__btn${filter === f ? ' is-active' : ''}`}
-              onClick={() => setFilter(f)}
-            >
-              {f === 'all' ? '全部' : f === 'release' ? '正式版' : '快照'}
-            </button>
-          ))}
-        </div>
-        <div className="dl-toolbar__spacer" />
-        <Input
-          placeholder="搜索版本号…"
-          value={query}
-          onChange={(e: any) => setQuery(e.target.value)}
-          prefix={<IconSearch size={15} />}
-          wrapperClassName="dl-search"
+    <PclPage nav={nav} active={resource} onSelect={setResource} leftWidth={220}>
+      {resource !== 'vanilla' ? (
+        <Empty
+          title={`${RESOURCE_TABS.find((t) => t.key === resource)?.title} 尚未开放`}
+          description="该资源类型将在后续版本接入（对应设计文档 Phase 2：Modrinth / CurseForge / ModPack）。"
+          icon={<IconPackage size={44} />}
         />
-      </div>
-
-      {versionsError && (
-        <Card>
-          <p className="dl-error">加载版本清单失败：{versionsError}</p>
-          <Button variant="secondary" size="sm" onClick={() => loadVersions()}>
-            重试
-          </Button>
-        </Card>
-      )}
-
-      {versionsLoading && versions.length === 0 ? (
-        <Empty title="加载中" description="正在从版本清单源拉取可下载版本…" />
-      ) : filtered.length === 0 ? (
-        <Empty title="没有匹配的版本" description="换个筛选条件或清空搜索试试。" />
       ) : (
-        <div className="version-list">
-          {filtered.map((v) => (
-            <div
-              key={v.id}
-              className={`version-row version-row--${v.type === 'release' ? 'release' : v.type === 'snapshot' ? 'snapshot' : 'other'}`}
+        <>
+          <div className="pcl-section__head">
+            <h3>原版游戏</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              leftIcon={<IconRefresh size={15} />}
+              loading={versionsLoading}
+              onClick={() => loadVersions()}
             >
-              <div>
-                <div className="version-row__id">{v.id}</div>
-                <div className="version-row__time">{v.releaseTime ? v.releaseTime.slice(0, 10) : ''}</div>
-              </div>
-              <div className="version-row__spacer" />
-              <Badge status={v.type === 'release' ? 'success' : v.type === 'snapshot' ? 'warning' : 'info'}>
-                {v.type}
-              </Badge>
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<IconDownload size={15} />}
-                loading={installing === v.id}
-                disabled={installing !== null}
-                onClick={() => handleInstall(v.id)}
-              >
-                安装
+              刷新列表
+            </Button>
+          </div>
+
+          <div className="dl-toolbar">
+            <div className="dl-seg">
+              {(['all', 'release', 'snapshot'] as Filter[]).map((f) => (
+                <button
+                  key={f}
+                  className={`dl-seg__btn${filter === f ? ' is-active' : ''}`}
+                  onClick={() => setFilter(f)}
+                >
+                  {f === 'all' ? '全部' : f === 'release' ? '正式版' : '快照'}
+                </button>
+              ))}
+            </div>
+            <div className="dl-toolbar__spacer" />
+            <Input
+              placeholder="搜索版本号…"
+              value={query}
+              onChange={(e: any) => setQuery(e.target.value)}
+              prefix={<IconSearch size={15} />}
+              wrapperClassName="dl-search"
+            />
+          </div>
+
+          {versionsError && (
+            <div className="dl-error">
+              加载版本清单失败：{versionsError}
+              <Button variant="secondary" size="sm" onClick={() => loadVersions()}>
+                重试
               </Button>
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {tasks.length > 0 && (
-        <Card title="下载任务" className="dl-tasks-card">
-          <TaskList items={tasks} />
-        </Card>
-      )}
+          {versionsLoading && versions.length === 0 ? (
+            <Empty title="加载中" description="正在从版本清单源拉取可下载版本…" />
+          ) : filtered.length === 0 ? (
+            <Empty title="没有匹配的版本" description="换个筛选条件或清空搜索试试。" />
+          ) : (
+            <div className="version-list">
+              {filtered.map((v) => (
+                <div
+                  key={v.id}
+                  className={`version-row version-row--${
+                    v.type === 'release' ? 'release' : v.type === 'snapshot' ? 'snapshot' : 'other'
+                  }`}
+                >
+                  <div>
+                    <div className="version-row__id">{v.id}</div>
+                    <div className="version-row__time">
+                      {v.releaseTime ? v.releaseTime.slice(0, 10) : ''}
+                    </div>
+                  </div>
+                  <div className="version-row__spacer" />
+                  <Badge
+                    status={v.type === 'release' ? 'success' : v.type === 'snapshot' ? 'warning' : 'info'}
+                  >
+                    {v.type}
+                  </Badge>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<IconDownload size={15} />}
+                    loading={installing === v.id}
+                    disabled={installing !== null}
+                    onClick={() => handleInstall(v.id)}
+                  >
+                    安装
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
 
-      {installError && (
-        <p className="dl-error">安装出错：{installError}</p>
+          {tasks.length > 0 && (
+            <div className="pcl-section">
+              <div className="pcl-section__head">
+                <h3>下载任务</h3>
+                <span className="pcl-section__count">{tasks.length} 项</span>
+              </div>
+              <TaskList items={tasks} />
+            </div>
+          )}
+
+          {installError && <p className="dl-error">安装出错：{installError}</p>}
+        </>
       )}
 
       <ProgressDialog
@@ -190,6 +236,6 @@ export function Download() {
         showClose
         closeOnEsc
       />
-    </div>
+    </PclPage>
   )
 }
