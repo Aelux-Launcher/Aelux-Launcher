@@ -1,17 +1,8 @@
 import { useEffect, useState } from 'react'
-import {
-  Button,
-  Badge,
-  Empty,
-  Input,
-  ListItem,
-  toast,
-  IconExternal,
-  IconTrash,
-  IconPlus,
-} from 'aelux-components'
+import { toast, IconExternal, IconTrash, IconPlus, IconSearch } from 'aelux-components'
 import { useApp } from '../store'
 import { PclPage } from '../components/PclPage'
+import { PclCard } from '../components/PclCard'
 
 function address(s: { host: string; port?: number }) {
   return s.port ? `${s.host}:${s.port}` : s.host
@@ -19,19 +10,26 @@ function address(s: { host: string; port?: number }) {
 
 /**
  * 联机页 —— 对应 PCL 的 `PageLink`：
- *   左栏：服务器列表；右栏：选中服务器详情 + 添加服务器表单
+ *   左栏：已保存的服务器列表；右栏：服务器详情 + 添加表单
  */
 export function Multiplayer() {
   const { servers, addServer, removeServer } = useApp()
-  const [selectedId, setSelectedId] = useState<string>('')
+  const [selectedId, setSelectedId] = useState('')
   const [name, setName] = useState('')
   const [host, setHost] = useState('')
   const [port, setPort] = useState('')
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     if (!selectedId && servers.length > 0) setSelectedId(servers[0].id)
   }, [servers, selectedId])
 
+  const filtered = servers.filter(
+    (s) =>
+      !query.trim() ||
+      s.name.includes(query.trim()) ||
+      s.host.includes(query.trim()),
+  )
   const selected = servers.find((s) => s.id === selectedId) ?? null
 
   async function handleAdd() {
@@ -59,90 +57,99 @@ export function Multiplayer() {
   }
 
   return (
-    <PclPage
-      leftWidth={260}
-      left={
-        <div className="pcl-link">
-          <div className="pcl-link__search">
-            <Input placeholder="搜索服务器…" size="sm" block />
-          </div>
-          {servers.length === 0 ? (
-            <div className="pcl-link__empty">还没有保存任何服务器</div>
-          ) : (
-            <div className="pcl-link__list">
-              {servers.map((s) => (
-                <ListItem
-                  key={s.id}
-                  title={s.name}
-                  description={address(s)}
-                  selected={selectedId === s.id}
-                  onClick={() => setSelectedId(s.id)}
-                  className="pcl-page__nav-item"
-                />
-              ))}
-            </div>
-          )}
+    <PclPage leftWidth={205} left={
+      <div style={{ padding: '12px 10px' }}>
+        <div className="pcl-search" style={{ marginBottom: 12, height: 32, boxShadow: 'none', background: 'var(--pcl-8)' }}>
+          <IconSearch size={15} />
+          <input placeholder="搜索服务器" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
-      }
-    >
-      {selected ? (
-        <div className="pcl-section">
-          <div className="pcl-section__head">
-            <h3>{selected.name}</h3>
-            <Badge status="success">已保存</Badge>
+        {filtered.length === 0 ? (
+          <div className="pcl-nav-group" style={{ margin: '18px 4px' }}>
+            还没有保存任何服务器
           </div>
-          <div className="pcl-server-detail">
-            <div className="pcl-server-detail__row">
-              <span>服务器地址</span>
-              <code>{address(selected)}</code>
-            </div>
-            <div className="pcl-server-detail__row">
-              <span>端口</span>
-              <code>{selected.port ?? 25565}</code>
-            </div>
-            <div className="pcl-server-detail__actions">
-              <Button variant="primary" leftIcon={<IconExternal size={15} />} onClick={() => handleCopy(selected)}>
-                复制地址
-              </Button>
-              <Button
-                variant="danger"
-                leftIcon={<IconTrash size={15} />}
-                onClick={() => {
-                  removeServer(selected.id)
-                  setSelectedId('')
-                }}
+        ) : (
+          <div className="pcl-nav pcl-stagger">
+            {filtered.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className={`pcl-nav-item${selectedId === s.id ? ' is-active' : ''}`}
+                onClick={() => setSelectedId(s.id)}
               >
-                删除
-              </Button>
+                <span className="pcl-nav-item__check" aria-hidden="true" />
+                <span className="pcl-nav-item__title">{s.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    }>
+      {selected ? (
+        <PclCard title={selected.name}>
+          <div className="pcl-form-row">
+            <div className="pcl-form-row__label">服务器地址</div>
+            <div className="pcl-form-row__control" style={{ fontFamily: 'var(--aelux-font-mono)', fontSize: 13 }}>
+              {address(selected)}
             </div>
           </div>
-        </div>
+          <div className="pcl-form-row">
+            <div className="pcl-form-row__label">端口</div>
+            <div className="pcl-form-row__control" style={{ fontSize: 13 }}>
+              {selected.port ?? 25565}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+            <button type="button" className="pcl-btn pcl-btn--primary" onClick={() => handleCopy(selected)}>
+              <IconExternal size={13} />
+              复制地址
+            </button>
+            <button
+              type="button"
+              className="pcl-btn"
+              onClick={() => {
+                removeServer(selected.id)
+                setSelectedId('')
+              }}
+            >
+              <IconTrash size={13} />
+              删除
+            </button>
+          </div>
+        </PclCard>
       ) : (
-        <Empty title="未选择服务器" description="从左栏选择一个服务器查看详情，或在下方添加新的服务器。" />
+        <PclCard title="添加服务器">
+          <div className="pcl-empty">
+            <p>从左栏选择一个服务器查看详情，或在下方添加新的服务器。</p>
+          </div>
+        </PclCard>
       )}
 
-      <div className="pcl-section">
-        <div className="pcl-section__head">
-          <h3>添加服务器</h3>
+      <PclCard title="添加服务器">
+        <div className="pcl-form-row">
+          <div className="pcl-form-row__label">名称</div>
+          <div className="pcl-form-row__control">
+            <input className="pcl-input" placeholder="我的服务器" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
         </div>
-        <div className="pcl-form">
-          <label className="pcl-form__field">
-            <span>名称</span>
-            <Input placeholder="我的服务器" value={name} onChange={(e: any) => setName(e.target.value)} />
-          </label>
-          <label className="pcl-form__field">
-            <span>地址</span>
-            <Input placeholder="mc.example.com" value={host} onChange={(e: any) => setHost(e.target.value)} />
-          </label>
-          <label className="pcl-form__field pcl-form__field--narrow">
-            <span>端口</span>
-            <Input placeholder="25565" value={port} onChange={(e: any) => setPort(e.target.value)} />
-          </label>
-          <Button variant="primary" leftIcon={<IconPlus size={15} />} onClick={handleAdd}>
+        <div className="pcl-form-row">
+          <div className="pcl-form-row__label">地址</div>
+          <div className="pcl-form-row__control">
+            <input className="pcl-input" placeholder="mc.example.com" value={host} onChange={(e) => setHost(e.target.value)} />
+          </div>
+        </div>
+        <div className="pcl-form-row">
+          <div className="pcl-form-row__label">端口</div>
+          <div className="pcl-form-row__control">
+            <input className="pcl-input" placeholder="25565" value={port} onChange={(e) => setPort(e.target.value)} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+          <button type="button" className="pcl-btn pcl-btn--primary" onClick={handleAdd}>
+            <IconPlus size={13} />
             添加
-          </Button>
+          </button>
         </div>
-      </div>
+      </PclCard>
     </PclPage>
   )
 }

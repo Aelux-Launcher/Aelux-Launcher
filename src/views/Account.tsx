@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Card, Button, Badge, Input, toast, IconUser } from 'aelux-components'
+import { Badge, toast, IconUser } from 'aelux-components'
 import { useApp, auth, platform } from '../store'
+import { PclCard } from '../components/PclCard'
 
 /** 账号页内容（渲染在「更多」页的右栏）。 */
 export function Account() {
@@ -41,52 +42,66 @@ export function Account() {
 
   if (session) {
     return (
-      <div className="pcl-section">
-        <div className="pcl-section__head">
-          <h3>当前账号</h3>
+      <PclCard title="当前账号">
+        <div className="account-card__meta">
+          <Badge status={session.type === 'offline' ? 'info' : 'success'}>{session.type}</Badge>
+          {session.roleId && <Badge status="info">角色 {session.roleId.slice(0, 8)}</Badge>}
         </div>
-        <Card title={session.username} className="account-card">
-          <div className="account-card__meta">
-            <Badge status={session.type === 'offline' ? 'info' : 'success'}>{session.type}</Badge>
-            {session.roleId && <Badge status="info">角色 {session.roleId.slice(0, 8)}</Badge>}
-          </div>
-          <p className="account-card__uuid">UUID：{session.uuid}</p>
-          <Button variant="secondary" onClick={logout}>
-            退出登录
-          </Button>
-        </Card>
-      </div>
+        <p className="account-card__uuid">UUID：{session.uuid}</p>
+        <button type="button" className="pcl-btn" onClick={logout}>
+          退出登录
+        </button>
+      </PclCard>
     )
   }
 
   return (
-    <div className="pcl-section">
-      <div className="pcl-section__head">
-        <h3>登录</h3>
-      </div>
+    <PclCard title="登录">
       <div className="login-grid">
-        <Card title="微软登录（正版）">
-          <p>使用微软 / Xbox / Minecraft 账号登录，享受正版校验与皮肤同步。</p>
-          <Button variant="primary" block leftIcon={<IconUser size={16} />} onClick={microsoft}>
+        <div className="pcl-guide" style={{ display: 'block' }}>
+          <div className="pcl-guide__title">微软登录（正版）</div>
+          <div className="pcl-guide__desc" style={{ marginBottom: 10 }}>
+            使用微软 / Xbox / Minecraft 账号登录，享受正版校验与皮肤同步。
+          </div>
+          <button type="button" className="pcl-btn pcl-btn--primary" onClick={microsoft}>
+            <IconUser size={13} />
             微软登录
-          </Button>
-        </Card>
+          </button>
+        </div>
 
-        <Card title="第三方账号">
-          <p>使用 Aelux 服务器账号体系登录，与白名单角色对齐。</p>
-          <Button variant="primary" block onClick={thirdParty}>
+        <div className="pcl-guide" style={{ display: 'block' }}>
+          <div className="pcl-guide__title">第三方账号</div>
+          <div className="pcl-guide__desc" style={{ marginBottom: 10 }}>
+            使用 Aelux 服务器账号体系登录，与白名单角色对齐。
+          </div>
+          <button type="button" className="pcl-btn pcl-btn--primary" onClick={thirdParty}>
             服务器账号登录
-          </Button>
-        </Card>
+          </button>
+        </div>
 
-        <Card title="离线登录">
-          <p>输入昵称即可离线游玩，完全本地可用，无需网络。</p>
-          <Input placeholder="昵称" value={name} onChange={(e: any) => setName(e.target.value)} />
-          <Button variant="secondary" block loading={busy} disabled={!name.trim()} onClick={offline}>
-            离线启动
-          </Button>
-        </Card>
+        <div className="pcl-guide" style={{ display: 'block' }}>
+          <div className="pcl-guide__title">离线登录</div>
+          <div className="pcl-guide__desc" style={{ marginBottom: 10 }}>
+            输入昵称即可离线游玩，完全本地可用，无需网络。
+          </div>
+          <input
+            className="pcl-input"
+            placeholder="昵称"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={{ marginBottom: 10 }}
+          />
+          <button
+            type="button"
+            className="pcl-btn"
+            disabled={!name.trim()}
+            onClick={offline}
+            style={{ width: '100%' }}
+          >
+            {busy ? '登录中…' : '离线启动'}
+          </button>
+        </div>
       </div>
-    </div>
+    </PclCard>
   )
 }

@@ -1,39 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  Button,
-  Badge,
-  ListItem,
-  Select,
-  Radio,
-  Progress,
-  Empty,
-  toast,
-  IconPlay,
-  IconSettings,
-  IconUser,
-  IconDownload,
-  IconTrash,
-  type SelectOption,
-} from 'aelux-components'
+import { Badge, Progress, toast, IconUser, IconTrash, IconPlay } from 'aelux-components'
 import { useApp } from '../store'
 import { PclPage } from '../components/PclPage'
 
-type LoginType = 'microsoft' | 'offline' | 'third'
-
 /**
- * 启动页 —— 对应 PCL 的 `PageLaunch`（PageLaunchLeft + PageLaunchRight）：
- *   左栏 300px：版本选择 / 版本设置 → 登录方式 → 巨大启动按钮 → 版本号 → 启动进度
- *   右栏：提示条 → 实例列表 → 启动日志
+ * 启动页 —— 复刻 PCL 的 `PageLaunch`（PageLaunchLeft 控制列 + PageLaunchRight 日志区）：
+ *   左栏（白底）：账号登录入口 → 头像 / 昵称 / 邮箱 → 启动游戏（描边双行）→ 版本选择 / 版本设置
+ *   右栏（浅蓝渐变）：提示条 + 实例列表 + 启动日志
  */
 export function Home() {
   const { instances, session, launchInstance, setView, deleteInstance } = useApp()
 
-  const [selectedId, setSelectedId] = useState<string>('')
-  const [loginType, setLoginType] = useState<LoginType>('offline')
+  const [selectedId, setSelectedId] = useState('')
   const [launching, setLaunching] = useState(false)
   const [logs, setLogs] = useState<string[]>([])
 
-  // 默认选中第一个实例
   useEffect(() => {
     if (!selectedId && instances.length > 0) setSelectedId(instances[0].id)
   }, [instances, selectedId])
@@ -43,17 +24,8 @@ export function Home() {
     [instances, selectedId],
   )
 
-  const versionOptions: SelectOption[] = useMemo(
-    () =>
-      instances.map((i) => ({
-        value: i.id,
-        label: `${i.name} · ${i.version}${i.loader ? `（${i.loader}）` : ''}`,
-      })),
-    [instances],
-  )
-
   function log(line: string) {
-    setLogs((prev) => [...prev.slice(-60), line])
+    setLogs((prev) => [...prev.slice(-80), line])
   }
 
   async function handleLaunch() {
@@ -86,86 +58,48 @@ export function Home() {
       leftWidth={300}
       left={
         <div className="pcl-launch">
-          <div className="pcl-launch__row">
-            <Button
-              variant="secondary"
-              size="sm"
-              block
-              onClick={() => setView('download')}
-              leftIcon={<IconDownload size={15} />}
-            >
-              版本选择
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              block
-              onClick={() => setView('settings')}
-              leftIcon={<IconSettings size={15} />}
-            >
-              版本设置
-            </Button>
+          <button type="button" className="pcl-launch__account" onClick={() => setView('more')}>
+            <IconUser size={15} />
+            {session ? `${session.username} 切换账号` : '离线登录'}
+          </button>
+
+          <div className="pcl-launch__avatar" aria-hidden="true" />
+          <div className="pcl-launch__name">{session?.username ?? '未登录'}</div>
+          <div className="pcl-launch__mail">
+            {session?.type === 'offline' ? '离线会话 · 本地游玩' : session ? '已登录' : '点击上方登录'}
           </div>
 
-          <div className="pcl-launch__login">
-            <span className="pcl-launch__login-icon" aria-hidden="true">
-              <IconUser size={15} />
-            </span>
-            <Radio
-              size="sm"
-              label="正版"
-              name="aelux-login"
-              checked={loginType === 'microsoft'}
-              onChange={() => setLoginType('microsoft')}
-            />
-            <Radio
-              size="sm"
-              label="离线"
-              name="aelux-login"
-              checked={loginType === 'offline'}
-              onChange={() => setLoginType('offline')}
-            />
-            <Radio
-              size="sm"
-              label="统一通行证"
-              name="aelux-login"
-              checked={loginType === 'third'}
-              onChange={() => setLoginType('third')}
-            />
-          </div>
+          <div className="pcl-launch__spacer" />
+
+          {launching && (
+            <div style={{ width: '100%', marginBottom: 10 }}>
+              <Progress value={60} variant="primary" />
+            </div>
+          )}
 
           <button type="button" className="pcl-launch__btn" disabled={launching} onClick={handleLaunch}>
             <span className="pcl-launch__btn-title">{launching ? '正在启动…' : '启动游戏'}</span>
             <span className="pcl-launch__btn-sub">
-              {selected ? selected.version : '尚未安装任何版本'}
+              {selected ? `[${selected.loader ?? '原版'}]${selected.name}` : '尚未安装任何版本'}
             </span>
           </button>
 
-          {instances.length > 0 && (
-            <Select
-              size="sm"
-              block
-              options={versionOptions}
-              value={selected?.id}
-              onValueChange={setSelectedId}
-              className="pcl-launch__select"
-            />
-          )}
-
-          {launching && (
-            <div className="pcl-launch__progress">
-              <Progress value={60} variant="primary" />
-              <span className="pcl-launch__progress-text">当前步骤：正在启动游戏</span>
-            </div>
-          )}
+          <div className="pcl-launch__row">
+            <button type="button" className="pcl-btn" onClick={() => setView('download')}>
+              版本选择
+            </button>
+            <button type="button" className="pcl-btn" onClick={() => setView('settings')}>
+              版本设置
+            </button>
+          </div>
         </div>
       }
     >
       <div className="pcl-hint">
-        <span className="pcl-hint__title">提示</span>
-        <span className="pcl-hint__text">
+        <IconUser size={15} />
+        <span>
           {session
-            ? `当前以 ${session.username} 登录。版本可在「下载」页安装，安装完成后回到此处一键启动。`
+            ? `当前以 ${session.username} 登录。到「下载」页安装版本后，回到这里一键启动。`
             : '尚未登录。离线登录即可完全本地游玩；正版登录需要联网校验。'}
         </span>
       </div>
@@ -177,51 +111,45 @@ export function Home() {
         </div>
 
         {instances.length === 0 ? (
-          <Empty
-            title="还没有实例"
-            description="到「下载」页安装一个 Minecraft 版本后，这里会出现可一键启动的实例。"
-            action={
-              <Button variant="primary" leftIcon={<IconDownload size={16} />} onClick={() => setView('download')}>
-                去下载游戏
-              </Button>
-            }
-          />
+          <div className="pcl-empty">
+            <p>还没有实例。到「下载」页安装一个 Minecraft 版本后，这里会出现可一键启动的实例。</p>
+            <button type="button" className="pcl-btn" onClick={() => setView('download')}>
+              去下载游戏
+            </button>
+          </div>
         ) : (
-          <div className="pcl-instance-list">
+          <div className="pcl-instances">
             {instances.map((inst) => (
-              <ListItem
-                key={inst.id}
-                icon={<span className="pcl-instance-list__badge">{inst.version.slice(0, 2)}</span>}
-                title={inst.name}
-                description={`${inst.version}${inst.loader ? ` · ${inst.loader}` : ''} · ${inst.lastPlayed ?? '从未游玩'}`}
-                meta={selected?.id === inst.id ? <Badge status="success">当前</Badge> : undefined}
-                trailing={
-                  <>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      leftIcon={<IconPlay size={14} />}
-                      onClick={() => {
-                        setSelectedId(inst.id)
-                        void handleLaunch()
-                      }}
-                    >
-                      启动
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label="删除实例"
-                      onClick={() => deleteInstance(inst.id)}
-                    >
-                      <IconTrash size={14} />
-                    </Button>
-                  </>
-                }
-                selected={selected?.id === inst.id}
-                onClick={() => setSelectedId(inst.id)}
-                className="pcl-instance-list__row"
-              />
+              <div key={inst.id} className="pcl-instance">
+                <div className="pcl-instance__main">
+                  <div className="pcl-instance__name">
+                    {inst.name}
+                    {inst.loader && <Badge status="info">{inst.loader}</Badge>}
+                  </div>
+                  <div className="pcl-instance__desc">
+                    {inst.version} · {inst.lastPlayed ?? '从未游玩'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="pcl-btn pcl-btn--primary"
+                  onClick={() => {
+                    setSelectedId(inst.id)
+                    void handleLaunch()
+                  }}
+                >
+                  <IconPlay size={13} />
+                  启动
+                </button>
+                <button
+                  type="button"
+                  className="pcl-btn"
+                  aria-label="删除实例"
+                  onClick={() => deleteInstance(inst.id)}
+                >
+                  <IconTrash size={13} />
+                </button>
+              </div>
             ))}
           </div>
         )}

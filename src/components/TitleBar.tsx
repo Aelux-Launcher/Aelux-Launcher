@@ -4,7 +4,7 @@ import { useApp } from '../store'
 
 type ViewKey = 'home' | 'download' | 'multiplayer' | 'settings' | 'more'
 
-/** PCL 顶栏导航项：启动 / 下载 / 联机 / 设置 / 更多（对应 PCL 的 BtnTitleSelect0-4）。 */
+/** PCL 顶栏导航（BtnTitleSelect0-4）：启动 / 下载 / 联机 / 设置 / 更多 */
 const TABS: { key: ViewKey; label: string; icon: React.ReactNode }[] = [
   { key: 'home', label: '启动', icon: <IconPlay size={15} /> },
   { key: 'download', label: '下载', icon: <IconDownload size={15} /> },
@@ -14,9 +14,9 @@ const TABS: { key: ViewKey; label: string; icon: React.ReactNode }[] = [
 ]
 
 /**
- * 顶部标题栏 —— 照搬 PCL（FormMain.xaml / PanTitle）：
- *   高 48px、蓝色渐变；左侧品牌 Logo；中间为水平导航标签（启动/下载/联机/设置/更多）；
- *   右侧为窗口控制。窗口无系统边框（transparent + decorations:false），需自行实现拖拽。
+ * 顶部标题栏 —— 复刻 PCL 的 `PanTitle`：
+ *   高 48px、蓝色渐变；左侧品牌；中间为 MyRadioButton 标签组
+ *   （未选中 #bbffffff 底 / 选中纯白底 + #1370f3 文字图标）；右侧窗口控制。
  */
 export function TitleBar() {
   const { view, setView, theme, setTheme, updateAvailable, browserMode } = useApp()
@@ -42,19 +42,19 @@ export function TitleBar() {
             type="button"
             role="tab"
             aria-selected={view === t.key}
-            className={`aelux-titlebar__tab${view === t.key ? ' is-active' : ''}`}
+            className={`pcl-tab${view === t.key ? ' is-active' : ''}`}
             onClick={() => setView(t.key)}
           >
-            <span className="aelux-titlebar__tab-icon" aria-hidden="true">
+            <span className="pcl-tab__icon" aria-hidden="true">
               {t.icon}
             </span>
-            <span className="aelux-titlebar__tab-label">{t.label}</span>
+            <span>{t.label}</span>
           </button>
         ))}
       </nav>
 
       <div className="aelux-titlebar__actions">
-        {updateAvailable && <span className="aelux-titlebar__badge">有更新</span>}
+        {updateAvailable && <span className="aelux-titlebar__preview">有更新</span>}
         <IconButton
           size="sm"
           variant="ghost"
@@ -68,7 +68,7 @@ export function TitleBar() {
           aria-label="最小化"
           onClick={() => invoke('minimize_window')}
         >
-          ─
+          —
         </button>
         <button
           type="button"

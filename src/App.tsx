@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Dialog, Alert } from 'aelux-components'
 import { TitleBar } from './components/TitleBar'
 import { useApp, announcements } from './store'
@@ -8,14 +8,31 @@ import { Multiplayer } from './views/Multiplayer'
 import { Settings } from './views/Settings'
 import { More } from './views/More'
 
+type ViewKey = 'home' | 'download' | 'multiplayer' | 'settings' | 'more'
+
 export function App() {
   const { view, init, pendingAnnouncements, initError, browserMode } = useApp()
 
-  // 后台静默加载：启动器立刻可用，不做「正在初始化…」的全屏等待。
-  // 各页面数据到位后自行更新（例如下载页的版本列表有自己的加载态）。
+  // 启动器立刻可用：init() 在后台静默跑，各页面用自己的局部加载态。
   useEffect(() => {
     void init()
   }, [])
+
+  // 页面切换动画（PCL MyPageLeft.TriggerShowAnimation / TriggerHideAnimation）：
+  // 旧页 110ms 缩放淡出 → 新页 400ms 回弹缩放淡入。
+  const [shown, setShown] = useState<ViewKey>(view)
+  const [leaving, setLeaving] = useState(false)
+  const timer = useRef<number | undefined>(undefined)
+
+  useEffect(() => {
+    if (view === shown) return
+    setLeaving(true)
+    timer.current = window.setTimeout(() => {
+      setShown(view)
+      setLeaving(false)
+    }, 110)
+    return () => window.clearTimeout(timer.current)
+  }, [view, shown])
 
   const current = pendingAnnouncements[0]
 
@@ -46,11 +63,13 @@ export function App() {
             />
           )}
 
-          {view === 'home' && <Home />}
-          {view === 'download' && <Download />}
-          {view === 'multiplayer' && <Multiplayer />}
-          {view === 'settings' && <Settings />}
-          {view === 'more' && <More />}
+          <div className={`pcl-stage${leaving ? ' pcl-stage--leave' : ' pcl-stage--enter'}`} key={shown}>
+            {shown === 'home' && <Home />}
+            {shown === 'download' && <Download />}
+            {shown === 'multiplayer' && <Multiplayer />}
+            {shown === 'settings' && <Settings />}
+            {shown === 'more' && <More />}
+          </div>
         </main>
       </div>
 
