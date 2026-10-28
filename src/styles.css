@@ -1,0 +1,150 @@
+/* Aelux Launcher 壳层基础样式（组件本身由 aelux-components 提供，这里只做布局编排） */
+:root {
+  --app-bg: var(--aelux-bg, #0f1115);
+  --app-surface: var(--aelux-surface, #171a21);
+  --app-border: var(--aelux-border, #2a2f3a);
+  --app-text: var(--aelux-text, #e6e8ec);
+  --app-text-sub: var(--aelux-text-sub, #9aa3b2);
+  --app-primary: var(--aelux-primary, #6366f1);
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--app-bg);
+  color: var(--app-text);
+  overflow: hidden;
+}
+
+.aelux-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ===== 标题栏 ===== */
+.aelux-titlebar {
+  height: 40px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-border);
+  user-select: none;
+}
+.aelux-titlebar__title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.aelux-titlebar__center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+.aelux-titlebar__actions {
+  display: flex;
+  gap: 6px;
+}
+.aelux-titlebar__actions button {
+  width: 32px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+}
+
+/* ===== 主体 ===== */
+.aelux-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.aelux-sidebar {
+  width: 180px;
+  flex: none;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--app-surface);
+  border-right: 1px solid var(--app-border);
+}
+.aelux-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+/* ===== 视图 ===== */
+.view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.view h2 {
+  margin: 0 0 14px;
+  font-size: 20px;
+}
+
+.instance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+.instance-card__meta {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0;
+}
+.instance-card__time {
+  color: var(--app-text-sub);
+  font-size: 12px;
+  margin: 4px 0 12px;
+}
+
+.login-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.aelux-update-badge {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+}
+
+.mods__hint {
+  color: var(--app-text-sub);
+  font-size: 13px;
+}
+
+/* ===== 设置行 ===== */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--app-border);
+}
+.setting-row:last-child {
+  border-bottom: none;
+}
+.setting-row__label {
+  font-weight: 500;
+}
+.setting-row__desc {
+  color: var(--app-text-sub);
+  font-size: 12px;
+  margin-top: 2px;
+}
