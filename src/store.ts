@@ -29,6 +29,7 @@ import {
   type GameInstance,
   type McVersionEntry,
   type DownloadManagerState,
+  type LaunchResult,
 } from 'aelux-launcher-lib'
 import { tauriAdapter } from './lib/bridge'
 
@@ -91,7 +92,7 @@ interface AppState {
   refreshInstances: () => Promise<void>
   createInstance: (name: string, version: string, loader?: string) => Promise<GameInstance>
   deleteInstance: (id: string) => Promise<void>
-  launchInstance: (id: string) => Promise<void>
+  launchInstance: (id: string) => Promise<LaunchResult | null>
   loadVersions: () => Promise<void>
   installVersion: (id: string) => Promise<void>
   resolveJava: (versionId: string) => Promise<{ jre: { path: string; major: number } | null; needsDownload: boolean; downloadUrl?: string } | null>
@@ -190,7 +191,7 @@ export const useApp = create<AppState>((set, get) => ({
 
   launchInstance: async (id) => {
     const inst = get().instances.find((i) => i.id === id)
-    if (!inst) return
+    if (!inst) return null
     telemetry.record('launch', { version: inst.version, loader: inst.loader })
     // 启动前先为版本解析 Java（精确 → 向前兼容 → 需要下载）。
     let javaPath = get().settings.javaPath
@@ -198,7 +199,7 @@ export const useApp = create<AppState>((set, get) => ({
       const r = await java.resolveFor(inst.version)
       if (r.jre?.path) javaPath = r.jre.path
     }
-    await launch.run({
+    return launch.run({
       instance: inst,
       session: get().session,
       settings: { ...get().settings, javaPath },
