@@ -1,35 +1,15 @@
 {
-  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "$schema": "https://schema.tauri.app/config/2",
   "app": {
     "windows": [
       {
-        "label": "main",
-        "title": "Aelux Launcher",
-        "width": 900,
-        "height": 550,
-        "minWidth": 900,
-        "minHeight": 550,
-        "resizable": true,
-        "fullscreen": false,
-        "center": true,
-        "decorations": false,
+        "decorations": true,
         "transparent": false,
-        "shadow": false
+        "shadow": true
       }
     ]
   },
   "bundle": {
-    "targets": ["deb", "rpm", "appimage"],
-    "linux": {
-      "deb": {
-        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
-      },
-      "rpm": {
-        "depends": ["webkit2gtk4.1", "gtk3"]
-      },
-      "appimage": {
-        "bundleMediaFramework": false
-      }
-    }
+    "targets": ["deb", "rpm", "appimage"]
   }
 }

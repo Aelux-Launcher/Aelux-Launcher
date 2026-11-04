@@ -8,6 +8,10 @@ dist-ssr
 src-tauri/target
 src-tauri/gen
 
+# 内核动态库（release-ffi 就位产物，不入库；来源见 scripts/fetch-core.mjs）
+src-tauri/lib/
+src-tauri/resources/lib/
+
 # logs
 npm-debug.log*
 pnpm-debug.log*

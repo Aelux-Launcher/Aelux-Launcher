@@ -1,7 +1,7 @@
 {
   "name": "aelux-launcher-app",
   "version": "0.1.0",
-  "description": "Aelux Launcher 桌面启动器壳（Tauri 2 + React + Zustand），消费 aelux-components 与 aelux-launcher-lib。",
+  "description": "Aelux Launcher 桌面启动器壳（Tauri 2 + Vue 3.6 Vapor），消费 Rust 内核 aelux-core。",
   "author": "Aelux",
   "license": "MIT",
   "private": true,
@@ -10,34 +10,36 @@
     "dev": "npm run dev:desktop",
     "dev:web": "vite",
     "dev:desktop": "tauri dev",
+    "dev:core": "tauri dev --features dev-path",
     "build": "npm run build:desktop",
     "build:web": "vite build",
     "build:desktop": "tauri build",
+    "build:release": "tauri build --features release-ffi",
     "build:win": "tauri build --bundles nsis,msi",
     "build:mac": "tauri build --bundles dmg,app",
     "build:linux": "tauri build --bundles deb,rpm,appimage",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "vue-tsc --noEmit",
     "tauri": "tauri"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.12.0",
+    "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-dialog": "^2.2.0",
+    "@tauri-apps/plugin-opener": "^2.2.0",
     "@tauri-apps/plugin-shell": "^2.2.0",
-    "aelux-components": "file:../Aelux-Components",
-    "aelux-launcher-lib": "file:../Aelux-Launcher-Lib",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "zustand": "^5.0.0"
+    "pinia": "^4.1.0",
+    "vue": "^3.6.0-rc.14",
+    "vue-router": "^5.4.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.12.0",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
-    "playwright": "^1.64.1",
+    "@tailwindcss/vite": "^4.3.4",
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/node": "^24.10.1",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "tailwindcss": "^4.3.4",
     "typescript": "^5.9.3",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vue-tsc": "^3.1.4"
   },
   "engines": {
     "node": ">=20.19.0"

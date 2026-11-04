@@ -1,156 +1,73 @@
-name: Build Desktop Apps
+name: Release
 
-# 三平台桌面构建：Windows(NSIS+MSI) / macOS(dmg) / Linux(deb+rpm+AppImage)
-# 触发时机：
-#   - 手动触发（workflow_dispatch）
-#   - 推送到 main
-#   - 打 tag（v*）时产出正式发布产物
+# 打 tag（v*）触发：拉取私有内核 cdylib → 打包安装包 → 便携 ZIP → 公开 Release。
+# 内核二进制来源：CORE_MANIFEST_URL（secrets，指向 R2 桶或私有 core 仓库的 manifest.json）。
 on:
-  workflow_dispatch:
   push:
-    branches: [main]
-    tags: ['v*']
-  pull_request:
-    branches: [main]
+    tags: ["v*"]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: write
 
 jobs:
   build:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Windows (NSIS + MSI)
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-            args: --target x86_64-pc-windows-msvc
-          - name: macOS (DMG)
-            os: macos-latest
-            target: aarch64-apple-darwin
-            args: --target aarch64-apple-darwin
-          - name: macOS (Intel, DMG)
-            os: macos-latest
-            target: x86_64-apple-darwin
-            args: --target x86_64-apple-darwin
-          - name: Linux (deb + rpm + AppImage)
-            os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            args: --target x86_64-unknown-linux-gnu
-
+          - os: windows-latest
+            name: windows-x64
+          - os: macos-latest
+            name: macos-arm64
+          - os: ubuntu-22.04
+            name: linux-x64
+    runs-on: ${{ matrix.os }}
+    env:
+      CORE_MANIFEST_URL: ${{ secrets.CORE_MANIFEST_URL }}
     steps:
-      - name: Checkout Aelux-Launcher-App
-        uses: actions/checkout@v4
-        with:
-          path: Aelux-Launcher-App
+      - uses: actions/checkout@v4
 
-      # App 通过 file:../ 协议依赖同级的 Components 与 Lib，
-      # 三个是独立仓库，必须分别检出到同级目录才能 file: 解析成功。
-      - name: Checkout Aelux-Launcher-Lib
-        uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          repository: Aelux-Launcher/Aelux-Launcher-Lib
-          path: Aelux-Launcher-Lib
-
-      - name: Checkout Aelux-Components
-        uses: actions/checkout@v4
-        with:
-          repository: Aelux-Launcher/Aelux-Components
-          path: Aelux-Components
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+          node-version: 22
           cache: npm
-          cache-dependency-path: Aelux-Launcher-App/package-lock.json
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      # Linux 需要 WebKitGTK / GTK3 开发库才能编译 wry（tauri 的 webview 后端）
-      - name: Install Linux system dependencies
-        if: matrix.os == 'ubuntu-22.04'
+      - name: Install Linux deps (Tauri)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libssl-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libxdo-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 
-      - name: Install appindicator (Linux, tauri prerequisite)
-        if: matrix.os == 'ubuntu-22.04'
+      - uses: dtolnay/rust-toolchain@stable
+
+      - run: npm ci
+
+      - name: Fetch core cdylib
+        run: node scripts/fetch-core.mjs
+
+      - name: Build (release-ffi)
+        run: npm run build:release
+
+      - name: Package portable ZIP (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          wget -qO- https://packages.microsoft.com/keys/microsoft.asc \
-            | gpg --dearmor \
-            | sudo tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
-          sudo sh -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/edge stable main" > /etc/apt/sources.list.d/microsoft-edge.list'
-          sudo apt-get update
-          sudo apt-get install -y libayatana-appindicator3-dev
+          $stage = "portable/Aelux-Launcher"
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Copy-Item "src-tauri/target/release/aelux-launcher-app.exe" $stage
+          Copy-Item "src-tauri/lib/windows-x64/aelux_core.dll" $stage
+          Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath "Aelux-Launcher-portable-windows-x64.zip" -Force
 
-      - name: Install WiX toolset (Windows MSI)
-        if: matrix.os == 'windows-latest'
-        run: choco install wixtoolset --no-progress -y
-
-      - name: Build dependencies (lib-core + components)
-        working-directory: Aelux-Launcher-Lib
+      - name: Collect installers
+        shell: bash
         run: |
-          npm ci
-          npm run build
+          mkdir -p release-assets
+          find src-tauri/target/release/bundle -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.app" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) -exec cp {} release-assets/ \; || true
+          ls release-assets
 
-      # Components 仓库未提交 lock 文件，这里用 npm install 而非 npm ci
-      - name: Build dependencies (components)
-        working-directory: Aelux-Components
-        run: |
-          npm install
-          npm run build
-
-      - name: Install app dependencies
-        working-directory: Aelux-Launcher-App
-        run: npm ci
-
-      - name: Type check
-        working-directory: Aelux-Launcher-App
-        run: npm run typecheck
-
-      - name: Run unit tests
-        working-directory: Aelux-Launcher-Lib
-        run: npm test
-
-      - name: Build desktop app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 不做版本号注入，版本由 tauri.conf.json 的 version 决定
-          TAG_NAME: ${{ github.ref_name }}
+      - name: Release
+        uses: softprops/action-gh-release@v2
         with:
-          projectPath: Aelux-Launcher-App
-          args: ${{ matrix.args }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: aelux-launcher-${{ matrix.target }}
-          path: |
-            Aelux-Launcher-App/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
-            Aelux-Launcher-App/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
-            Aelux-Launcher-App/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
-            Aelux-Launcher-App/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
-            Aelux-Launcher-App/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
-            Aelux-Launcher-App/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
-            Aelux-Launcher-App/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.tar.gz
-          if-no-files-found: ignore
-          retention-days: 14
+          files: |
+            release-assets/*
+            Aelux-Launcher-portable-windows-x64.zip

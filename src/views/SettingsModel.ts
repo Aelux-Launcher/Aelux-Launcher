@@ -1,395 +1,131 @@
 /**
- * 设置页的数据模型。
+ * 设置页数据模型（纯 TS，无 zod）。
  *
- * 分两层：
- *   1. 核心层 —— lib-core 的 `SettingsSchema` 覆盖的字段（内存、Java 路径、实例目录等），
- *      直接与游戏启动相关，保存时必须过一遍 schema 校验再写回 store。
- *   2. 界面层 —— 外观、下载源、社区资源等纯偏好。lib 的 schema 不认识这些字段，
- *      由本文件补一份默认值与类型，落盘时与核心层合并存到同一个 'settings' 键。
- *
- * 落盘/读取都经过 lib 的平台适配器（platform.storage），视图层不直接碰磁盘。
+ * 字段分两层：
+ *   1. 核心层 —— lib/types 的 `Settings`（内存、Java 路径、自动更新等），
+ *      由视图直接经 store.settings / store.saveSettings 读写落盘；
+ *   2. 界面层 —— 本页新增的偏好（窗口标题、执行命令、语言、并发数、下载源等），
+ *      核心类型暂不覆盖，保存时随补丁合并进 kv 'settings'
+ *      （store.saveSettings 会把合并后的完整对象整体 JSON 落盘），
+ *      读取时按类型回落默认值，形成尽力而为的持久化回路。
  */
-import { SettingsSchema, type Settings } from 'aelux-launcher-lib'
-import { platform } from '../store'
+import type { Settings } from '../lib/types'
 
-/** 'settings' 在本地存储中的键名。 */
-export const SETTINGS_KEY = 'settings'
+/* ============================== 界面层偏好 ============================== */
 
-/* ============================== 枚举类型 ============================== */
-
-/** 默认版本隔离方式 */
-export type IsolationMode = 'all' | 'mod' | 'snapshot' | 'none'
-/** 启动器可见性 */
-export type LauncherVisibility = 'keep' | 'hide' | 'minimize'
-/** 进程优先级 */
-export type ProcessPriority = 'low' | 'normal' | 'high'
-/** 内存分配方式 */
-export type MemoryMode = 'follow' | 'auto' | 'custom'
-/** GC 算法 */
-export type GcMode = 'follow' | 'zgc' | 'g1' | 'none'
-/** 主题偏好（跟随系统时实际主题由系统决定） */
-export type ThemePref = 'light' | 'dark' | 'system'
-/** 标题栏样式 */
-export type TitleBarStyle = 'none' | 'default' | 'text' | 'image'
-/** 主页样式 */
-export type HomePageStyle = 'blank' | 'preset' | 'local' | 'online'
+/** 游戏语言 */
+type GameLanguage = 'zh-CN' | 'en-US'
 /** 下载源偏好 */
-export type SourcePref = 'mirror' | 'official-first' | 'official'
-/** 社区资源来源偏好 */
-export type CommunitySource = 'mirror' | 'mirror-fallback' | 'official'
-/** 文件名格式 */
-export type FileNameFormat = 'bracket-full' | 'bracket-half' | 'dash' | 'raw'
-/** Mod 管理样式 */
-export type ModManageStyle = 'title-translated' | 'title-filename'
-/** 启动器更新策略 */
-export type LauncherUpdate = 'auto' | 'notify' | 'off'
-/** 启动器公告策略 */
-export type LauncherNotice = 'auto' | 'notify' | 'off'
+type DownloadSourcePref = 'official-first' | 'mirror-first'
+/** 最大并行下载数 */
+type MaxParallel = 4 | 8 | 16
 
-/** 联机方式 */
-export type OnlineMode = 'direct' | 'relay' | 'lan'
-
-/* ============================== 草稿结构 ============================== */
-
-/** 界面层的额外偏好（lib 的 SettingsSchema 不覆盖的部分）。 */
+/** 界面层偏好（核心 Settings 暂未覆盖的字段）。 */
 export interface SettingsExtras {
-  /* 启动 */
-  isolation: IsolationMode
+  /** 游戏窗口标题（留空用默认标题） */
   windowTitle: string
-  customInfo: string
-  launcherVisibility: LauncherVisibility
-  processPriority: ProcessPriority
-  windowSize: 'default' | '854' | '1280'
-  memoryMode: MemoryMode
-  memoryOptimize: boolean
-  jvmArgs: string
-  gameArgs: string
-  gcMode: GcMode
+  /** 启动前执行的命令（留空不执行） */
   preLaunchCommand: string
-  forbidModUpdate: boolean
-  disableFileVerify: boolean
-  disableJlw: boolean
-  verifySsl: boolean
-  /* 个性化 */
+  /** 自动配置内存（关闭后使用核心字段 memoryMb 的手动值） */
+  autoMemory: boolean
+  /** 游戏语言 */
+  gameLanguage: GameLanguage
+  /** 启动器不透明度（40–100） */
   opacity: number
-  themePref: ThemePref
-  showIconOnLaunch: boolean
-  overlayColorBg: boolean
-  backgroundImage: string
-  backgroundMusic: string
-  titleBar: TitleBarStyle
-  homePage: HomePageStyle
-  hideDownload: boolean
-  hideSettings: boolean
-  hideMore: boolean
-  hideMultiplayer: boolean
-  hideAccount: boolean
-  hideFeedback: boolean
-  hideVote: boolean
-  hideUpdateNotice: boolean
-  /* 其他 */
-  downloadSource: SourcePref
-  versionSource: SourcePref
-  maxThreads: number
-  speedLimit: number
-  communitySource: CommunitySource
-  fileNameFormat: FileNameFormat
-  modManageStyle: ModManageStyle
-  releaseNotice: boolean
-  betaNotice: boolean
-  autoChinese: boolean
-  launcherUpdate: LauncherUpdate
-  launcherNotice: LauncherNotice
-  cacheFolder: string
-  anonymousStats: boolean
-  /* 联机 */
-  /** 联机方式：直连 / 通过中转 / 局域网 */
-  onlineMode: OnlineMode
-  /** 中转服务器地址（留空则用默认公共节点） */
-  onlineRelay: string
-  /** 联机时是否自动隐藏启动器 */
-  onlineHideLauncher: boolean
-  /** 联机时是否自动进入上次服务器 */
-  onlineAutoEnter: boolean
-  /** 联机端口 */
-  onlinePort: number
-  /** 联机昵称（留空则用当前账号） */
-  onlineNickname: string
+  /** 启动页是否显示启动器图标 */
+  showLauncherIcon: boolean
+  /** 最大并行下载数 */
+  maxParallel: MaxParallel
+  /** 下载源偏好 */
+  downloadSource: DownloadSourcePref
 }
 
-/** 设置草稿 = 核心字段 + 界面偏好。 */
-export type SettingsDraft = Settings & SettingsExtras
-
-/** 核心字段名（落盘时与界面层分开处理）。 */
-const CORE_KEYS = [
-  'memoryMb',
-  'javaPath',
-  'instancesDir',
-  'closeOnExit',
-  'autoUpdate',
-  'showConsole',
-  'aiFixMod',
-] as const
-
-/** 全部默认值。 */
-export const DEFAULT_DRAFT: SettingsDraft = {
-  /* 核心 */
-  memoryMb: 2048,
-  javaPath: '',
-  instancesDir: '',
-  closeOnExit: false,
-  autoUpdate: true,
-  showConsole: true,
-  aiFixMod: false,
-  /* 启动 */
-  isolation: 'all',
+/** 界面层默认值（模块内使用；视图经 readExtras 间接取得）。 */
+const DEFAULT_EXTRAS: SettingsExtras = {
   windowTitle: '',
-  customInfo: 'Aelux',
-  launcherVisibility: 'keep',
-  processPriority: 'normal',
-  windowSize: 'default',
-  memoryMode: 'follow',
-  memoryOptimize: false,
-  jvmArgs: '',
-  gameArgs: '',
-  gcMode: 'follow',
   preLaunchCommand: '',
-  forbidModUpdate: false,
-  disableFileVerify: false,
-  disableJlw: false,
-  verifySsl: true,
-  /* 个性化 */
+  autoMemory: true,
+  gameLanguage: 'zh-CN',
   opacity: 100,
-  themePref: 'light',
-  showIconOnLaunch: true,
-  overlayColorBg: false,
-  backgroundImage: '',
-  backgroundMusic: '',
-  titleBar: 'default',
-  homePage: 'preset',
-  hideDownload: false,
-  hideSettings: false,
-  hideMore: false,
-  hideMultiplayer: false,
-  hideAccount: false,
-  hideFeedback: false,
-  hideVote: false,
-  hideUpdateNotice: false,
-  /* 其他 */
-  downloadSource: 'mirror',
-  versionSource: 'mirror',
-  maxThreads: 64,
-  speedLimit: 42,
-  communitySource: 'mirror',
-  fileNameFormat: 'bracket-full',
-  modManageStyle: 'title-translated',
-  releaseNotice: true,
-  betaNotice: false,
-  autoChinese: true,
-  launcherUpdate: 'auto',
-  launcherNotice: 'auto',
-  cacheFolder: '',
-  anonymousStats: false,
-  /* 联机 */
-  onlineMode: 'direct',
-  onlineRelay: '',
-  onlineHideLauncher: false,
-  onlineAutoEnter: false,
-  onlinePort: 25565,
-  onlineNickname: '',
+  showLauncherIcon: true,
+  maxParallel: 8,
+  downloadSource: 'mirror-first',
 }
 
-/** 数值字段的合法区间（落盘数据可能被外部改坏，这里做一次夹取）。 */
-const NUM_RANGES: Partial<Record<keyof SettingsDraft, [number, number]>> = {
-  memoryMb: [512, 8192],
-  opacity: [40, 100],
-  maxThreads: [1, 256],
-  speedLimit: [1, 42],
-}
+/* ============================== 校验 / 夹取 ============================== */
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n))
 }
 
+/** 不透明度合法区间 */
+export const OPACITY_RANGE: readonly [number, number] = [40, 100]
+
+/** 不透明度夹取到合法区间（滑块输入与落盘数据共用）。 */
+export function clampOpacity(v: number): number {
+  const n = Number(v)
+  return Math.round(clamp(Number.isFinite(n) ? n : DEFAULT_EXTRAS.opacity, OPACITY_RANGE[0], OPACITY_RANGE[1]))
+}
+
 /**
- * 把落盘的原始数据合并进默认草稿：
- *   - 类型不符的字段一律回落到默认值，避免脏数据进入界面；
- *   - 数值字段额外做区间夹取。
+ * 从落盘设置里恢复界面层偏好：
+ *   类型不符 / 非法值的字段一律回落默认值，避免脏数据进入界面。
  */
-export function mergeStored(raw: unknown): SettingsDraft {
-  const out = { ...DEFAULT_DRAFT } as Record<string, unknown>
-  if (!raw || typeof raw !== 'object') return out as unknown as SettingsDraft
+export function readExtras(raw: unknown): SettingsExtras {
+  const out = { ...DEFAULT_EXTRAS }
+  if (!raw || typeof raw !== 'object') return out
   const obj = raw as Record<string, unknown>
 
-  for (const key of Object.keys(DEFAULT_DRAFT) as (keyof SettingsDraft)[]) {
-    const value = obj[key]
-    if (value === undefined || value === null) continue
-    const fallback = DEFAULT_DRAFT[key]
-    if (typeof value !== typeof fallback) continue
-    if (typeof value === 'number') {
-      const range = NUM_RANGES[key]
-      out[key] = range ? clamp(value, range[0], range[1]) : value
-    } else {
-      out[key] = value
-    }
-  }
-  return out as unknown as SettingsDraft
+  if (typeof obj.windowTitle === 'string') out.windowTitle = obj.windowTitle
+  if (typeof obj.preLaunchCommand === 'string') out.preLaunchCommand = obj.preLaunchCommand
+  if (typeof obj.autoMemory === 'boolean') out.autoMemory = obj.autoMemory
+  if (obj.gameLanguage === 'zh-CN' || obj.gameLanguage === 'en-US') out.gameLanguage = obj.gameLanguage
+  if (typeof obj.opacity === 'number') out.opacity = clampOpacity(obj.opacity)
+  if (typeof obj.showLauncherIcon === 'boolean') out.showLauncherIcon = obj.showLauncherIcon
+  if (obj.maxParallel === 4 || obj.maxParallel === 8 || obj.maxParallel === 16) out.maxParallel = obj.maxParallel
+  if (obj.downloadSource === 'official-first' || obj.downloadSource === 'mirror-first')
+    out.downloadSource = obj.downloadSource
+  return out
 }
 
 /**
- * 从外部数据里挑出「存在且类型正确」的字段，用于导入设置时只覆盖用户确实导入的项。
+ * 把界面层偏好伪装成 Settings 的部分补丁交给 store.saveSettings：
+ * store 会把补丁合并进完整设置再整体落盘，多余键随 JSON 一起持久化，
+ * 读取侧 readExtras 按类型回落（与旧版界面层字段合并落盘的策略一致）。
  */
-export function pickValid(raw: unknown): Partial<SettingsDraft> {
-  const out: Record<string, unknown> = {}
-  if (!raw || typeof raw !== 'object') return out as Partial<SettingsDraft>
-  const obj = raw as Record<string, unknown>
-  for (const key of Object.keys(DEFAULT_DRAFT) as (keyof SettingsDraft)[]) {
-    const value = obj[key]
-    if (value === undefined || value === null) continue
-    const fallback = DEFAULT_DRAFT[key]
-    if (typeof value !== typeof fallback) continue
-    if (typeof value === 'number') {
-      const range = NUM_RANGES[key]
-      out[key] = range ? clamp(value, range[0], range[1]) : value
-    } else {
-      out[key] = value
-    }
-  }
-  return out as unknown as Partial<SettingsDraft>
-}
-
-/** 读取已保存的设置草稿。 */
-export async function loadDraft(): Promise<SettingsDraft> {
-  const raw = await platform.storage.get(SETTINGS_KEY)
-  if (!raw) return { ...DEFAULT_DRAFT }
-  try {
-    return mergeStored(JSON.parse(raw))
-  } catch {
-    return { ...DEFAULT_DRAFT }
-  }
-}
-
-/** 从草稿里取出核心字段（过 schema 校验）。 */
-export function coreOf(draft: SettingsDraft): Settings {
-  return SettingsSchema.parse({
-    memoryMb: draft.memoryMb,
-    javaPath: draft.javaPath,
-    instancesDir: draft.instancesDir,
-    closeOnExit: draft.closeOnExit,
-    autoUpdate: draft.autoUpdate,
-    showConsole: draft.showConsole,
-    aiFixMod: draft.aiFixMod,
-  })
-}
-
-/** 从草稿里取出界面层字段。 */
-export function extrasOf(draft: SettingsDraft): SettingsExtras {
-  const out = {} as Record<string, unknown>
-  for (const key of Object.keys(DEFAULT_DRAFT) as (keyof SettingsDraft)[]) {
-    if ((CORE_KEYS as readonly string[]).includes(key)) continue
-    out[key] = draft[key]
-  }
-  return out as unknown as SettingsExtras
-}
-
-/**
- * 保存草稿：核心字段过 schema 校验后返回（由调用方写进 store），
- * 同时把核心 + 界面层一起落到本地存储。
- */
-export async function persistDraft(draft: SettingsDraft): Promise<Settings> {
-  const core = coreOf(draft)
-  const payload = { ...core, ...extrasOf(draft) }
-  await platform.storage.set(SETTINGS_KEY, JSON.stringify(payload))
-  return core
+export function extrasPatch(extras: SettingsExtras): Partial<Settings> {
+  return { ...extras } as unknown as Partial<Settings>
 }
 
 /* ============================== 选项表 ============================== */
 
-export const ISOLATION_OPTIONS = [
-  { value: 'all', label: '隔离所有版本' },
-  { value: 'mod', label: '隔离可安装 Mod 的版本' },
-  { value: 'snapshot', label: '隔离非正式版' },
-  { value: 'none', label: '不隔离' },
+/** 游戏语言选项 */
+export const LANGUAGE_OPTIONS: Array<{ value: GameLanguage; label: string }> = [
+  { value: 'zh-CN', label: '简体中文' },
+  { value: 'en-US', label: 'English' },
 ]
 
-export const VISIBILITY_OPTIONS = [
-  { value: 'keep', label: '游戏启动后仍保持不变' },
-  { value: 'hide', label: '隐藏' },
-  { value: 'minimize', label: '最小化' },
+/** 最大并行下载数候选 */
+export const PARALLEL_OPTIONS = [4, 8, 16] as const
+
+/** 下载源偏好选项 */
+export const DOWNLOAD_SOURCE_OPTIONS: Array<{ value: DownloadSourcePref; label: string }> = [
+  { value: 'official-first', label: '优先官方源' },
+  { value: 'mirror-first', label: '优先镜像源' },
 ]
 
-export const PRIORITY_OPTIONS = [
-  { value: 'low', label: '低（省电）' },
-  { value: 'normal', label: '中（平衡）' },
-  { value: 'high', label: '高（性能）' },
+/** 主题模式选项（值与 store.theme 一致） */
+export const THEME_OPTIONS: Array<{ value: 'light' | 'dark'; label: string }> = [
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' },
 ]
 
-export const WINDOW_SIZE_OPTIONS = [
-  { value: 'default', label: '默认' },
-  { value: '854', label: '854 × 480' },
-  { value: '1280', label: '1280 × 720' },
-]
+/* ============================== Java 管理 ============================== */
 
-export const GC_OPTIONS = [
-  { value: 'follow', label: '跟随全局设置' },
-  { value: 'zgc', label: '尽量使用 ZGC' },
-  { value: 'g1', label: '标准 G1GC' },
-  { value: 'none', label: '不指定' },
-]
-
-export const TITLE_BAR_OPTIONS: { value: TitleBarStyle; label: string }[] = [
-  { value: 'none', label: '无' },
-  { value: 'default', label: '默认' },
-  { value: 'text', label: '文本' },
-  { value: 'image', label: '图片' },
-]
-
-export const HOME_PAGE_OPTIONS: { value: HomePageStyle; label: string }[] = [
-  { value: 'blank', label: '空白' },
-  { value: 'preset', label: '预设' },
-  { value: 'local', label: '读取本地文件' },
-  { value: 'online', label: '联网更新' },
-]
-
-export const DOWNLOAD_SOURCE_OPTIONS = [
-  { value: 'mirror', label: '尽量使用镜像源' },
-  { value: 'official-first', label: '优先使用官方源，在加载缓慢时换用镜像源' },
-  { value: 'official', label: '尽量使用官方源' },
-]
-
-export const COMMUNITY_SOURCE_OPTIONS = [
-  { value: 'mirror', label: '尽量使用镜像源' },
-  { value: 'mirror-fallback', label: '仅在官方源加载缓慢时改用镜像源' },
-  { value: 'official', label: '尽量使用官方源' },
-]
-
-export const FILE_NAME_FORMAT_OPTIONS = [
-  { value: 'bracket-full', label: '【机械动力】create-1.21.1-6.0.4' },
-  { value: 'bracket-half', label: '[机械动力] create-1.21.1-6.0.4' },
-  { value: 'dash', label: '机械动力-create-1.21.1-6.0.4' },
-  { value: 'raw', label: 'create-1.21.1-6.0.4' },
-]
-
-export const MOD_MANAGE_OPTIONS = [
-  { value: 'title-translated', label: '标题显示译名，详情显示文件名' },
-  { value: 'title-filename', label: '标题显示文件名，详情显示译名' },
-]
-
-export const LAUNCHER_UPDATE_OPTIONS = [
-  { value: 'auto', label: '自动检查并下载更新' },
-  { value: 'notify', label: '仅提示，不自动下载' },
-  { value: 'off', label: '不检查更新' },
-]
-
-export const LAUNCHER_NOTICE_OPTIONS = [
-  { value: 'auto', label: '启动时自动弹出' },
-  { value: 'notify', label: '仅在有新公告时提示' },
-  { value: 'off', label: '不显示公告' },
-]
-
-/** 联机方式选项 */
-export const ONLINE_MODE_OPTIONS = [
-  { value: 'direct', label: '直连服务器' },
-  { value: 'relay', label: '通过中转节点联机' },
-  { value: 'lan', label: '局域网联机' },
-]
+/** 探测到的 Java 运行时（内核探测命令接入前列表恒为空，展示空态）。 */
+export interface JavaEntry {
+  /** 主版本号（如 8 / 17 / 21） */
+  major: number
+  /** 可执行文件路径 */
+  path: string
+}

@@ -1,0 +1,411 @@
+<script setup lang="ts">
+/**
+ * 设置面板：启动选项 / 内存分配 / 服务器 / 高级选项（手风琴）。
+ *
+ * 实例设置（Java、内存、服务器、高级选项）经 store 的
+ * loadInstanceSettings / updateInstanceSettings 持久化（patch 回调由父级传入）；
+ * 认证服务器等外观偏好走 instanceMeta 的本地 KV（setUi 回调）。
+ */
+import { computed, ref, watch } from 'vue'
+import { useAppStore } from '../../stores/app'
+import { toast } from '../../lib/toast'
+import type { GameInstance } from '../../lib/types'
+import AlxIcon from '../../components/AlxIcon.vue'
+import AlxToggle from '../../components/AlxToggle.vue'
+import {
+  JavaManager,
+  type InstanceSettings,
+  type InstanceUi,
+  type JavaRuntime,
+} from '../instanceMeta'
+
+const props = defineProps<{
+  instance: GameInstance
+  /** 该实例的设置（来自 store.instanceSettings） */
+  settings: InstanceSettings
+  /** 写回实例设置 */
+  patch: (p: Partial<InstanceSettings>) => void
+  /** 外观偏好 */
+  ui: InstanceUi
+  /** 写回外观偏好 */
+  setUi: (p: InstanceUi) => void
+}>()
+
+const store = useAppStore()
+
+/** 跳转全局设置（内联表达式在 vue-tsc 下触发误报，改走方法）。 */
+function goGlobalSettings() {
+  store.setView('settings')
+}
+
+/** 版本隔离选项。 */
+const ISOLATION_OPTIONS = [
+  { value: 'on', label: '开启' },
+  { value: 'off', label: '关闭' },
+]
+
+/** Java 选择方式。 */
+const JAVA_MODE_OPTIONS = [
+  { value: 'auto', label: '自动选择' },
+  { value: 'autoRange', label: '跟随全局设置' },
+  { value: 'custom', label: '自定义' },
+]
+/** 登录方式。 */
+const LOGIN_OPTIONS = [
+  { value: 'official', label: '正版' },
+  { value: 'authlib', label: '第三方登录：Authlib Injector' },
+  { value: 'offline', label: '离线' },
+  { value: 'both', label: '正版与第三方同时保留' },
+  { value: 'nide', label: 'Nide 验证' },
+]
+
+/** 内存分配方式（界面上横排的单选组）。 */
+const RAM_TYPE_OPTIONS: { value: InstanceSettings['ramType']; label: string }[] = [
+  { value: 'follow', label: '跟随全局设置' },
+  { value: 'auto', label: '自动配置' },
+  { value: 'custom', label: '自定义' },
+]
+
+/** 内存管理（GC）。 */
+const GC_OPTIONS = [
+  { value: 'follow', label: '跟随全局设置' },
+  { value: 'g1', label: '优先 G1GC' },
+  { value: 'zgc', label: '尽量 ZGC' },
+  { value: 'generationalZgc', label: '分代 ZGC' },
+  { value: 'tunedG1', label: '调优 G1GC' },
+  { value: 'custom', label: '自定义' },
+]
+
+const showHint = ref(true)
+const advanceOpen = ref(false)
+const javaText = ref('')
+const jres = ref<JavaRuntime[]>([])
+
+// lib 的 javaMode 还有 'folder' 一档，界面上与「自定义」同义（都取实例自己的路径），
+// 这里归一到「自定义」，避免下拉框选不中任何一项。
+const javaModeValue = computed(() =>
+  props.settings.javaMode === 'folder' ? 'custom' : props.settings.javaMode,
+)
+
+/** 高级选项里的 Java 列表（首项为占位说明）。 */
+const javaListOptions = computed(() => [
+  { value: '', label: `共有 ${jres.value.length} 个 Java…` },
+  ...jres.value.map((j) => ({ value: j.path, label: `Java ${j.major} (${j.version})` })),
+])
+
+/** 滑块右侧的内存数值显示。 */
+function formatRam(v: number) {
+  return `${(v / 1024).toFixed(1)} GB`
+}
+
+/** 高级选项里选择某个 Java：写入路径并切到「自定义」。 */
+function pickJava(path: string) {
+  if (!path) return
+  props.patch({ javaPath: path, javaMode: 'custom' })
+}
+
+/** 设置为 LittleSkin 认证服务器。 */
+function applyLittleSkin() {
+  props.setUi({
+    authServer: 'https://littleskin.cn/api/yggdrasil',
+    registerUrl: 'https://littleskin.cn/register',
+    serverName: props.ui.serverName || 'LittleSkin',
+  })
+  props.patch({ serverLogin: 'authlib' })
+  toast.success('已设置为 LittleSkin 认证服务器')
+}
+
+// 解析该版本实际会使用的 Java，用于提示块与 Java 列表。
+watch(
+  () => [props.instance.version, props.settings.javaPath] as const,
+  async ([version, javaPath], _prev, onCleanup) => {
+    let cancelled = false
+    onCleanup(() => {
+      cancelled = true
+    })
+    const manager = new JavaManager()
+    const list = await manager.allAvailable()
+    if (cancelled) return
+    jres.value = list
+
+    const resolved = await manager.resolveFor(version)
+    if (cancelled) return
+    if (resolved.jre) {
+      javaText.value = `将会使用: Java ${resolved.jre.major} (${resolved.jre.version}): ${resolved.jre.path}`
+    } else if (javaPath) {
+      javaText.value = `将会使用: ${javaPath}`
+    } else {
+      javaText.value = '尚未找到可用的 Java，请在「高级选项」中手动指定路径'
+    }
+  },
+  { immediate: true },
+)
+</script>
+
+<template>
+  <!-- 面板说明（可关闭） -->
+  <div
+    v-if="showHint"
+    style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px"
+  >
+    <span class="tag">仅当前版本</span>
+    <span class="setting-desc">这些设置只对该游戏版本生效，不影响其他版本。</span>
+    <AlxIcon
+      name="x"
+      :size="14"
+      style="cursor: pointer; color: var(--text-sub)"
+      @click="showHint = false"
+    />
+  </div>
+
+  <!-- ---------------------- 启动选项 ---------------------- -->
+  <div class="setting-group">
+    <div class="setting-group-title">启动选项</div>
+    <div class="setting-row">
+      <div class="setting-label">版本隔离</div>
+      <select
+        class="setting-select"
+        :value="settings.indie"
+        @change="patch({ indie: ($event.target as HTMLSelectElement).value as InstanceSettings['indie'] })"
+      >
+        <option v-for="o in ISOLATION_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">游戏窗口标题</div>
+      <input
+        class="setting-input"
+        :value="settings.title"
+        placeholder="跟随全局设置"
+        @input="patch({ title: ($event.target as HTMLInputElement).value })"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">自定义信息</div>
+      <input
+        class="setting-input"
+        :value="settings.info"
+        placeholder="跟随全局设置"
+        @input="patch({ info: ($event.target as HTMLInputElement).value })"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">
+        Java
+        <div class="setting-desc">{{ javaText }}</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-end">
+        <select
+          class="setting-select"
+          :value="javaModeValue"
+          @change="patch({ javaMode: ($event.target as HTMLSelectElement).value as InstanceSettings['javaMode'] })"
+        >
+          <option v-for="o in JAVA_MODE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+        <input
+          v-if="settings.javaMode === 'custom' || settings.javaMode === 'folder'"
+          class="setting-input"
+          style="width: 280px"
+          :value="settings.javaPath"
+          placeholder="Java 可执行文件的完整路径"
+          @input="patch({ javaPath: ($event.target as HTMLInputElement).value })"
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------------------- 内存分配 ---------------------- -->
+  <div class="setting-group">
+    <div class="setting-group-title">内存分配</div>
+    <div class="setting-row">
+      <div class="setting-label">分配方式</div>
+      <div class="item-right">
+        <button
+          v-for="m in RAM_TYPE_OPTIONS"
+          :key="m.value"
+          type="button"
+          :class="settings.ramType === m.value ? 'btn-sub active' : 'btn-sub'"
+          :style="settings.ramType === m.value ? { borderColor: 'var(--text-main)', fontWeight: 600 } : undefined"
+          @click="patch({ ramType: m.value })"
+        >
+          {{ m.label }}
+        </button>
+      </div>
+    </div>
+    <div v-if="settings.ramType === 'custom'" class="setting-row">
+      <div class="setting-label">
+        自定义内存
+        <div class="setting-desc">{{ formatRam(settings.ramCustomMb) }}</div>
+      </div>
+      <input
+        type="range"
+        class="setting-range"
+        min="512"
+        max="8192"
+        step="256"
+        :value="settings.ramCustomMb"
+        @input="patch({ ramCustomMb: Number(($event.target as HTMLInputElement).value) })"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">启动游戏前进行内存优化</div>
+      <AlxToggle
+        :model-value="settings.ramOptimize === 'on'"
+        @update:model-value="patch({ ramOptimize: $event ? 'on' : 'off' })"
+      />
+    </div>
+    <!-- 内存概览（演示数据）：进度条 + 数值 -->
+    <div class="setting-row" style="flex-direction: column; align-items: stretch">
+      <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-sub)">
+        <span>已使用内存</span>
+        <span>游戏分配</span>
+      </div>
+      <div class="progress-track" style="margin-top: 6px">
+        <div class="progress-fill" style="width: 92%"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px">
+        <span>12.5 GB / 13.7 GB</span>
+        <span>1.3 GB（可用 1.2 GB）</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------------------- 服务器 ---------------------- -->
+  <div class="setting-group">
+    <div class="setting-group-title">服务器</div>
+    <div class="setting-row">
+      <div class="setting-label">登录方式</div>
+      <select
+        class="setting-select"
+        :value="settings.serverLogin"
+        @change="patch({ serverLogin: ($event.target as HTMLSelectElement).value as InstanceSettings['serverLogin'] })"
+      >
+        <option v-for="o in LOGIN_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">认证服务器（必填）</div>
+      <input
+        class="setting-input"
+        :value="ui.authServer ?? ''"
+        placeholder="https://littleskin.cn/api/yggdrasil"
+        @input="setUi({ authServer: ($event.target as HTMLInputElement).value })"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">注册链接</div>
+      <input
+        class="setting-input"
+        :value="ui.registerUrl ?? ''"
+        placeholder="https://littleskin.cn/register"
+        @input="setUi({ registerUrl: ($event.target as HTMLInputElement).value })"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">服务器名称</div>
+      <input
+        class="setting-input"
+        :value="ui.serverName ?? ''"
+        placeholder="填写后将在启动时显示"
+        @input="setUi({ serverName: ($event.target as HTMLInputElement).value })"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">自动进入服务器</div>
+      <input
+        class="setting-input"
+        :value="settings.serverAutoEnter"
+        placeholder="例如：127.0.0.1:25565"
+        @input="patch({ serverAutoEnter: ($event.target as HTMLInputElement).value })"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">快捷填写<span class="setting-desc">一键填入 LittleSkin 的认证地址与注册链接</span></div>
+      <div class="item-right">
+        <button type="button" class="btn-sub" @click="applyLittleSkin">设置为 LittleSkin</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------------------- 高级选项（手风琴） ---------------------- -->
+  <div class="accordion-item" :class="advanceOpen ? 'active' : ''" @click="advanceOpen = !advanceOpen">
+    <div class="accordion-header">
+      高级选项
+      <AlxIcon name="chevron-down" :size="16" />
+    </div>
+    <div class="accordion-content" style="color: var(--text-main)" @click.stop>
+      <div class="setting-row" style="padding-left: 0; padding-right: 0">
+        <div class="setting-label">Java 虚拟机参数</div>
+        <input
+          class="setting-input"
+          :value="settings.advanceJvm"
+          placeholder="跟随全局设置"
+          @input="patch({ advanceJvm: ($event.target as HTMLInputElement).value })"
+        />
+      </div>
+      <div class="setting-row" style="padding-left: 0; padding-right: 0">
+        <div class="setting-label">游戏参数</div>
+        <input
+          class="setting-input"
+          :value="settings.advanceGame"
+          placeholder="跟随全局设置"
+          @input="patch({ advanceGame: ($event.target as HTMLInputElement).value })"
+        />
+      </div>
+      <div class="setting-row" style="padding-left: 0; padding-right: 0">
+        <div class="setting-label">启动前执行命令</div>
+        <input
+          class="setting-input"
+          :value="settings.advanceRun"
+          placeholder="跟随全局设置"
+          @input="patch({ advanceRun: ($event.target as HTMLInputElement).value })"
+        />
+      </div>
+      <div class="setting-row" style="padding-left: 0; padding-right: 0">
+        <div class="setting-label">Java 列表</div>
+        <select
+          class="setting-select"
+          :value="settings.javaPath"
+          @change="pickJava(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="o in javaListOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+      </div>
+      <div class="setting-row" style="padding-left: 0; padding-right: 0">
+        <div class="setting-label">内存管理</div>
+        <select
+          class="setting-select"
+          :value="settings.advanceGc"
+          @change="patch({ advanceGc: ($event.target as HTMLSelectElement).value as InstanceSettings['advanceGc'] })"
+        >
+          <option v-for="o in GC_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px; padding-top: 12px">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px">
+          <span style="font-size: 14px">禁用 Java Launch Wrapper</span>
+          <AlxToggle :model-value="settings.disableJlw" @update:model-value="patch({ disableJlw: $event })" />
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px">
+          <span style="font-size: 14px">禁用 LWJGL Unsafe Agent</span>
+          <AlxToggle :model-value="settings.disableAssetsVerify" @update:model-value="patch({ disableAssetsVerify: $event })" />
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px">
+          <span style="font-size: 14px">禁用 Mod 自动更新</span>
+          <AlxToggle :model-value="settings.disableModUpdate" @update:model-value="patch({ disableModUpdate: $event })" />
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px">
+          <span style="font-size: 14px">使用高性能显卡</span>
+          <AlxToggle :model-value="ui.highPerf !== false" @update:model-value="setUi({ highPerf: $event })" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部：跳转全局设置 -->
+  <div style="display: flex; justify-content: center; margin-top: 4px">
+    <button type="button" class="btn-sub" style="flex: none; padding: 0 18px" @click="goGlobalSettings">
+      全局设置
+    </button>
+  </div>
+</template>

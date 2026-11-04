@@ -1,57 +1,72 @@
+//! 应用入口库：specta 绑定导出 + 插件注册 + 内核链路初始化。
+
 mod commands;
-mod ext_commands;
+mod core_api;
+mod dto;
 
-use commands::LauncherState;
+use tauri_specta::{collect_commands, Builder};
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// specta 构建器：命令清单 + TS 绑定导出（run 与测试共用同一份）。
+fn specta_builder() -> Builder<tauri::Wry> {
+    Builder::<tauri::Wry>::new().commands(collect_commands![
+        commands::get_data_dir,
+        commands::get_os_info,
+        commands::get_core_version,
+        commands::fetch_json,
+        commands::download_file,
+        commands::fetch_minecraft_manifest,
+        commands::get_instances,
+        commands::create_instance,
+        commands::delete_instance,
+        commands::kv_get,
+        commands::kv_set,
+        commands::kv_remove,
+        commands::get_config,
+        commands::save_config,
+        commands::minimize_window,
+        commands::close_window,
+        commands::open_external,
+        commands::open_folder_in_explorer,
+        commands::write_text,
+        commands::read_bundled_announcements,
+        commands::read_local_update,
+    ])
+}
+
 pub fn run() {
+    let builder = specta_builder();
+
+    // 调试构建导出 TS 绑定；文件纳入 git，CI diff 非空即 IPC schema 漂移
+    #[cfg(debug_assertions)]
+    {
+        use specta_typescript::Typescript;
+        builder
+            .export(Typescript::default(), "../src/lib/bindings.ts")
+            .expect("导出 TS 绑定失败");
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(std::sync::Mutex::new(LauncherState::default()))
-        .invoke_handler(tauri::generate_handler![
-            // 来自原型的能力层
-            commands::ping,
-            commands::get_versions,
-            commands::get_instances,
-            commands::create_instance,
-            commands::delete_instance,
-            commands::launch_minecraft,
-            commands::login_offline,
-            commands::get_settings,
-            commands::save_settings,
-            commands::minimize_window,
-            commands::toggle_maximize,
-            commands::close_window,
-            commands::detect_official_launcher,
-            commands::get_mc_versions,
-            commands::add_folder,
-            commands::create_tag,
-            commands::delete_tag,
-            commands::get_tags,
-            commands::open_folder_in_explorer,
-            commands::select_folder,
-            // lib-platform 桥接所需
-            ext_commands::kv_get,
-            ext_commands::kv_set,
-            ext_commands::kv_remove,
-            ext_commands::open_external,
-            ext_commands::download_file,
-            ext_commands::apply_update,
-            ext_commands::inject_fixmod,
-            ext_commands::remove_fixmod,
-            ext_commands::report_telemetry,
-            ext_commands::read_bundled_announcements,
-            ext_commands::read_local_update,
-            ext_commands::read_text,
-            ext_commands::write_text,
-            ext_commands::get_data_dir,
-            ext_commands::get_os_info,
-            ext_commands::fetch_minecraft_manifest,
-            ext_commands::fetch_json,
-            ext_commands::list_jres,
-        ])
+        .invoke_handler(builder.invoke_handler())
+        .setup(move |app| {
+            builder.mount_events(app);
+            core_api::init(&app.handle().clone());
+            Ok(())
+        })
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("Aelux Launcher 运行失败");
+}
+
+/// CI 绑定漂移检查：重新导出 bindings.ts，diff 非空即失败。
+/// 仅在 Linux CI 上跑（Windows 下链接 tauri 的测试二进制存在系统清单问题，
+/// 本地 Windows 由 `cargo tauri dev` 的 debug 启动钩子导出）。
+#[cfg(all(debug_assertions, not(target_os = "windows")))]
+#[test]
+fn export_bindings() {
+    use specta_typescript::Typescript;
+    specta_builder()
+        .export(Typescript::default(), "../src/lib/bindings.ts")
+        .expect("导出 TS 绑定失败");
 }

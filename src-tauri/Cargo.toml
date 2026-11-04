@@ -19,10 +19,32 @@ tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-reqwest = { version = "0.12", features = ["blocking", "json", "rustls-tls"] }
-sha2 = "0.10"
-dirs = "5"
+tokio = { version = "1", features = ["sync"] }
+tracing = "0.1"
+
+# 类型化 IPC：每个 #[tauri::command] 自动生成 TS 绑定，DTO 变更前端 fail-build
+# （rc 三件套精确锁版：tauri-specta rc.26 ↔ specta rc.26 ↔ specta-typescript 0.0.13）
+tauri-specta = { version = "=2.0.0-rc.26", features = ["javascript", "typescript"] }
+specta = "=2.0.0-rc.26"
+specta-typescript = "=0.0.13"
+
+# ---- 内核接入的三条链路（见 README「内核接入」） ----
+# dev-path    ：本地源码联调，path 依赖 aelux-core，IDE 跳转/断点可用
+aelux-core = { path = "../../Aelux-Core", optional = true }
+# release-ffi ：发布打包，加载 cdylib（build.rs 负责就位库文件，运行完全离线）
+libloading = { version = "0.8", optional = true }
 
 [features]
-default = ["custom-protocol"]
-custom-protocol = ["tauri/custom-protocol"]
+# 默认 mock：外部贡献者 clone 后 `cargo tauri dev` 无需内核二进制即可跑完整 UI
+default = ["mock"]
+# 本地开发：cargo tauri dev --features dev-path（源码联调）
+dev-path = ["dep:aelux-core"]
+# 发布打包：cargo tauri build --features release-ffi
+release-ffi = ["dep:libloading"]
+# 内置假实现（默认启用）：UI 正常运行，数据为内置演示数据
+mock = []
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

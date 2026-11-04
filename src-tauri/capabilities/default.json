@@ -1,21 +1,13 @@
 {
+  "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for Aelux Launcher",
+  "description": "主窗口默认能力：插件命令白名单",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "core:window:default",
     "core:window:allow-start-dragging",
-    "core:window:allow-start-resize-dragging",
-    "core:window:allow-minimize",
-    "core:window:allow-maximize",
-    "core:window:allow-close",
-    "core:window:allow-toggle-maximize",
-    "core:window:allow-is-maximized",
-    "core:window:allow-set-size",
-    "core:window:allow-set-position",
     "dialog:default",
     "opener:default",
-    "shell:default"
+    "shell:allow-open"
   ]
 }
