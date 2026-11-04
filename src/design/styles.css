@@ -1,44 +1,47 @@
 /* ============================================================================
- * Aelux Launcher · 应用层样式
+ * Aelux Launcher · 应用层样式（窗口外壳尺寸与平台适配）
  *
- * 视觉系统（配色 / 组件 / 动画）全部在 theme.css，
- * 这里只放平台窗口适配等应用层规则。
+ * 视觉系统（配色 / 组件 / 动画）全部在 theme.css。
+ *
+ * 无缝要点（Windows 透明无边框窗口）：
+ *   - 全局 margin/padding 清零，html/body/#app 铺满视口；
+ *   - 8px 悬浮边距用 body 的 padding 实现（box-sizing: border-box），
+ *     而不是手写 calc(100vh - 16px) —— 后者在高 DPI 取整时会产生 1px 缝；
+ *   - 系统侧的阴影与圆角分别在 tauri.conf（shadow:false）与 Rust 侧 DWM 关闭。
  * ========================================================================== */
 
 * {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
 }
 html,
 body,
 #app {
+  width: 100%;
   height: 100%;
-  margin: 0;
+  overflow: hidden;
 }
 body {
   font-family: var(--aelux-font-sans);
   background: transparent;
   color: var(--text-main);
-  overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  user-select: none;
+  /* 8px 悬浮边距：窗口透明，露出桌面 */
+  padding: 8px;
 }
 
 /* ---------------------------------------------------------------------------
- * 平台窗口外观适配
- *
- * Windows / macOS：窗口是「透明 + 无边框」（见 src-tauri/tauri.*.conf.json），
- *   页面靠 8px 外边距 + 圆角 + 投影制造悬浮卡片效果，body 必须保持透明。
  * Linux：Wayland 下透明窗口不可靠，配置里关掉了透明，窗口底色由 webview 提供，
- *   此时改为「铺满 + 补背景色 + 去圆角投影」。
+ * 此时改为「铺满 + 补背景色 + 去圆角投影」。
  * ------------------------------------------------------------------------- */
 html[data-platform='linux'] body {
   background: var(--bg-color);
+  padding: 0;
 }
 
 html[data-platform='linux'] .aelux-app {
-  height: 100vh;
-  margin: 0;
   border-radius: 0;
   box-shadow: none;
 }

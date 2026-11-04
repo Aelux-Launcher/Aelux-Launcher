@@ -44,6 +44,10 @@ release-ffi = ["dep:libloading"]
 # 内置假实现（默认启用）：UI 正常运行，数据为内置演示数据
 mock = []
 
+# Windows：关闭 Win11 系统圆角（DWM），避免透明窗口四角被系统裁出缝隙
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.60", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }
+
 [profile.release]
 lto = true
 codegen-units = 1

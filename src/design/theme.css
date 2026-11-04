@@ -59,13 +59,13 @@ svg {
 }
 
 /* ============================================================================
- * 窗口外壳（透明窗口 + 8px 悬浮卡片）
+ * 窗口外壳（视觉；尺寸与平台适配见 styles.css）
+ *   外层 8px 悬浮边距由 body 的 padding 提供，这里铺满剩余空间。
  * ========================================================================== */
 .aelux-app {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 16px);
-  margin: 8px;
+  height: 100%;
   border-radius: 12px;
   overflow: hidden;
   background: var(--bg-color);
@@ -197,14 +197,12 @@ svg {
 .nav-item:hover,
 .nav-item.active {
   background-color: var(--hover-bg);
-  font-weight: 700;
 }
 
 /* ---------------- 底部账户区 ---------------- */
 .account-section {
   margin-top: auto;
   flex-shrink: 0;
-  border-top: 1px solid var(--border-light);
 }
 
 .account-title {
