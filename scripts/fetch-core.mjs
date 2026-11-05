@@ -6,6 +6,10 @@
  *   1. --manifest <path> 指定的本地 manifest.json
  *   2. CORE_MANIFEST_URL 指定的远端 manifest（R2 桶 / 私有 Release 均可）
  *
+ * 鉴权：内核托管在**私有 GitHub Release** 时，设置 CORE_DOWNLOAD_TOKEN
+ * （fine-grained PAT，对内核仓库有 Contents 只读权限）即可通过下载；
+ * 公开可读的存储（R2 桶等）无需此变量。
+ *
  * 流程：读 manifest → 校验 core_version 与 api_abi_hash →
  *       下载对应平台 cdylib → sha256 校验 → 落到 src-tauri/lib/<platform>/。
  *
@@ -18,6 +22,12 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const srcTauri = join(here, '..')
+
+/** 私有 Release 资产的鉴权头（可选）。 */
+function authHeaders() {
+  const token = process.env.CORE_DOWNLOAD_TOKEN
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 /** 解析平台键（与 build.rs / manifest.json 的键一致）。 */
 function platformKey() {
@@ -41,7 +51,7 @@ function libFileName() {
 
 async function fetchText(urlOrPath) {
   if (/^https?:\/\//.test(urlOrPath)) {
-    const res = await fetch(urlOrPath)
+    const res = await fetch(urlOrPath, { headers: authHeaders() })
     if (!res.ok) throw new Error(`下载 manifest 失败: ${res.status} ${urlOrPath}`)
     return res.text()
   }
@@ -49,7 +59,7 @@ async function fetchText(urlOrPath) {
 }
 
 async function downloadTo(url, dest, expectedSha256) {
-  const res = await fetch(url)
+  const res = await fetch(url, { headers: authHeaders() })
   if (!res.ok) throw new Error(`下载失败: ${res.status} ${url}`)
   mkdirSync(dirname(dest), { recursive: true })
   const hash = createHash('sha256')

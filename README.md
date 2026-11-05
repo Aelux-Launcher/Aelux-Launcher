@@ -12,7 +12,7 @@ Minecraft Java Edition 桌面启动器（公开仓库）：Tauri 2 薄壳 + Vue 
 | 语言 | TypeScript（tauri-specta 自动生成类型化 IPC 客户端 `src/lib/bindings.ts`） |
 | 状态 | Pinia |
 | 路由 | vue-router（hash 模式） |
-| 壳 | Tauri 2.x（无边框透明窗口，Windows / macOS / Linux） |
+| 壳 | Tauri 2.x（无边框窗口，Windows / macOS / Linux） |
 | 内核接入 | dev-path（rlib 源码联调）/ release-ffi（cdylib + libloading）/ mock（默认，内置假实现） |
 
 ## 快速开始
@@ -27,6 +27,7 @@ npm run build:web    # 纯前端构建
 
 > 外部贡献者：clone 后直接 `npm run dev` 即可（mock 链路）。
 > 完整功能需要官方分发的内核二进制，内核源码不公开。
+> 系统要求：Windows 10 (1803+) / Windows 11（WebView2 运行时系统自带；缺失时安装微软官方 Runtime 即可）。
 
 ## 内核接入（三条链路）
 
@@ -66,25 +67,72 @@ release-ffi = ["dep:libloading"]      # 发布打包
 | `npm run build:release` | NSIS / MSI 安装器 | 下载二进制 | 需要安装器形态时 |
 
 - 单文件 exe 复制到任意目录即用，数据写 exe 同级 `data/`
-- 便携 ZIP 内含 exe + `aelux_core.dll` + 说明，解压双击即用
+- 便携 ZIP 内含 `Aelux-Launcher.exe` + `aelux_core.dll` + 说明，解压双击即用
 - 三种形态的数据目录行为完全一致（exe 同级 `data/`，整目录拷走即迁移）
 
 **版本策略（测试期）**：版本号统一为 `0.1.0`，不随构建自增，改版本时手动同步三处——
 `package.json`、`src-tauri/tauri.conf.json`（启动器）、`Aelux-Core/Cargo.toml`（内核）。
 「关于」页同时展示启动器版本（Tauri 运行时读取）与内核版本（`get_core_version` 命令）。
 
-**发布触发（均手动，自动创建 GitHub Release 并上传产物）**：
-1. `git tag v0.1.0 && git push origin v0.1.0` —— Release 以 tag 命名
-2. Actions 页面 → Release → Run workflow → 填版本号参数
+## 发布操作手册
 
-> CI（release.yml）走的是 `build:portable`（dll 形态）；想要 CI 产出单文件 exe，
-> 需要给 CI 配 `CORE_ACCESS_TOKEN` + `CORE_REPO` secrets 拉取内核源码并改用
-> `build:single`（单文件依赖源码，公开 fork 无法构建）。
+### 一次性准备
 
-内核版本独立走 core 仓库的 tag：core 打 `v0.1.0` → core CI 产出三平台 cdylib + manifest.json
-（`core_version` 取自 tag）→ launcher 打包时 fetch-core 按 manifest 拉取。
+1. **内核仓库（Aelux-Core，私有）**：打一次 tag 发布内核
+   ```bash
+   cd Aelux-Core
+   git tag v0.1.0
+   git push origin v0.1.0        # 触发 core CI → 三平台编译 cdylib + manifest.json → 传到 core 的 Release
+   ```
+2. **launcher 仓库** 配置三个 Secrets（Settings → Secrets and variables → Actions）：
+   | Secret | 值 | 用途 |
+   | --- | --- | --- |
+   | `CORE_MANIFEST_URL` | `https://github.com/<组织>/Aelux-Core/releases/download/v0.1.0/manifest.json` | 打包时拉内核 dll 清单（**发布必需**） |
+   | `CORE_DOWNLOAD_TOKEN` | 对内核仓库有 Contents 只读权限的 fine-grained PAT | 私有 Release 资产下载鉴权（**发布必需**） |
+   | `CORE_ACCESS_TOKEN` + `CORE_REPO` | 同一 token + `<组织>/Aelux-Core` | 可选：CI 里拉源码做 dev-path 集成检查 |
 
-CI（`.github/workflows/`）：
+### 发测试版（Beta）
+
+**方式 A：本地出包（最快，零配置，推荐日常测试）**
+
+```bash
+npm run build:single      # 产出 src-tauri/target/release/aelux-launcher-app.exe（单文件，直接发人）
+```
+
+**方式 B：GitHub 出包（走完整发布链路）**
+
+1. 确认上面的「一次性准备」已完成
+2. 仓库页 → Actions → **发布 Windows 便携包** → Run workflow →
+   版本号填 `0.1.0`、渠道选 `beta` → Run
+3. 跑完后两处可取包：
+   - 该次运行页底部的 **Artifacts**（即时测试用）
+   - **Releases** 页的 `Aelux-Launcher-v0.1.0-Beta.zip`（对外链接）
+
+等价命令行方式：`git tag v0.1.0 && git push origin v0.1.0`（tag 名含 beta 才会标 Beta，
+纯数字 tag 默认按 Stable 处理——所以测试版建议直接用 Actions 页面触发）。
+
+### 发正式版（Stable）
+
+1. **升版本号**（测试结束转正时）：三处 `0.1.0` → `x.y.z` 并提交
+   - `package.json`、`src-tauri/tauri.conf.json`（启动器）
+   - `Aelux-Core/Cargo.toml`（内核，若内核有改动）
+2. **内核先发**（若内核有改动）：core 仓库打 `vx.y.z` tag 并推送 → 确认 core CI 绿灯
+3. **更新内核清单地址**：launcher 仓库 secret `CORE_MANIFEST_URL` 改指向新 tag 的 manifest
+4. **发正式包**：Actions → 发布 Windows 便携包 → Run workflow →
+   版本号填 `x.y.z`、渠道选 **`stable`** → Run
+   - 产物：`Aelux-Launcher-vx.y.z-Stable.zip`，自动创建 Release
+5. 验证 Release 页资产与「关于」页双版本号（启动器 / 内核）
+
+> 日常「测试版」不需要升版本号、不需要动 tag；只有转正式版时才走上面五步。
+
+### 内核与启动器的版本对应
+
+内核独立发版：core 打 `vx.y.z` tag → core CI 产出 cdylib + manifest.json（`core_version`
+取自 tag）→ launcher 打包时 fetch-core 按 manifest 下载并校验 sha256。「关于」页可查当前
+使用的内核版本。
+
+## CI（`.github/workflows/`）
+
 - `ci.yml` —— 「CI · 检查（不发布产物）」：前端类型检查与构建、Rust 编译检查（Windows / Linux）、bindings 漂移
 - `release.yml` —— 「发布 Windows 便携包」：tag / 手动触发 → fetch-core → 便携 ZIP → GitHub Release
 
@@ -95,18 +143,16 @@ workflow 会先准备它——
 - **配置了 `CORE_ACCESS_TOKEN` + `CORE_REPO` secrets**：拉取私有内核仓库，并顺带执行
   `cargo check --features dev-path` 验证源码集成。
 
-`release.yml` 的内核二进制源通过 secret `CORE_MANIFEST_URL` 配置（R2 桶或私有 core 仓库 Release）。
-
 ## 目录
 
 ```text
 src/
 ├── design/          视觉系统（theme.css 唯一视觉来源 + styles.css 应用层）
-├── components/      alx-* 控件（设计规格 1:1）+ TitleBar + 图标
-├── views/           页面（启动 / 下载 / 联机 / 设置 / 更多 + 5 类副页面）
-├── stores/app.ts    组合根：页面栈模型 + 数据缓存 + 动作
+├── components/      TopHeader / SideNav / 控件（极简黑白设计）+ 图标
+├── views/           页面（启动 / 下载 / 设置 / 更多 + 详情页）
+├── stores/app.ts    组合根：模块分组模型 + 数据缓存 + 动作
 ├── lib/             bridge（IPC / 浏览器预览模拟）、bindings.ts（生成）、类型
-└── router/          主页面 5 + 副页面 5 类的路由表
+└── router/          模块页 + 详情页的路由表
 src-tauri/
 ├── src/core_api/    三条内核链路（dev / ffi / mock）
 ├── src/commands.rs  Tauri 命令层（specta 标注）

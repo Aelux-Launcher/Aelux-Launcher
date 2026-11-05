@@ -2,9 +2,10 @@ name: 发布 Windows 便携包
 
 # 发布 Windows 便携包（免安装，解压即用）。
 #
-# 触发方式（二选一，均为手动）：
-#   1. 打 tag：git tag v0.1.0 && git push origin v0.1.0（Release 会以 tag 命名）
-#   2. Actions 页面手动运行 workflow_dispatch（测试构建，Release 以运行时的 tag 参数命名）
+# 渠道（channel）：
+#   beta   → 产物命名 Aelux-Launcher-v0.1.0-Beta.zip（测试版）
+#   stable → 产物命名 Aelux-Launcher-v0.1.0-Stable.zip（正式版）
+# tag 触发时按 tag 名自动判断：tag 含 "beta"（如 v0.2.0-beta.1）→ Beta，否则 Stable。
 #
 # 测试期版本号策略：三处版本号统一维护为 0.1.0，不随构建自增——
 #   package.json / src-tauri/tauri.conf.json（启动器）、Aelux-Core/Cargo.toml（内核）。
@@ -18,6 +19,11 @@ on:
         description: "发布版本号（如 0.1.0；仅用于 Release 命名）"
         required: false
         default: "0.1.0"
+      channel:
+        description: "发布渠道"
+        type: choice
+        options: ["beta", "stable"]
+        default: "beta"
 
 permissions:
   contents: write
@@ -27,6 +33,7 @@ jobs:
     runs-on: windows-latest
     env:
       CORE_MANIFEST_URL: ${{ secrets.CORE_MANIFEST_URL }}
+      CORE_DOWNLOAD_TOKEN: ${{ secrets.CORE_DOWNLOAD_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -49,14 +56,14 @@ jobs:
 
       - run: npm ci
 
-      - name: Fetch core cdylib
+      - name: 拉取内核动态库（manifest + sha256 校验）
         run: node scripts/fetch-core.mjs
 
       # --no-bundle：只产出裸 exe，不打 NSIS/MSI 安装器（便携分发）
-      - name: Build portable (release-ffi)
+      - name: 编译启动器（内核 dll 随包分发）
         run: npm run build:portable
 
-      - name: Package portable ZIP
+      - name: 打包便携 ZIP
         shell: pwsh
         run: |
           $stage = "portable/Aelux-Launcher"
@@ -65,12 +72,22 @@ jobs:
           Copy-Item "src-tauri/lib/windows-x64/aelux_core.dll" $stage
           # 使用说明：解压后双击 exe 即用；数据写在 exe 同级 data/ 目录
           "# Aelux Launcher`n`n解压到任意目录，双击 Aelux-Launcher.exe 即可运行（免安装）。`n数据保存在本目录 data/ 下，整目录拷走即可迁移。`n" | Set-Content "$stage/README.txt"
-          # 测试期产物命名：Aelux-Launcher-v0.1.0-Beta.zip（正式版发布时改 -Stable 或去掉后缀）
           $tag = "${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}"
-          Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath "Aelux-Launcher-$tag-Beta.zip" -Force
+          # 渠道后缀：dispatch 按 input；tag 触发按 tag 名含 beta 判断
+          $channel = "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.channel || '' }}"
+          if ($channel -eq "beta" -or $tag -match "beta") { $suffix = "Beta" } else { $suffix = "Stable" }
+          Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath "Aelux-Launcher-$tag-$suffix.zip" -Force
+
+      # 无论后面 Release 步骤成败，构建产物都挂在本次运行的 Artifacts 区可下载（测试取包用）
+      - name: 上传构建产物（Actions 运行页可下载）
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aelux-Launcher-portable-windows
+          path: Aelux-Launcher-*.zip
+          if-no-files-found: warn
 
       - name: 创建 GitHub Release 并上传便携 ZIP
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}
-          files: Aelux-Launcher-*-Beta.zip
+          files: Aelux-Launcher-*.zip
