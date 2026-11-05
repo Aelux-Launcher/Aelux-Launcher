@@ -429,6 +429,8 @@ svg {
   flex-direction: column;
   align-items: center;
   text-align: center;
+  /* 未登录时文字隐藏，但保留整块高度，避免登录前后布局跳动 */
+  min-height: 136px;
 }
 
 .avatar {

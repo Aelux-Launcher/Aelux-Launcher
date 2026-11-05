@@ -55,6 +55,14 @@ const selectedLoader = computed(() =>
   selected.value ? (LOADER_LABEL[selected.value.loader ?? 'vanilla'] ?? '原版') : null,
 )
 
+/** 第三方登录展示的认证服务器名（默认取列表里的第一台，如 LittleSkin）。 */
+const thirdLabel = computed(() => store.authServers[0]?.name ?? '第三方')
+
+/** 登录方式徽标文本：第三方显示具体认证服务器名（如「LittleSkin」）。 */
+const modeLabel = computed(() =>
+  displayMode.value === 'third' ? thirdLabel.value : MODE_LABEL[displayMode.value],
+)
+
 async function handleLaunch() {
   if (!selected.value) {
     store.pushLaunchLog('没有可启动的实例，请先安装一个游戏版本。')
@@ -81,9 +89,9 @@ async function handleLaunch() {
   }
 }
 
-/** 第三方登录：需要服务器凭证体系，接入前提示。 */
+/** 第三方登录：外置登录服务器（如 LittleSkin）接入前提示。 */
 function handleThirdLogin() {
-  toast.info('第三方（服务器账号）登录尚未接入，请使用离线或微软登录。')
+  toast.info(`${thirdLabel.value} 登录尚未接入内核，请使用离线或微软登录。`)
 }
 
 /** 正版登录：设备码流（内核 auth 模块），弹窗展示设备码并轮询。 */
@@ -134,12 +142,12 @@ function openInstanceSetup() {
 <template>
   <div class="page-view active launch-page">
     <div class="launch-side">
-      <!-- 登录方式（仅展示当前选择，本页不切换；没有任何账户时不显示方式徽标） -->
-      <div v-if="store.session || store.accounts.length > 0" class="login-modes static">
-        <button type="button" class="active">{{ MODE_LABEL[displayMode] }}</button>
+      <!-- 登录方式（仅展示当前选择，本页不切换；未登录也保留该行高度） -->
+      <div class="login-modes static">
+        <button type="button" class="active">{{ modeLabel }}</button>
       </div>
 
-      <!-- 档案区 -->
+      <!-- 档案区（未登录时不显示文字，但保留高度避免跳动） -->
       <div class="profile-section">
         <div class="avatar">
           <AlxIcon name="user" :size="36" />
@@ -149,10 +157,6 @@ function openInstanceSetup() {
           <div class="player-sub">
             {{ SESSION_LABEL[store.session.type] ?? store.session.type }}
           </div>
-        </div>
-        <div v-else>
-          <div class="player-name">未登录</div>
-          <div class="player-sub">选择登录方式后开始</div>
         </div>
       </div>
 
@@ -175,8 +179,8 @@ function openInstanceSetup() {
               <span class="sub-text">正版验证</span>
             </button>
             <button v-else-if="displayMode === 'third'" type="button" class="btn-launch" @click="handleThirdLogin">
-              <span class="main-text">服务器账号登录</span>
-              <span class="sub-text">第三方认证</span>
+              <span class="main-text">{{ thirdLabel }} 登录</span>
+              <span class="sub-text">外置登录</span>
             </button>
             <button v-else type="button" class="btn-launch" @click="offlineLogin">
               <span class="main-text">离线登录</span>
