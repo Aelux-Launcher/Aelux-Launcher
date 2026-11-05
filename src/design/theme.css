@@ -1021,6 +1021,37 @@ svg {
 }
 .alx-modal__actions .btn-sub { flex: none; padding: 0 18px; }
 
+/* 全局输入 / 确认对话框（DialogHost）：说明文字 + 字段 */
+.dialog-message {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-sub);
+}
+.dialog-field { margin-bottom: 12px; }
+.dialog-field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub);
+}
+.dialog-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-main);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.dialog-input:focus { border-color: var(--text-main); }
+.dialog-input::placeholder { color: var(--text-sub); }
+
 /* toast */
 .aelux-toasts {
   position: fixed;
@@ -1202,7 +1233,13 @@ svg {
   font-family: var(--aelux-font-mono);
 }
 .auth-server-row .icon-btn { flex-shrink: 0; }
-.auth-server-add { margin-top: 10px; }
+/* 底部固定区（账户管理页）：分隔线与内边距，避免与列表粘连 */
+.account-section .auth-server-add {
+  margin: 0;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-light);
+  border-radius: 0;
+}
 .folder-menu {
   position: absolute;
   right: 10px;

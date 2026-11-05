@@ -11,6 +11,7 @@ import { router } from '../router'
 import { call, kvGet, isTauri } from '../lib/bridge'
 import type { Account, DeviceCodeSession } from '../lib/bindings'
 import { toast } from '../lib/toast'
+import { promptDialog } from '../lib/dialog'
 import type {
   Announcement,
   AppModuleKey,
@@ -658,7 +659,13 @@ export const useAppStore = defineStore('app', () => {
       if (typeof picked === 'string') path = picked
       else if (Array.isArray(picked)) path = picked[0] ?? null
     } else {
-      path = window.prompt('输入游戏文件夹路径（预览模式）')
+      const r = await promptDialog({
+        title: '添加已有文件夹',
+        message: '预览模式下请手动填写文件夹路径。',
+        fields: [{ key: 'path', label: '文件夹路径', placeholder: '例如 D:/Games/.minecraft' }],
+        confirmText: '添加',
+      })
+      path = r?.path.trim() || null
     }
     if (!path) return
     if (addedFolders.value.some((f) => f.path === path)) {

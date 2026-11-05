@@ -8,6 +8,7 @@
 import { computed, ref } from 'vue'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
+import { confirmDialog, promptDialog } from '../lib/dialog'
 import { call } from '../lib/bridge'
 import AlxIcon from './AlxIcon.vue'
 import type { StoredFolder } from '../lib/types'
@@ -181,7 +182,13 @@ async function folderAction(action: 'rename' | 'open' | 'refresh' | 'clear') {
 async function deleteFolder(id: string) {
   const folder = store.gameFolders.find((f) => f.id === id)
   if (!folder) return
-  if (!window.confirm(`确定删除文件夹「${store.folderDisplayName(folder)}」？`)) return
+  const ok = await confirmDialog({
+    title: '删除文件夹',
+    message: `确定删除文件夹「${store.folderDisplayName(folder)}」？该操作不可撤销。`,
+    confirmText: '删除',
+    danger: true,
+  })
+  if (!ok) return
   await store.removeGameFolder(id)
   if (store.selectedFolderId === id) store.selectFolder('current')
   toast.success('文件夹已移除')
@@ -194,11 +201,21 @@ async function addMicrosoft() {
 }
 
 async function addOffline() {
-  const name = window.prompt('输入游戏用户名（离线登录）')
-  if (!name) return
+  const r = await promptDialog({
+    title: '添加离线账户',
+    message: '输入游戏用户名，将以本地身份加入游戏。',
+    fields: [{ key: 'username', label: '用户名', placeholder: '例如 Steve' }],
+    confirmText: '添加',
+  })
+  if (!r) return
+  const name = r.username.trim()
+  if (!name) {
+    toast.warning('用户名不能为空')
+    return
+  }
   try {
     await store.loginOffline(name)
-    toast.success(`已添加离线账户「${name.trim()}」`)
+    toast.success(`已添加离线账户「${name}」`)
   } catch (e) {
     toast.error((e as Error).message)
   }
@@ -206,10 +223,23 @@ async function addOffline() {
 
 /** 添加外置登录认证服务器（地址必填，名称缺省取域名）。 */
 async function addAuthServer() {
-  const url = window.prompt('输入认证服务器地址（authlib-injector）')
-  if (!url?.trim()) return
+  const r = await promptDialog({
+    title: '添加认证服务器',
+    message: '填写外置登录（authlib-injector）服务器信息。',
+    fields: [
+      { key: 'name', label: '名称（可选）', placeholder: '留空则使用域名' },
+      { key: 'url', label: '服务器地址', placeholder: 'https://example.com/api/yggdrasil' },
+    ],
+    confirmText: '添加',
+  })
+  if (!r) return
+  const url = r.url.trim()
+  if (!url) {
+    toast.warning('服务器地址不能为空')
+    return
+  }
   try {
-    await store.addAuthServer('', url)
+    await store.addAuthServer(r.name, url)
     toast.success('认证服务器已添加')
   } catch (e) {
     toast.error((e as Error).message)
@@ -220,7 +250,13 @@ async function addAuthServer() {
 async function deleteAuthServer(id: string) {
   const srv = store.authServers.find((s) => s.id === id)
   if (!srv) return
-  if (!window.confirm(`确定删除认证服务器「${srv.name}」？`)) return
+  const ok = await confirmDialog({
+    title: '删除认证服务器',
+    message: `确定删除认证服务器「${srv.name}」？该操作不可撤销。`,
+    confirmText: '删除',
+    danger: true,
+  })
+  if (!ok) return
   await store.removeAuthServer(id)
   toast.success('认证服务器已删除')
 }
@@ -331,14 +367,6 @@ function selectFolder(f: StoredFolder) {
             <AlxIcon name="x" :size="15" />
           </button>
         </div>
-
-        <button type="button" class="add-account-item auth-server-add" @click="addAuthServer">
-          <AlxIcon name="globe" :size="18" />
-          <span>
-            <span class="main">添加认证服务器</span>
-            <span class="sub">外置登录 · authlib-injector</span>
-          </span>
-        </button>
       </div>
 
       <!-- 常规导航 -->
@@ -381,8 +409,19 @@ function selectFolder(f: StoredFolder) {
       </template>
     </div>
 
-    <!-- 底部账户区：点击进入账户管理页（账户管理页内不再显示，避免与列表重复） -->
-    <div v-if="sidePanelKind !== 'accounts'" class="account-section">
+    <!-- 账户管理页：底部固定「添加认证服务器」 -->
+    <div v-if="sidePanelKind === 'accounts'" class="account-section">
+      <button type="button" class="add-account-item auth-server-add" @click="addAuthServer">
+        <AlxIcon name="globe" :size="18" />
+        <span>
+          <span class="main">添加认证服务器</span>
+          <span class="sub">外置登录 · authlib-injector</span>
+        </span>
+      </button>
+    </div>
+
+    <!-- 底部账户区：点击进入账户管理页（账户管理页内不显示，避免与列表重复） -->
+    <div v-else class="account-section">
       <div class="account-title">账户</div>
       <button type="button" class="account-card" @click="openAccounts">
         <div class="account-avatar">

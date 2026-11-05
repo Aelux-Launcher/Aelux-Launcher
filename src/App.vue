@@ -24,6 +24,7 @@ import HelpDetail from './views/HelpDetail.vue'
 import VersionDetail from './views/VersionDetail.vue'
 import Accounts from './views/Accounts.vue'
 import DeviceLoginModal from './components/DeviceLoginModal.vue'
+import DialogHost from './components/DialogHost.vue'
 
 /** 离场动画时长（须与 theme.css 里的 stage leave 时长一致）。 */
 const LEAVE_MS = 180
@@ -271,6 +272,9 @@ const showPreviewTip = ref(true)
 
     <!-- 微软设备码登录弹窗（全局：启动页 / 账户管理页侧栏均可触发） -->
     <DeviceLoginModal />
+
+    <!-- 全局输入 / 确认对话框（替代原生 prompt / confirm） -->
+    <DialogHost />
 
     <!-- 全局 toast -->
     <div class="aelux-toasts">

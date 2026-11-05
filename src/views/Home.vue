@@ -8,6 +8,7 @@
 import { computed, ref } from 'vue'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
+import { promptDialog } from '../lib/dialog'
 import AlxIcon from '../components/AlxIcon.vue'
 
 /** 登录方式（与 store 偏好一致） */
@@ -92,8 +93,18 @@ async function handleOfficialLogin() {
 
 /** 离线登录：以昵称派生离线身份。 */
 async function offlineLogin() {
-  const name = window.prompt('输入游戏用户名（离线登录）')
-  if (!name) return
+  const r = await promptDialog({
+    title: '离线登录',
+    message: '输入游戏用户名，将以本地身份进入游戏。',
+    fields: [{ key: 'username', label: '用户名', placeholder: '例如 Steve' }],
+    confirmText: '登录',
+  })
+  if (!r) return
+  const name = r.username.trim()
+  if (!name) {
+    toast.warning('用户名不能为空')
+    return
+  }
   try {
     await store.loginOffline(name)
     toast.success(`已使用离线身份「${store.session?.username}」登录`)

@@ -8,6 +8,7 @@
 import { computed } from 'vue'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
+import { confirmDialog } from '../lib/dialog'
 import AlxIcon from '../components/AlxIcon.vue'
 import PageHeader from '../components/PageHeader.vue'
 import type { StoredAccount } from '../lib/types'
@@ -70,7 +71,13 @@ async function copyUuid(a: StoredAccount) {
 async function deleteAccount(id: string) {
   const acc = store.accounts.find((a) => a.id === id)
   if (!acc) return
-  if (!window.confirm(`确定删除账户「${acc.username}」？`)) return
+  const ok = await confirmDialog({
+    title: '删除账户',
+    message: `确定删除账户「${acc.username}」？该操作不可撤销。`,
+    confirmText: '删除',
+    danger: true,
+  })
+  if (!ok) return
   await store.removeAccount(id)
   toast.success('账户已删除')
 }
