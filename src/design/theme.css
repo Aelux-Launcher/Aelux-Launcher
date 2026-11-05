@@ -298,12 +298,16 @@ svg {
   flex-direction: column;
 }
 
-/* 启动页：内容靠右（设计稿规格） */
+/* 启动页：内容靠右（设计稿规格）。
+   内容固定（min-height 720 下恒小于可用区），禁掉滚动——
+   否则入场动画的正向过冲帧（translateY +2.7px）会在满高布局上
+   挤出瞬时滚动条，每次切页闪一下。 */
 .page-view.active.launch-page {
   flex-direction: row;
   justify-content: flex-end;
   align-items: center;
   padding-right: 12%;
+  overflow: hidden;
 }
 
 /* 启动页侧栏（登录 + 档案 + 动作） */
