@@ -153,6 +153,8 @@ export function versionRangeSummary(ids: string[], latestKnownId?: string): stri
   const latestKnownDrop = latestKnownId
     ? versionDrop(latestKnownId) ?? Math.max(...drops)
     : Math.max(...drops, 0)
+  /** 远古版边界：1.12 及以上保留，低于 1.12 归入远古版。 */
+  const ancientDrop = versionDrop('1.12') ?? 1012
 
   const segments: string[] = []
   const sorted = [...drops].sort((a, b) => b - a)
@@ -164,14 +166,19 @@ export function versionRangeSummary(ids: string[], latestKnownId?: string): stri
       index += 1
       end = sorted[index]
     }
-    if (end === latestKnownDrop) {
-      segments.push(end === start ? dropName(end) : `${dropName(end)}+`)
-    } else if (end < versionDrop('1.12')!) {
-      segments.push(end === start ? dropName(end) : `${dropName(start)}-`)
-    } else if (end === start) {
+    // 与 PCL ResourceProject.ToResourceItem 的分段文案保持一致：
+    //   单版本 → 原名；
+    //   从最新版向下连续 → 「最低版本+」（覆盖远古版时为「全版本」）；
+    //   最低段落在远古版 → 「最高版本-」；
+    //   中间连续段 → 「高，低」；存在缺口 → 「高~低」。
+    if (end === start) {
       segments.push(dropName(end))
+    } else if (start >= latestKnownDrop) {
+      segments.push(end < ancientDrop ? '全版本' : `${dropName(end)}+`)
+    } else if (end < ancientDrop) {
+      segments.push(`${dropName(start)}-`)
     } else {
-      segments.push(`${dropName(start)}, ${dropName(end)}`)
+      segments.push(`${dropName(start)}~${dropName(end)}`)
     }
     index += 1
   }
@@ -182,7 +189,11 @@ export function versionRangeSummary(ids: string[], latestKnownId?: string): stri
     if (segments.length === 0) return '暂无版本'
     return segments.join(', ')
   }
-  if (hasAncient) segments.push('远古版')
-  else if (hasSnapshot) segments.push('快照版')
+  // PCL 只在「起始段覆盖最新版」时追加远古版 / 快照版标记。
+  const startsAtLatest = sorted[0] >= latestKnownDrop
+  if (startsAtLatest) {
+    if (hasAncient) segments.push('远古版')
+    else if (hasSnapshot) segments.push('快照版')
+  }
   return segments.join(', ')
 }

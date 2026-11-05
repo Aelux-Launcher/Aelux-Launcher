@@ -1174,6 +1174,16 @@ export const useAppStore = defineStore('app', () => {
         }
       }
 
+      // 与 PCL 一致：版本行只统计「已解析的必填前置」，未解析到的依赖不计数。
+      const resolvedIds = new Set(dependencies.map((d) => d.projectId))
+      for (const v of versions) {
+        v.dependencies = (v.dependencies ?? []).filter(
+          (d) => d.type === 'required' && d.projectId && resolvedIds.has(d.projectId),
+        )
+      }
+      // PCL 的 Distinct.Ordered：按项目 ID 排序展示前置资源。
+      dependencies = [...dependencies].sort((a, b) => a.projectId.localeCompare(b.projectId))
+
       resourceDetailData.value = {
         project: {
           projectId: p.id,

@@ -117,6 +117,30 @@ function onNav(key: string) {
   void store.routerPush(`/${m}/${key}`)
 }
 
+/* ----- 下载分类刷新（PCL 侧栏项末尾的「刷新」按钮） ----- */
+
+/** 正在刷新的分类 key：null = 空闲（同时防止重复点击）。 */
+const refreshingKey = ref<string | null>(null)
+
+async function refreshCategory(key: string) {
+  if (refreshingKey.value) return
+  refreshingKey.value = key
+  try {
+    if (key === 'original') {
+      await store.loadVersions()
+      if (store.versionsError) toast.error(`版本清单刷新失败：${store.versionsError}`)
+      else toast.success('版本清单已刷新')
+    } else {
+      // 社区资源：按当前筛选条件重查，页码归 0（等价 PCL 清 Storage + PageRestart）
+      await store.searchResources()
+      if (store.resourceError) toast.error(`资源列表刷新失败：${store.resourceError}`)
+      else toast.success('资源列表已刷新')
+    }
+  } finally {
+    refreshingKey.value = null
+  }
+}
+
 /* ------------------- 子页侧栏面板（PCL 式：子页替换导航区） ------------------- */
 
 /** 当前是否处于带侧栏面板的子页（版本选择 → 文件夹列表；账户管理 → 添加账户）。 */
@@ -277,16 +301,36 @@ function selectFolder(f: StoredFolder) {
         <template v-for="group in groups" :key="group.title">
           <div class="nav-group active">
             <div class="nav-title">{{ group.title }}</div>
-            <button
+            <div
               v-for="item in group.items"
               :key="item.key"
-              type="button"
+              role="button"
+              tabindex="0"
               :class="['nav-item', activeKey === item.key ? 'active' : '']"
               @click="onNav(item.key)"
+              @keydown.enter.prevent="onNav(item.key)"
+              @keydown.space.prevent="onNav(item.key)"
             >
               <AlxIcon :name="item.icon" :size="16" />
               {{ item.label }}
-            </button>
+              <button
+                v-if="sideModule === 'download' && activeKey === item.key && item.key !== 'world'"
+                type="button"
+                class="nav-item-action"
+                :title="`刷新${item.label}`"
+                :disabled="
+                  refreshingKey !== null ||
+                  (item.key === 'original' ? store.versionsLoading : store.resourceLoading)
+                "
+                @click.stop="refreshCategory(item.key)"
+              >
+                <AlxIcon
+                  name="refresh"
+                  :size="15"
+                  :class="{ spinning: refreshingKey === item.key }"
+                />
+              </button>
+            </div>
           </div>
         </template>
       </template>

@@ -3,10 +3,15 @@
  * 社区资源详情页（副页面，极简黑白主题）。
  *
  * 布局对齐 PCL2 的 PageDownloadCompDetail：
- *   信息卡（图标 / 标题 / 标签 / 单行描述 / 版本范围·下载量·时间·来源 + 横向按钮）
- *   → 版本筛选 chip 卡（≥2 个版本才显示，只有游戏版本一行）
- *   → 按「加载器 + 版本」分组的版本卡（可折叠）：
- *       前置资源（必填依赖）→ 版本列表 → 版本行（点击或下载按钮保存文件）。
+ *   信息卡（PCL CardIntro：资源条目 + 下方按钮行）
+ *   → 版本筛选 chip 卡（≥2 个版本才显示）
+ *   → 版本卡（PCL PanResults，整行竖向堆叠、可折叠）：
+ *       卡内先前置资源（必填依赖），再版本列表。
+ *
+ * 分组规则与 PCL 一致：
+ *   - 按文件的「每一个游戏版本」建卡（不是只取第一个版本）；
+ *   - 项目有多个加载器且是 Mod、版本号为标准格式时，按「加载器 + 版本」拆卡；
+ *   - 从列表页带版本 / 加载器进入时，置顶一张「…（所选版本）」卡。
  */
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../stores/app'
@@ -97,6 +102,9 @@ const LOADER_TAGS = new Set([
   'waterfall',
 ])
 
+/** 特殊版本分组（排序时排在所有正式版本之后）。 */
+const SPECIAL_VERSION_NAMES = new Set(['快照版', '远古版', '未知版本'])
+
 /* ------------------------------ 详情数据 ------------------------------ */
 
 const project = computed(() => store.resourceDetailData?.project ?? null)
@@ -139,6 +147,17 @@ const versionFilterNames = computed(() =>
 /** 只有一个版本时不显示筛选卡（PCL 行为）。 */
 const showVersionFilter = computed(() => versionFilterNames.value.length >= 2)
 
+/** 项目级加载器集合（PCL 用项目级加载器数量决定卡片是否带加载器前缀）。 */
+const projectLoaders = computed(() => {
+  const out = new Set<string>()
+  for (const v of versions.value) {
+    for (const l of v.loaders) {
+      if (l) out.add(l)
+    }
+  }
+  return [...out]
+})
+
 /** 最新正式版 id（版本范围摘要的「+」判定）。 */
 const latestReleaseId = computed(
   () => store.versions.find((v) => v.kind === 'release')?.id ?? '',
@@ -159,21 +178,29 @@ const introTags = computed(() =>
 /* ------------------------------ 版本卡片 ------------------------------ */
 
 interface VersionCard {
-  /** 卡片标题（加载器 + 版本，或仅版本） */
+  /** 唯一键（加载器 + 游戏版本）。 */
+  key: string
+  /** 卡片标题（加载器 + 版本，或仅版本）。 */
   name: string
-  /** 该卡对应的版本筛选名 */
-  versionName: string
-  /** 文件只对应一个加载器时用于卡片前缀 */
+  /** 该卡对应的完整游戏版本。 */
+  gameVersion: string
+  /** 卡片标题里的加载器（空串 = 无前缀）。 */
   loader: string
+  /** 是否是「（所选版本）」置顶卡。 */
+  targeted: boolean
   versions: ResourceVersion[]
-  /** 该卡涉及的前置资源（必填依赖） */
+  /** 该卡涉及的前置资源（必填依赖）。 */
   dependencies: ResourceProject[]
 }
 
-/** 文件归组用的版本号：取第一个游戏版本（Modrinth 按最新在前返回）。 */
-function cardVersionName(v: ResourceVersion): string {
-  const first = v.gameVersions.find((g) => g) ?? '未知版本'
-  return groupVersionName(first, grouping.value.grouped, grouping.value.foldOld)
+/** 标准版本号（PCL 的 McVersion.IsStandardFormat：1.21.4 / 26.1）。 */
+function isStandardVersion(name: string): boolean {
+  return /^\d+(?:\.\d+)+$/.test(name)
+}
+
+/** 特殊版本（快照版 / 远古版 / 未知版本）。 */
+function isSpecialVersion(name: string): boolean {
+  return SPECIAL_VERSION_NAMES.has(groupVersionName(name, false, false))
 }
 
 /** 项目级前置资源索引。 */
@@ -181,41 +208,67 @@ const dependencyById = computed(
   () => new Map(dependencies.value.map((d) => [d.projectId, d])),
 )
 
-/** 单张卡的必填依赖（去重、保持版本顺序）。 */
+/** 单张卡的前置资源（PCL：整合包不显示；其余按项目 ID 排序）。 */
 function cardDependencies(card: VersionCard): ResourceProject[] {
+  if (props.resourceKind === 'modpack') return []
   const ids = new Set<string>()
   for (const v of card.versions) {
     for (const d of v.dependencies ?? []) {
-      if (d.type === 'required' && d.projectId) ids.add(d.projectId)
+      if (d.projectId) ids.add(d.projectId)
     }
   }
   return [...ids]
+    .sort((a, b) => a.localeCompare(b))
     .map((id) => dependencyById.value.get(id))
     .filter((d): d is ResourceProject => Boolean(d))
 }
 
-/** 所有版本卡：Mod 项目按「加载器 + 版本」拆分，其余只按版本拆分。 */
-const allCards = computed<VersionCard[]>(() => {
+/** 卡片排序（PCL CardSorter：正式版降序，特殊版最后，再按标题）。 */
+function compareCards(a: VersionCard, b: VersionCard): number {
+  if (a.targeted !== b.targeted) return a.targeted ? -1 : 1
+  const aSpecial = isSpecialVersion(a.gameVersion)
+  const bSpecial = isSpecialVersion(b.gameVersion)
+  if (aSpecial !== bSpecial) return aSpecial ? 1 : -1
+  if (!aSpecial) {
+    const byVersion = compareMcVersions(b.gameVersion, a.gameVersion)
+    if (byVersion !== 0) return byVersion
+  }
+  return a.name.localeCompare(b.name)
+}
+
+/** 全部版本卡：按文件的每一个游戏版本建卡，多加载器 Mod 再按加载器拆分。 */
+const baseCards = computed<VersionCard[]>(() => {
+  const splitByLoader = props.resourceKind === 'mod' && projectLoaders.value.length > 1
   const map = new Map<string, VersionCard>()
   for (const v of sortedVersions.value) {
-    const versionName = cardVersionName(v)
-    const loader = v.loaders.length === 1 ? v.loaders[0] : ''
-    const prefix = props.resourceKind === 'mod' && loader ? `${LOADER_LABELS[loader] ?? loader} ` : ''
-    const name = `${prefix}${versionName}`
-    let card = map.get(name)
-    if (!card) {
-      card = { name, versionName, loader, versions: [], dependencies: [] }
-      map.set(name, card)
+    const gameVersions = v.gameVersions.length ? v.gameVersions : ['未知版本']
+    for (const gameVersion of gameVersions) {
+      const loaders =
+        splitByLoader && isStandardVersion(gameVersion) && v.loaders.length > 0
+          ? v.loaders.map((l) => LOADER_LABELS[l] ?? l)
+          : ['']
+      for (const loader of loaders) {
+        const key = `${loader}|${gameVersion}`
+        let card = map.get(key)
+        if (!card) {
+          card = {
+            key,
+            name: loader ? `${loader} ${gameVersion}` : gameVersion,
+            gameVersion,
+            loader,
+            targeted: false,
+            versions: [],
+            dependencies: [],
+          }
+          map.set(key, card)
+        }
+        if (!card.versions.some((x) => x.id === v.id)) card.versions.push(v)
+      }
     }
-    card.versions.push(v)
   }
   return [...map.values()]
     .map((card) => ({ ...card, dependencies: cardDependencies(card) }))
-    .sort((a, b) => {
-      const byVersion = compareMcVersions(b.versionName, a.versionName)
-      if (byVersion !== 0) return byVersion
-      return (LOADER_LABELS[a.loader] ?? a.loader).localeCompare(LOADER_LABELS[b.loader] ?? b.loader)
-    })
+    .sort(compareCards)
 })
 
 /* ------------------------------ 筛选与展开 ------------------------------ */
@@ -223,18 +276,74 @@ const allCards = computed<VersionCard[]>(() => {
 /** 选中的游戏版本 chip（空串 = 全部）。 */
 const selectedVersion = ref('')
 
-/** 已展开的版本卡片名。 */
+/** 已展开的版本卡片 key。 */
 const openCards = ref(new Set<string>())
+
+/** 从列表页带来的「所选版本」卡片标题（PCL TargetCardName）。 */
+const targetCardName = computed(() => {
+  if (!props.gameVersion && !props.loader) return ''
+  const loader = props.loader ? LOADER_LABELS[props.loader] ?? props.loader : ''
+  return `${loader ? `${loader} ` : ''}${props.gameVersion ?? ''}（所选版本）`
+})
+
+/** 置顶卡包含的版本（版本与加载器同时匹配）。 */
+const targetedVersions = computed(() => {
+  if (!targetCardName.value) return []
+  return sortedVersions.value.filter((v) => {
+    if (props.gameVersion && !v.gameVersions.includes(props.gameVersion)) return false
+    if (props.loader && !v.loaders.includes(props.loader)) return false
+    return true
+  })
+})
+
+/** 置顶卡是否可见（PCL：所选版本的分组必须命中当前筛选）。 */
+const showTargeted = computed(() => {
+  if (!targetCardName.value || targetedVersions.value.length === 0) return false
+  if (!selectedVersion.value) return true
+  if (!props.gameVersion) return false
+  const group = groupVersionName(props.gameVersion, grouping.value.grouped, grouping.value.foldOld)
+  return group.startsWith(selectedVersion.value)
+})
+
+/** 普通版本卡（按 chip 筛选；PCL 会隐藏与置顶卡同名的普通卡）。 */
+const normalCards = computed(() => {
+  let cards = baseCards.value
+  if (selectedVersion.value) {
+    cards = cards.filter(
+      (card) =>
+        groupVersionName(card.gameVersion, grouping.value.grouped, grouping.value.foldOld) ===
+        selectedVersion.value,
+    )
+  }
+  if (targetCardName.value) {
+    const skipName = targetCardName.value.replace('（所选版本）', '')
+    cards = cards.filter((card) => card.name !== skipName)
+  }
+  return cards
+})
+
+/** 最终展示的卡片：置顶卡 + 普通卡。 */
+const visibleCards = computed<VersionCard[]>(() => {
+  const cards: VersionCard[] = []
+  if (showTargeted.value) {
+    const targeted: VersionCard = {
+      key: 'targeted',
+      name: targetCardName.value,
+      gameVersion: props.gameVersion ?? '',
+      loader: props.loader ? LOADER_LABELS[props.loader] ?? props.loader : '',
+      targeted: true,
+      versions: targetedVersions.value,
+      dependencies: [],
+    }
+    targeted.dependencies = cardDependencies(targeted)
+    cards.push(targeted)
+  }
+  cards.push(...normalCards.value)
+  return cards
+})
 
 /** 是否已应用路由带来的预设筛选（每个项目只应用一次）。 */
 let preselectApplied = false
-
-/** 当前可见的版本卡（按版本筛选）。 */
-const visibleCards = computed(() =>
-  selectedVersion.value === ''
-    ? allCards.value
-    : allCards.value.filter((card) => card.versionName === selectedVersion.value),
-)
 
 /** 进入页面（或切换项目）时重置筛选并拉取资源详情。 */
 watch(
@@ -248,46 +357,46 @@ watch(
   { immediate: true },
 )
 
-/** 详情加载完成后应用列表页带来的版本 / 加载器预设（只用于默认展开）。 */
+/** 详情加载完成后：自动选中目标版本 chip，并按 PCL 规则决定默认展开的卡片。 */
 watch(
-  [sortedVersions, allCards],
+  [sortedVersions, visibleCards],
   () => {
     if (preselectApplied || versions.value.length === 0) return
     preselectApplied = true
-    if (props.gameVersion) {
-      const name = groupVersionName(props.gameVersion, grouping.value.grouped, grouping.value.foldOld)
+    if (
+      props.gameVersion &&
+      versions.value.some((v) => v.gameVersions.includes(props.gameVersion!))
+    ) {
+      const name = groupVersionName(
+        props.gameVersion,
+        grouping.value.grouped,
+        grouping.value.foldOld,
+      )
       if (versionFilterNames.value.includes(name)) selectedVersion.value = name
     }
-    const target =
-      allCards.value.find((card) => {
-        if (selectedVersion.value && card.versionName !== selectedVersion.value) return false
-        if (props.loader && card.loader && card.loader !== props.loader) return false
-        return true
-      }) ?? visibleCards.value[0]
-    if (target) openCards.value = new Set([target.name])
+    const cards = visibleCards.value
+    if (showTargeted.value) openCards.value = new Set(['targeted'])
+    else if (cards.length === 1) openCards.value = new Set([cards[0].key])
   },
 )
 
-/** chip 筛选后保证至少展开一张卡（否则用户看不到版本行）。 */
-watch(selectedVersion, () => {
-  const cards = visibleCards.value
-  if (cards.length === 0) return
-  const stillOpen = cards.find((card) => openCards.value.has(card.name))
-  if (!stillOpen) openCards.value = new Set([cards[0].name])
-})
-
+/** 切换版本筛选（PCL 会重建卡片列表，全部折叠）。 */
 function selectVersion(name: string) {
   selectedVersion.value = name
+  openCards.value = new Set()
+  const cards = visibleCards.value
+  if (showTargeted.value) openCards.value = new Set(['targeted'])
+  else if (cards.length === 1) openCards.value = new Set([cards[0].key])
 }
 
-function isCardOpen(name: string): boolean {
-  return openCards.value.has(name)
+function isCardOpen(key: string): boolean {
+  return openCards.value.has(key)
 }
 
-function toggleCard(name: string) {
+function toggleCard(key: string) {
   const next = new Set(openCards.value)
-  if (next.has(name)) next.delete(name)
-  else next.add(name)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
   openCards.value = next
 }
 
@@ -298,12 +407,20 @@ function stripExtension(name: string): string {
   return name.replace(/\.(jar|zip|mrpack|litemod)$/i, '')
 }
 
-/** 版本主标题：重名时用文件名（PCL 的 IsBadDisplay 逻辑）。 */
-function versionTitle(v: ResourceVersion, siblings: ResourceVersion[]): string {
-  const base = stripExtension(v.versionNumber || v.name || v.fileName)
-  const duplicate =
-    siblings.filter((x) => stripExtension(x.versionNumber || x.name || x.fileName) === base).length > 1
-  return duplicate ? stripExtension(v.fileName) : base
+/** 项目内重复的展示名（PCL 的 IsBadDisplay：同名版本改用文件名）。 */
+const duplicatedDisplays = computed(() => {
+  const counts = new Map<string, number>()
+  for (const v of versions.value) {
+    const display = stripExtension(v.name || v.versionNumber || v.fileName)
+    counts.set(display, (counts.get(display) ?? 0) + 1)
+  }
+  return new Set([...counts].filter(([, n]) => n > 1).map(([display]) => display))
+})
+
+/** 版本主标题（PCL Display = 版本 name 字段，去扩展名）。 */
+function versionTitle(v: ResourceVersion): string {
+  const display = stripExtension(v.name || v.versionNumber || v.fileName)
+  return duplicatedDisplays.value.has(display) ? stripExtension(v.fileName) : display
 }
 
 /** 测试版 / 早期测试版标识（正式版不显示）。 */
@@ -319,22 +436,36 @@ function releaseIcon(v: ResourceVersion): string {
   return 'package'
 }
 
-/** 版本行信息（PCL 顺序：加载器 / 文件名 / 前置数量 / 游戏版本 / 下载 / 更新时间）。 */
-function versionInfo(v: ResourceVersion, card: VersionCard): string {
+/** PCL 的非标准游戏版本判定（快照 / pre / rc 等）。 */
+function isNonStandardGameVersion(version: string): boolean {
+  if (!version.includes('.')) return true
+  const lower = version.toLowerCase()
+  return ['w', 'snapshot', 'rc', 'pre', 'experimental', '-'].some((s) => lower.includes(s))
+}
+
+/** PCL 的下载次数文案（大于 10 万时按万取整）。 */
+function downloadCount(n: number): string {
+  return n > 100000 ? `${Math.round(n / 10000)} 万` : String(n)
+}
+
+/** 版本行信息（顺序与 PCL ResourceVersion.ToListItem 一致）。 */
+function versionInfo(v: ResourceVersion): string {
   const parts: string[] = []
   if (v.loaders.length > 0) {
     parts.push(v.loaders.map((l) => LOADER_LABELS[l] ?? l).join('、'))
   }
-  const title = versionTitle(v, card.versions)
-  if (v.fileName && stripExtension(v.fileName) !== title) parts.push(v.fileName)
-  const required =
-    v.dependencies?.filter((d) => d.type === 'required' && d.projectId).length ?? 0
+  const title = versionTitle(v)
+  const fileBase = stripExtension(v.fileName)
+  if (v.fileName && title !== fileBase) parts.push(fileBase)
+  const required = v.dependencies?.length ?? 0
   if (required > 0) parts.push(`${required} 项前置`)
-  if (grouping.value.grouped && v.gameVersions.length > 0) {
-    parts.push(v.gameVersions.slice(0, 6).join(', '))
+  if (v.gameVersions.length > 0 && v.gameVersions.every(isNonStandardGameVersion)) {
+    parts.push(`游戏版本 ${v.gameVersions.join('、')}`)
   }
-  parts.push(`下载 ${v.downloads} 次`)
+  if (v.downloads > 0) parts.push(`下载 ${downloadCount(v.downloads)}次`)
   parts.push(`更新于 ${formatRelativeTime(v.datePublished)}`)
+  const release = releaseLabel(v)
+  if (release) parts.push(release)
   return parts.join('，')
 }
 
@@ -427,208 +558,209 @@ watch(
 </script>
 
 <template>
-  <PageHeader :title="pageTitle" />
+  <div class="page-view active sub-page">
+    <PageHeader :title="pageTitle" />
 
-  <!-- 加载中 -->
-  <div v-if="store.resourceDetailLoading" class="resource-results-card">
-    <div v-for="i in 3" :key="i" class="resource-skeleton" />
-    <div class="loading-hint">正在获取版本列表...</div>
-  </div>
-
-  <!-- 加载失败 -->
-  <div v-else-if="!project" class="resource-state-card">
-    <AlxIcon name="alert-circle" :size="28" />
-    <div class="resource-state-title">无法加载资源详情</div>
-    <div class="resource-state-desc">请检查网络后重试，或返回列表选择其他资源。</div>
-    <button type="button" class="btn-download btn-ghost" @click="retry">重试</button>
-  </div>
-
-  <template v-else>
-    <!-- 信息卡（PCL CardIntro） -->
-    <section class="resource-intro">
-      <div class="resource-intro-body">
-        <div class="resource-intro-icon">
-          <img
-            v-if="project.iconUrl && !failedIcon"
-            :src="project.iconUrl"
-            :alt="project.title"
-            @error="failedIcon = true"
-          />
-          <AlxIcon v-else :name="KIND_ICON[props.resourceKind] ?? 'package'" :size="30" />
-        </div>
-
-        <div class="resource-intro-info">
-          <div class="resource-intro-head">
-            <span class="resource-intro-title">{{ project.title }}</span>
-            <span class="resource-intro-slug">{{ project.slug }}</span>
-          </div>
-
-          <div v-if="introTags.length" class="resource-intro-tags">
-            <span v-for="tag in introTags" :key="tag" class="resource-tag">
-              {{ categoryLabel(tag) }}
-            </span>
-          </div>
-
-          <div class="resource-intro-desc">{{ project.description }}</div>
-
-          <div class="resource-intro-meta">
-            <span v-if="rangeSummary" class="resource-meta-item">
-              <AlxIcon name="columns" :size="12" />
-              {{ rangeSummary }}
-            </span>
-            <span class="resource-meta-item">
-              <AlxIcon name="download" :size="12" />
-              {{ formatDownloads(project.downloads) }}
-            </span>
-            <span class="resource-meta-item">
-              <AlxIcon name="clock" :size="12" />
-              {{ formatRelativeTime(project.dateModified) }}
-            </span>
-            <span class="resource-meta-item">
-              <AlxIcon name="globe" :size="12" />
-              Modrinth
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div class="resource-intro-actions">
-        <button type="button" class="btn-download search-submit" @click="openWebsite">
-          转到 Modrinth
-        </button>
-        <button type="button" class="btn-download btn-ghost with-icon" @click="copyName">
-          <AlxIcon name="copy" :size="14" />
-          <span>复制名称</span>
-        </button>
-      </div>
-    </section>
-
-    <!-- 版本筛选卡（PCL CardFilter）：只有游戏版本一行 -->
-    <section v-if="showVersionFilter" class="resource-section-card resource-filter-card">
-      <div class="filter-chip-row">
-        <button
-          type="button"
-          class="filter-chip"
-          :class="{ active: selectedVersion === '' }"
-          @click="selectVersion('')"
-        >
-          全部
-        </button>
-        <button
-          v-for="name in versionFilterNames"
-          :key="name"
-          type="button"
-          class="filter-chip"
-          :class="{ active: selectedVersion === name }"
-          @click="selectVersion(name)"
-        >
-          {{ name }}
-        </button>
-      </div>
-    </section>
-
-    <!-- 无匹配版本 -->
-    <div v-if="visibleCards.length === 0" class="resource-state-card">
-      <AlxIcon name="alert-circle" :size="28" />
-      <div class="resource-state-title">没有符合筛选的版本</div>
-      <div class="resource-state-desc">试试选择其他游戏版本。</div>
+    <!-- 加载中 -->
+    <div v-if="store.resourceDetailLoading" class="resource-results-card">
+      <div v-for="i in 3" :key="i" class="resource-skeleton" />
+      <div class="loading-hint">正在获取版本列表...</div>
     </div>
 
-    <!-- 版本卡（PCL PanResults） -->
-    <section
-      v-for="card in visibleCards"
-      :key="card.name"
-      class="resource-section-card version-card"
-    >
-      <button
-        type="button"
-        class="version-card-head"
-        :aria-expanded="isCardOpen(card.name)"
-        @click="toggleCard(card.name)"
-      >
-        <span class="version-card-title">{{ card.name }}</span>
-        <AlxIcon
-          name="chevron-down"
-          :size="16"
-          class="version-card-chevron"
-          :class="{ open: isCardOpen(card.name) }"
-        />
-      </button>
+    <!-- 加载失败 -->
+    <div v-else-if="!project" class="resource-state-card">
+      <AlxIcon name="alert-circle" :size="28" />
+      <div class="resource-state-title">无法加载资源详情</div>
+      <div class="resource-state-desc">请检查网络后重试，或返回列表选择其他资源。</div>
+      <button type="button" class="btn-download btn-ghost" @click="retry">重试</button>
+    </div>
 
-      <div v-show="isCardOpen(card.name)" class="version-card-body">
-        <!-- 前置资源 -->
-        <div v-if="card.dependencies.length" class="version-card-section">
-          <div class="section-label">前置资源</div>
-          <div class="dependency-list">
-            <article
-              v-for="dep in card.dependencies"
-              :key="dep.projectId"
-              class="dependency-item"
-              @click="openDependency(dep)"
-            >
-              <div class="dependency-icon">
-                <img v-if="dep.iconUrl" :src="dep.iconUrl" :alt="dep.title" loading="lazy" />
-                <AlxIcon v-else name="package" :size="20" />
-              </div>
-              <div class="dependency-main">
-                <div class="dependency-head">
-                  <span class="dependency-title">{{ dep.title }}</span>
-                  <span v-if="dependencyTag(dep)" class="resource-tag">{{ dependencyTag(dep) }}</span>
-                  <span class="dependency-desc">{{ dep.description }}</span>
-                </div>
-                <div class="dependency-meta">
-                  <span class="resource-meta-item">
-                    <AlxIcon name="download" :size="12" />
-                    {{ formatDownloads(dep.downloads) }}
-                  </span>
-                  <span class="resource-meta-item">
-                    <AlxIcon name="clock" :size="12" />
-                    {{ formatRelativeTime(dep.dateModified) }}
-                  </span>
-                  <span class="resource-meta-item">
-                    <AlxIcon name="globe" :size="12" />
-                    Modrinth
-                  </span>
-                </div>
-              </div>
-              <AlxIcon name="chevron-right" :size="16" class="dependency-chevron" />
-            </article>
+    <template v-else>
+      <!-- 信息卡（PCL CardIntro：资源条目 + 按钮行） -->
+      <section class="resource-intro">
+        <div class="resource-intro-body">
+          <div class="resource-intro-icon">
+            <img
+              v-if="project.iconUrl && !failedIcon"
+              :src="project.iconUrl"
+              :alt="project.title"
+              @error="failedIcon = true"
+            />
+            <AlxIcon v-else :name="KIND_ICON[props.resourceKind] ?? 'package'" :size="30" />
+          </div>
+
+          <div class="resource-intro-info">
+            <div class="resource-intro-head">
+              <span class="resource-intro-title">{{ project.title }}</span>
+              <span class="resource-intro-divider">|</span>
+              <span class="resource-intro-slug">{{ project.slug }}</span>
+            </div>
+
+            <div class="resource-intro-line">
+              <span v-for="tag in introTags" :key="tag" class="resource-tag">
+                {{ categoryLabel(tag) }}
+              </span>
+              <span class="resource-intro-desc">{{ project.description }}</span>
+            </div>
+
+            <div class="resource-intro-meta">
+              <span v-if="rangeSummary" class="resource-meta-item">
+                <AlxIcon name="columns" :size="12" />
+                {{ rangeSummary }}
+              </span>
+              <span class="resource-meta-item">
+                <AlxIcon name="download" :size="12" />
+                {{ formatDownloads(project.downloads) }}
+              </span>
+              <span class="resource-meta-item">
+                <AlxIcon name="clock" :size="12" />
+                {{ formatRelativeTime(project.dateModified) }}
+              </span>
+              <span class="resource-meta-item">
+                <AlxIcon name="globe" :size="12" />
+                Modrinth
+              </span>
+            </div>
           </div>
         </div>
 
-        <!-- 版本列表标题（有前置资源时 PCL 会显示） -->
-        <div v-if="card.dependencies.length" class="section-label">版本列表</div>
+        <div class="resource-intro-actions">
+          <button type="button" class="btn-download search-submit" @click="openWebsite">
+            转到 Modrinth
+          </button>
+          <button type="button" class="btn-download btn-ghost with-icon" @click="copyName">
+            <AlxIcon name="copy" :size="14" />
+            <span>复制名称</span>
+          </button>
+        </div>
+      </section>
 
-        <!-- 版本行 -->
-        <div class="version-file-list">
-          <div
-            v-for="v in card.versions"
-            :key="v.id"
-            class="version-file-row"
-            @click="downloadVersion(v)"
+      <!-- 版本筛选卡（PCL CardFilter）：只有游戏版本一行 -->
+      <section v-if="showVersionFilter" class="resource-section-card resource-filter-card">
+        <div class="filter-chip-row">
+          <button
+            type="button"
+            class="filter-chip"
+            :class="{ active: selectedVersion === '' }"
+            @click="selectVersion('')"
           >
-            <div class="version-file-icon">
-              <AlxIcon :name="releaseIcon(v)" :size="16" />
+            全部
+          </button>
+          <button
+            v-for="name in versionFilterNames"
+            :key="name"
+            type="button"
+            class="filter-chip"
+            :class="{ active: selectedVersion === name }"
+            @click="selectVersion(name)"
+          >
+            {{ name }}
+          </button>
+        </div>
+      </section>
+
+      <!-- 无匹配版本 -->
+      <div v-if="visibleCards.length === 0" class="resource-state-card">
+        <AlxIcon name="alert-circle" :size="28" />
+        <div class="resource-state-title">没有符合筛选的版本</div>
+        <div class="resource-state-desc">试试选择其他游戏版本。</div>
+      </div>
+
+      <!-- 版本卡（PCL PanResults） -->
+      <section
+        v-for="card in visibleCards"
+        :key="card.key"
+        class="resource-section-card version-card"
+      >
+        <button
+          type="button"
+          class="version-card-head"
+          :aria-expanded="isCardOpen(card.key)"
+          @click="toggleCard(card.key)"
+        >
+          <span class="version-card-title">{{ card.name }}</span>
+          <AlxIcon
+            name="chevron-down"
+            :size="16"
+            class="version-card-chevron"
+            :class="{ open: isCardOpen(card.key) }"
+          />
+        </button>
+
+        <div v-show="isCardOpen(card.key)" class="version-card-body">
+          <!-- 前置资源 -->
+          <div v-if="card.dependencies.length" class="version-card-section">
+            <div class="section-label">前置资源</div>
+            <div class="dependency-list">
+              <article
+                v-for="dep in card.dependencies"
+                :key="dep.projectId"
+                class="dependency-item"
+                @click="openDependency(dep)"
+              >
+                <div class="dependency-icon">
+                  <img v-if="dep.iconUrl" :src="dep.iconUrl" :alt="dep.title" loading="lazy" />
+                  <AlxIcon v-else name="package" :size="22" />
+                </div>
+                <div class="dependency-main">
+                  <div class="dependency-head">
+                    <span class="dependency-title">{{ dep.title }}</span>
+                    <span v-if="dependencyTag(dep)" class="resource-tag">{{ dependencyTag(dep) }}</span>
+                    <span class="dependency-desc">{{ dep.description }}</span>
+                  </div>
+                  <div class="dependency-meta">
+                    <span class="resource-meta-item">
+                      <AlxIcon name="download" :size="12" />
+                      {{ formatDownloads(dep.downloads) }}
+                    </span>
+                    <span class="resource-meta-item">
+                      <AlxIcon name="clock" :size="12" />
+                      {{ formatRelativeTime(dep.dateModified) }}
+                    </span>
+                    <span class="resource-meta-item">
+                      <AlxIcon name="globe" :size="12" />
+                      Modrinth
+                    </span>
+                  </div>
+                </div>
+                <AlxIcon name="chevron-right" :size="16" class="dependency-chevron" />
+              </article>
             </div>
-            <div class="version-file-main">
-              <div class="version-file-title">
-                <span class="version-file-name">{{ versionTitle(v, card.versions) }}</span>
-                <span v-if="releaseLabel(v)" class="version-file-badge">{{ releaseLabel(v) }}</span>
-              </div>
-              <div class="version-file-info">{{ versionInfo(v, card) }}</div>
-            </div>
-            <button
-              type="button"
-              class="icon-btn version-file-download"
-              :title="`另存为 ${v.fileName}`"
-              :disabled="downloadingIds.has(v.id)"
-              @click.stop="downloadVersion(v)"
+          </div>
+
+          <!-- 版本列表标题（有前置资源时 PCL 会显示） -->
+          <div v-if="card.dependencies.length" class="section-label">版本列表</div>
+
+          <!-- 版本行 -->
+          <div class="version-file-list">
+            <div
+              v-for="v in card.versions"
+              :key="v.id"
+              class="version-file-row"
+              @click="downloadVersion(v)"
             >
-              <AlxIcon name="download" :size="16" />
-            </button>
+              <div class="version-file-icon">
+                <AlxIcon :name="releaseIcon(v)" :size="16" />
+              </div>
+              <div class="version-file-main">
+                <div class="version-file-title">
+                  <span class="version-file-name">{{ versionTitle(v) }}</span>
+                </div>
+                <div class="version-file-info">{{ versionInfo(v) }}</div>
+              </div>
+              <button
+                type="button"
+                class="icon-btn version-file-download"
+                :title="`另存为 ${v.fileName}`"
+                :disabled="downloadingIds.has(v.id)"
+                @click.stop="downloadVersion(v)"
+              >
+                <AlxIcon name="download" :size="16" />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
-  </template>
+      </section>
+    </template>
+  </div>
 </template>

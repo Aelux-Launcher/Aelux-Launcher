@@ -2,7 +2,7 @@
 /**
  * 下载页（极简黑白主题）：
  *   cat 由外壳路由参数传入（original / modpack / mod / world / resourcepack / datapack / shader）。
- *     · original：版本清单列表（页头搜索 + 分组折叠 + 一键进入版本详情）。
+ *     · original：版本清单列表（分组折叠 + 一键进入版本详情）。
  *     · 其余六类：Modrinth 社区资源检索（PCL 式筛选卡片 + 分页 + 详情副页面）。
  * 布局与交互参考 PCL2 的 PageDownload / PageResource：
  *   名称 / 来源 / 游戏版本 / 加载器 / 类型 → 检索 → 结果列表 → 翻页。
@@ -10,11 +10,8 @@
 import { computed, ref, watch } from 'vue'
 import type { ResourceKind, ResourceProject } from '../lib/types'
 import { useAppStore } from '../stores/app'
-import { toast } from '../lib/toast'
 import { categoryLabel, formatDownloads, formatRelativeTime, RESOURCE_CATEGORIES } from '../lib/modrinth'
 import { versionRangeSummary } from '../lib/mcVersion'
-import PageHeader from '../components/PageHeader.vue'
-import AlxSearchBar from '../components/AlxSearchBar.vue'
 import AlxIcon from '../components/AlxIcon.vue'
 import VersionRowActions from '../components/VersionRowActions.vue'
 
@@ -106,9 +103,6 @@ const GROUP_DEFS: Array<{ key: string; title: string; match: (v: { id: string; k
   },
 ]
 
-/** 页头版本搜索（本地过滤；空串 = 全部） */
-const versionKeyword = ref('')
-
 /** 折叠组展开状态（默认展开正式版，避免首屏空荡） */
 const expandedGroups = ref(new Set<string>(['release']))
 
@@ -123,40 +117,18 @@ function toggleGroup(key: string) {
   expandedGroups.value = next
 }
 
-/** 带关键词过滤的分组 */
-const versionGroups = computed(() => {
-  const keyword = versionKeyword.value.trim().toLowerCase()
-  const source = keyword
-    ? store.versions.filter((v) => v.id.toLowerCase().includes(keyword))
-    : store.versions
-  return GROUP_DEFS.map((g) => ({
+/** 按版本类型分组（正式版 / 预览版 / 远古版 / 愚人节版） */
+const versionGroups = computed(() =>
+  GROUP_DEFS.map((g) => ({
     key: g.key,
     title: g.title,
-    items: source.filter((v) => g.match(v)),
-  }))
-})
-
-/** 关键词命中的版本总数（用于空状态） */
-const matchedVersionCount = computed(() =>
-  versionGroups.value.reduce((sum, g) => sum + g.items.length, 0),
+    items: store.versions.filter((v) => g.match(v)),
+  })),
 )
-
-/** 搜索时自动展开所有有结果的组（清空后保留当前展开状态） */
-watch(versionKeyword, (keyword) => {
-  if (!keyword.trim()) return
-  expandedGroups.value = new Set(versionGroups.value.filter((g) => g.items.length > 0).map((g) => g.key))
-})
 
 /** 该版本是否已安装（用于列表里的「已安装」标签） */
 function isInstalled(id: string): boolean {
   return store.instances.some((i) => i.version === id)
-}
-
-/** 刷新版本清单（页头右侧按钮） */
-async function refreshVersions() {
-  await store.loadVersions()
-  if (store.versionsError) toast.error(`版本清单刷新失败：${store.versionsError}`)
-  else toast.success('版本清单已刷新')
 }
 
 /** 点击版本行 → 进入版本详情页（加载器选择 + 开始下载）。 */
@@ -326,19 +298,6 @@ function retrySearch() {
   <div class="page-view active sub-page">
     <!-- ============ 原版游戏下载 ============ -->
     <template v-if="!isResource">
-      <PageHeader title="原版游戏下载">
-        <AlxSearchBar v-model="versionKeyword" placeholder="搜索版本号（如 1.21.4）" />
-        <button
-          type="button"
-          class="icon-btn"
-          title="刷新版本清单"
-          :disabled="store.versionsLoading"
-          @click="refreshVersions"
-        >
-          <AlxIcon name="refresh" :size="17" />
-        </button>
-      </PageHeader>
-
       <!-- 版本清单加载中 -->
       <div v-if="store.versionsLoading" class="loading-hint">
         正在从版本清单源拉取可下载版本…
@@ -348,12 +307,12 @@ function retrySearch() {
       <div v-else-if="store.versionsError" class="empty-state">
         <AlxIcon name="alert-circle" :size="32" />
         <div>版本清单加载失败：{{ store.versionsError }}</div>
-        <button type="button" class="btn-download btn-ghost" @click="refreshVersions">重试</button>
+        <button type="button" class="btn-download btn-ghost" @click="store.loadVersions()">重试</button>
       </div>
 
       <template v-else>
-        <!-- 最新版本卡片（搜索时让位给结果列表） -->
-        <div v-if="!versionKeyword.trim() && (latestRelease || latestSnapshot)" class="version-card">
+        <!-- 最新版本卡片 -->
+        <div v-if="latestRelease || latestSnapshot" class="version-card">
           <div class="version-card-title">最新版本</div>
           <div
             v-if="latestRelease"
@@ -438,13 +397,7 @@ function retrySearch() {
           </div>
         </div>
 
-        <!-- 搜索无结果 -->
-        <div v-if="matchedVersionCount === 0 && versionKeyword.trim()" class="empty-state">
-          <AlxIcon name="search" :size="32" />
-          <div>没有找到包含「{{ versionKeyword.trim() }}」的版本</div>
-          <button type="button" class="btn-download btn-ghost" @click="versionKeyword = ''">清空搜索</button>
-        </div>
-        <div v-else-if="store.versions.length === 0" class="empty-state">
+        <div v-if="store.versions.length === 0" class="empty-state">
           <AlxIcon name="info" :size="32" />
           <div>版本清单为空，请稍后重试。</div>
         </div>
@@ -453,8 +406,6 @@ function retrySearch() {
 
     <!-- ============ 社区资源（整合包 / 模组 / 世界 / 资源包 / 数据包 / 光影包） ============ -->
     <template v-else>
-      <PageHeader :title="CAT_TITLE[cat] ?? cat" />
-
       <!-- 世界：Modrinth 没有 world 项目类型（PCL2 也没有世界下载页） -->
       <div v-if="isWorld" class="resource-state-card">
         <AlxIcon name="globe" :size="28" />
