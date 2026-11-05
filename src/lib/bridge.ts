@@ -157,8 +157,36 @@ function previewResourceVersions(slug: string, kind: string) {
   }))
 }
 
-/** 浏览器预览的 fetch_json：拦截 Modrinth 搜索 / 详情 / 版本 URL，其余返回占位。 */
+/** 浏览器预览的 fetch_json：拦截 Modrinth 搜索 / 详情 / 版本 URL 与加载器版本接口，其余返回占位。 */
 function mockFetchJson(url: string): string {
+  // Forge 版本列表：bmclapi2.bangbang93.com/forge/minecraft/{mcver}
+  if (url.includes('bmclapi2.bangbang93.com/forge/minecraft/')) {
+    return JSON.stringify(
+      [0, 1, 2, 3].map((i) => ({ version: `54.${2 - Math.floor(i / 2)}.${i % 2 === 0 ? 22 - i : 20 - i}` })),
+    )
+  }
+
+  // OptiFine 版本列表：bmclapi2.bangbang93.com/optifine/{mcver}
+  if (url.includes('bmclapi2.bangbang93.com/optifine/')) {
+    return JSON.stringify([
+      { type: 'HD U', patch: 'H1' },
+      { type: 'HD U', patch: 'I7' },
+      { type: 'Ultra', patch: 'M9' },
+    ])
+  }
+
+  // Fabric 加载器列表：meta.fabricmc.net/v2/versions/loader/{mcver}
+  if (url.includes('meta.fabricmc.net/v2/versions/loader/')) {
+    return JSON.stringify(
+      ['0.16.14', '0.16.9', '0.15.11'].map((v) => ({ loader: { version: v } })),
+    )
+  }
+
+  // NeoForge 版本列表：maven.neoforged.net（前端按 MC 版本段过滤）
+  if (url.includes('maven.neoforged.net')) {
+    return JSON.stringify({ versions: ['21.4.136', '21.4.117', '21.4.95', '20.1.112'] })
+  }
+
   // 搜索：/search?query=...&facets=[[ "project_type:<kind>" ]]
   if (url.includes('/search?')) {
     const u = new URL(url)

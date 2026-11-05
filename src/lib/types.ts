@@ -91,6 +91,16 @@ export interface DeviceFlowState {
   error: string
 }
 
+/** 游戏文件夹（版本选择页的文件夹列表条目）。 */
+export interface StoredFolder {
+  /** 稳定 id（时间戳 + 随机后缀） */
+  id: string
+  /** current = 启动器根目录自动生成的 .minecraft；official = 官方启动器文件夹；added = 用户添加 */
+  type: 'current' | 'official' | 'added'
+  /** 文件夹绝对路径（official 未检测到时为空串） */
+  path: string
+}
+
 /** 公告。 */
 export interface Announcement {
   id: string

@@ -8,8 +8,9 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { router } from '../router'
-import { call, kvGet } from '../lib/bridge'
+import { call, kvGet, isTauri } from '../lib/bridge'
 import type { Account, DeviceCodeSession } from '../lib/bindings'
+import { toast } from '../lib/toast'
 import type {
   Announcement,
   AppModuleKey,
@@ -27,6 +28,7 @@ import type {
   Session,
   Settings,
   StoredAccount,
+  StoredFolder,
   SubPage,
   VersionEntry,
 } from '../lib/types'
@@ -291,6 +293,16 @@ export const useAppStore = defineStore('app', () => {
       /* 账户列表读取失败按空处理 */
     }
     try {
+      dataDir.value = await call<string>('get_data_dir')
+    } catch {
+      /* 数据目录读取失败留空 */
+    }
+    try {
+      await loadAddedFolders()
+    } catch {
+      /* 文件夹列表读取失败按空处理 */
+    }
+    try {
       await loadSettings()
     } catch {
       /* 设置读取失败用默认值 */
@@ -493,6 +505,137 @@ export const useAppStore = defineStore('app', () => {
     const dest = `minecraft/servers/${id}/server.jar`
     await call('download_file', { url: server.url, dest, sha1: server.sha1 })
     return dest
+  }
+
+  /* ----------------------------- 加载器版本列表 ----------------------------- */
+
+  interface LoaderVersionsState {
+    loading: boolean
+    loaded: boolean
+    versions: string[]
+    error: string | null
+  }
+
+  /** 加载器版本列表缓存（key = `loader:mcVersion`），PCL 式展开时按需拉取。 */
+  const loaderVersions = ref<Record<string, LoaderVersionsState>>({})
+
+  /**
+   * 拉取某 MC 版本下某加载器的可用版本列表：
+   *   forge / optifine → BMCLAPI；fabric → Fabric meta；neoforge → NeoForged maven。
+   */
+  async function loadLoaderVersions(loader: string, mcVersion: string) {
+    const key = `${loader}:${mcVersion}`
+    const st = loaderVersions.value[key]
+    if (st?.loading || st?.loaded) return
+    loaderVersions.value[key] = { loading: true, loaded: false, versions: [], error: null }
+    try {
+      let versions: string[] = []
+      if (loader === 'forge') {
+        const raw = await call<string>('fetch_json', {
+          url: `https://bmclapi2.bangbang93.com/forge/minecraft/${mcVersion}`,
+        })
+        const arr = JSON.parse(raw) as Array<{ version: string }>
+        versions = arr.map((b) => b.version).reverse()
+      } else if (loader === 'fabric') {
+        const raw = await call<string>('fetch_json', {
+          url: `https://meta.fabricmc.net/v2/versions/loader/${mcVersion}`,
+        })
+        const arr = JSON.parse(raw) as Array<{ loader: { version: string } }>
+        versions = arr.map((e) => e.loader.version)
+      } else if (loader === 'neoforge') {
+        const raw = await call<string>('fetch_json', {
+          url: 'https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge',
+        })
+        const data = JSON.parse(raw) as { versions: string[] }
+        // NeoForge 版本号 = MC 次版本号段（1.21.4 → 21.4.x）
+        const prefix = mcVersion.split('.').slice(1).join('.')
+        versions = data.versions.filter((v) => v.startsWith(prefix)).reverse()
+      } else if (loader === 'optifine') {
+        const raw = await call<string>('fetch_json', {
+          url: `https://bmclapi2.bangbang93.com/optifine/${mcVersion}`,
+        })
+        const arr = JSON.parse(raw) as Array<{ type: string; patch: string }>
+        versions = arr.map((o) => `${o.type} ${o.patch}`).reverse()
+      }
+      loaderVersions.value[key] = { loading: false, loaded: true, versions, error: null }
+    } catch (e) {
+      loaderVersions.value[key] = {
+        loading: false,
+        loaded: false,
+        versions: [],
+        error: (e as Error).message,
+      }
+    }
+  }
+
+  /* ------------------------------- 游戏文件夹 ------------------------------- */
+
+  /** 数据根目录（当前文件夹路径的根，init 时读取）。 */
+  const dataDir = ref('')
+
+  /** 用户添加的游戏文件夹（落 kv 'game-folders'；当前/官方文件夹为派生态）。 */
+  const addedFolders = ref<StoredFolder[]>([])
+
+  async function loadAddedFolders() {
+    const raw = await kvGet('game-folders')
+    addedFolders.value = raw ? (JSON.parse(raw) as StoredFolder[]) : []
+  }
+
+  async function persistAddedFolders() {
+    await call('kv_set', { key: 'game-folders', value: JSON.stringify(addedFolders.value) })
+  }
+
+  /** 版本选择页的文件夹列表：当前文件夹 + 官方文件夹 + 添加的文件夹。 */
+  const gameFolders = computed<StoredFolder[]>(() => [
+    {
+      id: 'current',
+      type: 'current',
+      path: dataDir.value ? `${dataDir.value}/.minecraft` : '',
+    },
+    { id: 'official', type: 'official', path: '' },
+    ...addedFolders.value,
+  ])
+
+  /** 添加已有文件夹（Tauri 目录对话框；浏览器预览退化为路径输入）。 */
+  async function addGameFolder(): Promise<void> {
+    let path: string | null = null
+    if (isTauri) {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const picked = await open({ directory: true, multiple: false })
+      if (typeof picked === 'string') path = picked
+      else if (Array.isArray(picked)) path = picked[0] ?? null
+    } else {
+      path = window.prompt('输入游戏文件夹路径（预览模式）')
+    }
+    if (!path) return
+    if (addedFolders.value.some((f) => f.path === path)) {
+      toast.info('该文件夹已在列表中')
+      return
+    }
+    addedFolders.value = [
+      ...addedFolders.value,
+      { id: `folder-${Date.now()}`, type: 'added', path },
+    ]
+    await persistAddedFolders()
+  }
+
+  /** 删除已添加的文件夹（当前 / 官方文件夹不可删）。 */
+  async function removeGameFolder(id: string) {
+    addedFolders.value = addedFolders.value.filter((f) => f.id !== id)
+    await persistAddedFolders()
+  }
+
+  /** 导入整合包（.mrpack）：内核整合包管线接入前提示。 */
+  async function importModpack(): Promise<void> {
+    if (isTauri) {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const picked = await open({
+        multiple: false,
+        filters: [{ name: '整合包', extensions: ['mrpack', 'zip'] }],
+      })
+      if (!picked) return
+    }
+    toast.info('整合包导入将在内核安装管线就绪后开放')
   }
 
   interface TaskInput {
@@ -963,6 +1106,13 @@ export const useAppStore = defineStore('app', () => {
     installVersion,
     saveVersionClient,
     downloadVersionServer,
+    loaderVersions,
+    loadLoaderVersions,
+    dataDir,
+    gameFolders,
+    addGameFolder,
+    removeGameFolder,
+    importModpack,
     restoreSession,
     accounts,
     deviceFlow,
