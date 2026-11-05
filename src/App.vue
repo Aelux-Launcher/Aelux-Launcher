@@ -25,7 +25,7 @@ import VersionDetail from './views/VersionDetail.vue'
 import Accounts from './views/Accounts.vue'
 import DeviceLoginModal from './components/DeviceLoginModal.vue'
 
-/** 离场动画时长（须与 theme.css 里 alx-stage-out 的时长一致） */
+/** 离场动画时长（须与 theme.css 里的 stage leave 时长一致）。 */
 const LEAVE_MS = 180
 
 type StageMotion = 'forward' | 'back' | 'swap'
@@ -222,7 +222,6 @@ const showPreviewTip = ref(true)
               layer.leaving && 'alx-stage__layer--leaving',
               !layer.leaving && layer.id !== 0 && 'alx-stage__layer--entering',
             ]"
-            :style="layer.id === 0 ? undefined : { '--alx-enter-base': `${LEAVE_MS}ms` }"
             :aria-hidden="layer.leaving || undefined"
             :inert="layer.leaving || undefined"
           >

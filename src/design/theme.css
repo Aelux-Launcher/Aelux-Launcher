@@ -281,12 +281,18 @@ svg {
   flex: 1;
   min-height: 0;
   display: flex;
+  /* 退场页独立合成，避免其 transform 影响新页的滚动与绘制顺序。 */
+  isolation: isolate;
+  overflow: hidden;
 }
 .alx-stage__layer {
   flex: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
+  position: relative;
+  z-index: 1;
+  will-change: transform, opacity;
 }
 .alx-stage__layer > * { flex: 1; min-width: 0; }
 .alx-stage__layer--entering {
@@ -1266,7 +1272,9 @@ svg {
   100% { transform: translateY(0); opacity: 1; }
 }
 
-/* 逐项延迟：侧栏项 max(15-i,7)*2ms；内容块每项 25ms */
+/* 逐项延迟：侧栏项 max(15-i,7)*2ms；内容块每项 25ms。
+   页面层本身与内容同时入场，不能在这里再延迟一个完整的离场时长，
+   否则会产生“空白舞台 → 内容跳出”的视觉断层。 */
 .nav-group.active > .nav-item:nth-child(1),
 .nav-group.active > *:nth-child(1) { animation-delay: calc(var(--alx-enter-base, 0ms) + 30ms); }
 .nav-group.active > *:nth-child(2) { animation-delay: calc(var(--alx-enter-base, 0ms) + 28ms); }
