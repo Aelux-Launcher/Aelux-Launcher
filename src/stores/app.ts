@@ -34,13 +34,12 @@ import type {
 } from '../lib/types'
 import {
   buildResourceDetailUrl,
+  buildResourceProjectsUrl,
   buildResourceSearchUrl,
-  buildResourceTagsUrl,
   buildResourceTeamMembersUrl,
   buildResourceVersionsUrl,
-  categoryLabel,
+  RESOURCE_CATEGORIES,
   RESOURCE_PAGE_SIZE,
-  type CategoryOption,
 } from '../lib/modrinth'
 import { md5 } from '../lib/md5'
 
@@ -53,6 +52,9 @@ export interface PageStackEntry {
 
 /** 测试期版本基线（三处版本号统一维护：package.json / tauri.conf.json / 内核 Cargo.toml）。 */
 const APP_VERSION_FALLBACK = '0.1.0'
+
+/** PCL 在展示「前置资源」时忽略的两个基础前置（Fabric API / Quilt API）。 */
+const IGNORED_DEPENDENCIES = new Set(['P7dR8mSH', 'qvIfYCYJ'])
 
 const DEFAULT_SETTINGS: Settings = {
   memoryMb: 2048,
@@ -251,9 +253,6 @@ export const useAppStore = defineStore('app', () => {
   const resourceError = ref<string | null>(null)
   const resourceDetailData = ref<ResourceDetailData | null>(null)
   const resourceDetailLoading = ref(false)
-  /** Modrinth 分类标签（project_type → 可选项），首次进入资源页时拉取。 */
-  const resourceTags = ref<Record<string, CategoryOption[]>>({})
-  let resourceTagsPending: Promise<void> | null = null
   /** 搜索请求序号：切换筛选/翻页时丢弃过期响应。 */
   let resourceSearchToken = 0
 
@@ -957,46 +956,34 @@ export const useAppStore = defineStore('app', () => {
     resourcePage.value = 0
   }
 
-  /** 拉取 Modrinth 分类标签（全类型一次，失败时静默并允许下次重试）。 */
-  function loadResourceTags(): Promise<void> {
-    if (resourceTagsPending) return resourceTagsPending
-    resourceTagsPending = (async () => {
-      try {
-        const raw = await call<string>('fetch_json', { url: buildResourceTagsUrl() })
-        const parsed = JSON.parse(raw) as unknown
-        if (!Array.isArray(parsed)) return
-        const groups: Record<string, CategoryOption[]> = {}
-        for (const item of parsed as Array<{ name?: string; project_type?: string }>) {
-          if (!item.name || !item.project_type) continue
-          (groups[item.project_type] ??= []).push({ slug: item.name, label: categoryLabel(item.name) })
-        }
-        for (const key of Object.keys(groups)) {
-          groups[key].sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'))
-        }
-        resourceTags.value = groups
-      } catch {
-        resourceTagsPending = null
-      }
-    })()
-    return resourceTagsPending
-  }
-
   /** 搜索社区资源（resetPage=true 时回到第一页；翻页传 false）。 */
   async function searchResources(resetPage = true) {
     if (resetPage) resourcePage.value = 0
     const token = ++resourceSearchToken
-    resourceLoading.value = true
     resourceError.value = null
+    // Modrinth 没有 world 类型（PCL2 也没有世界下载页），页面保留但结果恒为空
+    if (resourceKind.value === 'world') {
+      resourceProjects.value = []
+      resourceTotal.value = 0
+      resourceLoading.value = false
+      return
+    }
+    resourceLoading.value = true
     try {
       if (resourceQuery.value.source === 'curseforge') {
         throw new Error('CurseForge 源需要 API key，暂不可用；请使用 Modrinth 源')
       }
+      // 光影页的「原版可用 / Iris / OptiFine」在 PCL 里属于加载器，走 loaders facet
+      const selected = RESOURCE_CATEGORIES[resourceKind.value].find(
+        (item) => item.slug === resourceQuery.value.category,
+      )
+      const isLoaderCategory = selected?.facet === 'loader'
       const url = buildResourceSearchUrl({
         kind: resourceKind.value,
         name: resourceQuery.value.name,
         gameVersion: resourceQuery.value.gameVersion,
-        loader: resourceQuery.value.loader,
-        category: resourceQuery.value.category,
+        loader: isLoaderCategory ? selected.slug : resourceQuery.value.loader,
+        category: isLoaderCategory ? '' : resourceQuery.value.category,
         page: resourcePage.value,
         pageSize: resourcePageSize,
       })
@@ -1015,6 +1002,7 @@ export const useAppStore = defineStore('app', () => {
           icon_url?: string
           date_modified: string
           author: string
+          project_type?: string
           versions?: string[]
         }>
       }
@@ -1030,6 +1018,7 @@ export const useAppStore = defineStore('app', () => {
         iconUrl: h.icon_url ?? '',
         dateModified: h.date_modified,
         author: h.author,
+        projectType: h.project_type,
         source: 'modrinth' as const,
         suffix: `.${resourceKind.value === 'mod' ? 'jar' : 'zip'}`,
         versions: h.versions ?? [],
@@ -1068,6 +1057,7 @@ export const useAppStore = defineStore('app', () => {
         date_modified: string
         body: string
         team?: string
+        project_type?: string
         /** 预览数据 / 兼容字段（正式接口没有作者名，走团队接口） */
         author?: { username?: string }
       }
@@ -1098,11 +1088,17 @@ export const useAppStore = defineStore('app', () => {
         id: string
         name: string
         version_number: string
+        version_type?: string
         game_versions: string[]
         loaders: string[]
         date_published: string
         downloads: number
         files: Array<{ url: string; filename: string; primary: boolean }>
+        dependencies?: Array<{
+          project_id: string | null
+          version_id: string | null
+          dependency_type: string
+        }>
       }>
       const versions: ResourceVersion[] = vs.map((v) => {
         const file = v.files.find((f) => f.primary) ?? v.files[0]
@@ -1117,8 +1113,67 @@ export const useAppStore = defineStore('app', () => {
           fileUrl: file?.url ?? '',
           fileName: file?.filename ?? '',
           primary: file?.primary ?? false,
+          releaseType: v.version_type,
+          dependencies: (v.dependencies ?? []).map((d) => ({
+            projectId: d.project_id,
+            versionId: d.version_id,
+            type: d.dependency_type,
+          })),
         }
       })
+
+      // 前置资源：只取必填依赖，排除当前项目与 Fabric API / Quilt API（PCL 行为）
+      const requiredIds: string[] = []
+      for (const v of vs) {
+        for (const d of v.dependencies ?? []) {
+          if (d.dependency_type !== 'required' || !d.project_id) continue
+          if (d.project_id === projectId || IGNORED_DEPENDENCIES.has(d.project_id)) continue
+          if (!requiredIds.includes(d.project_id)) requiredIds.push(d.project_id)
+        }
+      }
+      let dependencies: ResourceProject[] = []
+      if (requiredIds.length > 0) {
+        try {
+          const rawDeps = await call<string>('fetch_json', {
+            url: buildResourceProjectsUrl(requiredIds),
+          })
+          const parsed = JSON.parse(rawDeps) as Array<{
+            id: string
+            slug: string
+            title: string
+            description: string
+            categories: string[]
+            display_categories: string[]
+            downloads: number
+            icon_url?: string
+            date_modified: string
+            project_type?: string
+          }>
+          const byId = new Map(parsed.map((d) => [d.id, d]))
+          dependencies = requiredIds.flatMap((id) => {
+            const d = byId.get(id)
+            if (!d) return []
+            return [
+              {
+                projectId: d.id,
+                slug: d.slug,
+                title: d.title,
+                description: d.description,
+                categories: d.categories,
+                displayCategories: d.display_categories,
+                downloads: d.downloads,
+                iconUrl: d.icon_url ?? '',
+                dateModified: d.date_modified,
+                projectType: d.project_type,
+                source: 'modrinth' as const,
+              },
+            ]
+          })
+        } catch {
+          dependencies = []
+        }
+      }
+
       resourceDetailData.value = {
         project: {
           projectId: p.id,
@@ -1131,10 +1186,12 @@ export const useAppStore = defineStore('app', () => {
           iconUrl: p.icon_url ?? '',
           dateModified: p.date_modified,
           author: p.author?.username ?? author,
+          projectType: p.project_type,
           source: 'modrinth',
         },
         body: p.body,
         versions,
+        dependencies,
       }
     } catch (e) {
       resourceError.value = (e as Error).message
@@ -1255,7 +1312,6 @@ export const useAppStore = defineStore('app', () => {
     resourceProjects,
     resourceLoading,
     resourceError,
-    resourceTags,
     resourceDetailData,
     resourceDetailLoading,
     instanceSettings,
@@ -1319,7 +1375,6 @@ export const useAppStore = defineStore('app', () => {
     setResourceKind,
     setResourceQuery,
     resetResourceFilters,
-    loadResourceTags,
     searchResources,
     setResourcePage,
     loadResourceDetail,

@@ -78,6 +78,8 @@ interface PreviewResource {
   downloads: number
   author: string
   dateModified: string
+  /** 预览用的加载器（光影等类型用 loaders facet 筛选） */
+  loaders?: string[]
 }
 
 const PREVIEW_RESOURCES: Record<string, PreviewResource[]> = {
@@ -118,11 +120,11 @@ const PREVIEW_RESOURCES: Record<string, PreviewResource[]> = {
     { projectId: 'aelux-demo-pack-texture', slug: 'aelux-demo-texture', title: 'Aelux 演示资源包', description: '内置预览资源包：界面微调与色彩统一示例。', categories: ['16x', 'tweaks'], downloads: 4_100, author: 'Aelux', dateModified: '2026-11-01T09:00:00Z' },
   ],
   shader: [
-    { projectId: 'complementary-reimagined', slug: 'complementary-reimagined', title: 'Complementary Reimagined', description: 'Elevating pixel art to new heights with stunning visuals.', categories: ['vanilla-like', 'potato-friendly'], downloads: 4_820_000, author: 'EminGT', dateModified: '2026-10-26T10:00:00Z' },
-    { projectId: 'bliss', slug: 'bliss', title: 'Bliss Shader', description: 'A fork of Chocapic13 with balanced performance and beauty.', categories: ['semi-realistic'], downloads: 2_150_000, author: 'X0nk', dateModified: '2026-10-17T14:00:00Z' },
-    { projectId: 'solas', slug: 'solas', title: 'Solas Shader', description: 'Vibrant colors and soft lighting for vanilla worlds.', categories: ['fantasy'], downloads: 1_640_000, author: 'Septonious', dateModified: '2026-09-11T09:00:00Z' },
-    { projectId: 'rethinking-voxels', slug: 'rethinking-voxels', title: 'Rethinking Voxels', description: 'Cutout voxel lighting with colored blocklight.', categories: ['realistic', 'heavy'], downloads: 1_280_000, author: 'gri573', dateModified: '2026-10-09T16:00:00Z' },
-    { projectId: 'photon', slug: 'photon', title: "Photon's Shader", description: 'A lightweight shader focused on clouds and water.', categories: ['vanilla-like', 'potato-friendly'], downloads: 970_000, author: 'sixthsurge', dateModified: '2026-10-01T11:00:00Z' },
+    { projectId: 'complementary-reimagined', slug: 'complementary-reimagined', title: 'Complementary Reimagined', description: 'Elevating pixel art to new heights with stunning visuals.', categories: ['vanilla-like', 'potato-friendly'], loaders: ['iris', 'optifine'], downloads: 4_820_000, author: 'EminGT', dateModified: '2026-10-26T10:00:00Z' },
+    { projectId: 'bliss', slug: 'bliss', title: 'Bliss Shader', description: 'A fork of Chocapic13 with balanced performance and beauty.', categories: ['semi-realistic'], loaders: ['iris'], downloads: 2_150_000, author: 'X0nk', dateModified: '2026-10-17T14:00:00Z' },
+    { projectId: 'solas', slug: 'solas', title: 'Solas Shader', description: 'Vibrant colors and soft lighting for vanilla worlds.', categories: ['fantasy'], loaders: ['optifine'], downloads: 1_640_000, author: 'Septonious', dateModified: '2026-09-11T09:00:00Z' },
+    { projectId: 'rethinking-voxels', slug: 'rethinking-voxels', title: 'Rethinking Voxels', description: 'Cutout voxel lighting with colored blocklight.', categories: ['realistic', 'heavy'], loaders: ['iris'], downloads: 1_280_000, author: 'gri573', dateModified: '2026-10-09T16:00:00Z' },
+    { projectId: 'photon', slug: 'photon', title: "Photon's Shader", description: 'A lightweight shader focused on clouds and water.', categories: ['vanilla-like', 'potato-friendly'], loaders: ['vanilla'], downloads: 970_000, author: 'sixthsurge', dateModified: '2026-10-01T11:00:00Z' },
   ],
 }
 
@@ -135,26 +137,78 @@ function findPreviewResource(id: string): (PreviewResource & { kind: string }) |
   return null
 }
 
-/** 生成预览资源的项目版本列表（3 条，含 primary 文件）。 */
+/**
+ * 生成预览资源的项目版本列表（3 条，含 primary 文件）。
+ *
+ * 每条版本覆盖不同的游戏版本与加载器，便于验证详情页的
+ * 「按版本 / 加载器分组」「测试版标识」「前置资源」布局。
+ */
 function previewResourceVersions(slug: string, kind: string) {
-  const loaders =
-    kind === 'mod' ? ['fabric', 'forge'] : kind === 'shader' ? ['iris'] : kind === 'modpack' ? ['fabric'] : ['datapack']
-  return [0, 1, 2].map((i) => ({
-    id: `${slug}-1.${i}.0`,
-    name: `${slug} 1.${i}.0`,
-    version_number: `1.${i}.0`,
-    game_versions: ['1.21.4', '1.21.1', '1.20.1'],
-    loaders,
-    date_published: '2026-10-15T12:00:00Z',
+  const specs =
+    kind === 'mod'
+      ? [
+          { gameVersions: ['1.21.4', '1.21.1'], loaders: ['fabric'], type: 'release', required: ['P7dR8mSH', 'cloth-config'] },
+          { gameVersions: ['1.20.4', '1.20.1'], loaders: ['forge'], type: 'release', required: ['cloth-config', 'waystones'] },
+          { gameVersions: ['1.16.5'], loaders: ['fabric', 'forge'], type: 'beta', required: [] },
+        ]
+      : [
+          { gameVersions: ['1.21.4', '1.21.1'], loaders: kind === 'shader' ? ['iris'] : kind === 'modpack' ? ['fabric'] : ['datapack'], type: 'release', required: [] },
+          { gameVersions: ['1.20.4', '1.20.1'], loaders: kind === 'shader' ? ['iris'] : kind === 'modpack' ? ['fabric'] : ['datapack'], type: 'release', required: [] },
+          { gameVersions: ['1.16.5'], loaders: kind === 'shader' ? ['optifine'] : kind === 'modpack' ? ['forge'] : ['datapack'], type: 'beta', required: [] },
+        ]
+
+  return specs.map((spec, i) => ({
+    id: `${slug}-${i}`,
+    name: `${slug} ${spec.gameVersions[0]}`,
+    version_number: `${i === 0 ? '1.2.0' : i === 1 ? '1.1.0' : '1.0.4'}+${spec.gameVersions[0]}`,
+    game_versions: spec.gameVersions,
+    loaders: spec.loaders,
+    version_type: spec.type,
+    dependencies: spec.required.map((projectId) => ({
+      project_id: projectId,
+      version_id: null,
+      dependency_type: 'required',
+    })),
+    date_published: ['2026-10-15T12:00:00Z', '2026-09-20T12:00:00Z', '2026-06-10T12:00:00Z'][i],
     downloads: 120_000 - i * 30_000,
     files: [
       {
-        url: `https://preview.modrinth.com/${slug}-1.${i}.0.jar`,
-        filename: `${slug}-1.${i}.0.jar`,
+        url: `https://preview.modrinth.com/${slug}-${i}.jar`,
+        filename: `${slug}-${i}.${spec.gameVersions[0]}.jar`,
         primary: true,
       },
     ],
   }))
+}
+
+/** 预览项目详情 payload（/project/{id} 与 /projects?ids= 共用）。 */
+function previewProjectPayload(found: PreviewResource & { kind: string }) {
+  return {
+    id: found.projectId,
+    slug: found.slug,
+    title: found.title,
+    description: found.description,
+    categories: found.categories,
+    display_categories: found.categories,
+    project_type: found.kind,
+    downloads: found.downloads,
+    icon_url: '',
+    date_modified: found.dateModified,
+    author: { username: found.author },
+    body: [
+      `## 简介`,
+      ``,
+      `**${found.title}** —— 这是本地预览数据，用于在浏览器模式下验证页面布局与交互。`,
+      ``,
+      `### 特性`,
+      ``,
+      `- 覆盖分类：${found.categories.join('、')}`,
+      `- 累计下载：${found.downloads.toLocaleString('zh-CN')}`,
+      `- 维护者：${found.author}`,
+      ``,
+      `> 正式数据在 Tauri 环境下来自 Modrinth 实时接口。`,
+    ].join('\n'),
+  }
 }
 
 /** 浏览器预览的 fetch_json：拦截 Modrinth 搜索 / 详情 / 版本 URL 与加载器版本接口，其余返回占位。 */
@@ -187,37 +241,29 @@ function mockFetchJson(url: string): string {
     return JSON.stringify({ versions: ['21.4.136', '21.4.117', '21.4.95', '20.1.112'] })
   }
 
-  // 分类标签：/tag/category（按 project_type 供筛选下拉使用）
-  if (url.includes('/tag/category')) {
-    const tags = [
-      ['mod', ['adventure', 'decoration', 'library', 'magic', 'optimization', 'storage', 'technology', 'utility', 'worldgen']],
-      ['modpack', ['adventure', 'challenging', 'kitchen-sink', 'magic', 'multiplayer', 'optimization', 'quests', 'technology']],
-      ['resourcepack', ['decoration', 'fonts', 'models', 'realism', 'themed', 'tweaks', 'utility', 'vanilla-like']],
-      ['shader', ['bloom', 'cartoon', 'lighting', 'realistic', 'reflections', 'shadows', 'water']],
-      ['datapack', ['adventure', 'game-mechanics', 'library', 'mobs', 'optimization', 'utility', 'worldgen']],
-      ['world', ['adventure', 'buildings', 'fantasy', 'parkour', 'realistic']],
-    ] as const
-    return JSON.stringify(
-      tags.flatMap(([projectType, names]) =>
-        names.map((name) => ({ name, project_type: projectType, header: '', icon: '' })),
-      ),
-    )
-  }
-
   // 搜索：/search?query=...&facets=[[ "project_type:<kind>" ], ...]
   if (url.includes('/search?')) {
     const u = new URL(url)
     const facet = JSON.parse(u.searchParams.get('facets') ?? '[]') as string[][]
     const kind = facet[0]?.[0]?.split(':')[1] ?? ''
-    const categories = facet
-      .slice(1)
-      .map((group) => group[0] ?? '')
-      .filter((f) => f.startsWith('categories:'))
-      .map((f) => f.slice('categories:'.length))
+    const valuesOf = (prefix: string) =>
+      facet
+        .map((group) => group[0] ?? '')
+        .filter((f) => f.startsWith(prefix))
+        .map((f) => f.slice(prefix.length))
+    const categories = valuesOf('categories:')
+    const loaders = valuesOf('loaders:')
+    const versions = valuesOf('versions:')
     const q = (u.searchParams.get('query') ?? '').trim().toLowerCase()
     const hits = (PREVIEW_RESOURCES[kind] ?? [])
       .filter((r) => !q || r.title.toLowerCase().includes(q) || r.slug.includes(q))
       .filter((r) => categories.length === 0 || categories.some((c) => r.categories.includes(c)))
+      .filter((r) => loaders.length === 0 || loaders.some((l) => (r.loaders ?? r.categories).includes(l)))
+      .filter(
+        (r) =>
+          versions.length === 0 ||
+          versions.some((v) => previewResourceVersions(r.slug, kind).some((ver) => ver.game_versions.includes(v))),
+      )
       .map((r) => ({
         project_id: r.projectId,
         slug: r.slug,
@@ -225,12 +271,24 @@ function mockFetchJson(url: string): string {
         description: r.description,
         categories: r.categories,
         display_categories: r.categories,
+        project_type: kind,
         downloads: r.downloads,
         date_modified: r.dateModified,
         author: r.author,
-        versions: ['1.21.4', '1.20.1', '1.16.5'],
+        versions: ['1.21.4', '1.21.1', '1.20.4', '1.20.1', '1.16.5'],
       }))
     return JSON.stringify({ total_hits: hits.length, hits })
+  }
+
+  // 批量项目详情：/projects?ids=["id"]
+  if (url.includes('/projects?ids=')) {
+    const u = new URL(url)
+    const ids = JSON.parse(u.searchParams.get('ids') ?? '[]') as string[]
+    const projects = ids.flatMap((id) => {
+      const found = findPreviewResource(id)
+      return found ? [previewProjectPayload(found)] : []
+    })
+    return JSON.stringify(projects)
   }
 
   // 项目版本列表：/project/<id>/version
@@ -244,32 +302,7 @@ function mockFetchJson(url: string): string {
   const project = url.match(/\/project\/([^/]+)$/)
   if (project) {
     const found = findPreviewResource(project[1])
-    if (found) {
-      return JSON.stringify({
-        id: found.projectId,
-        slug: found.slug,
-        title: found.title,
-        description: found.description,
-        categories: found.categories,
-        display_categories: found.categories,
-        downloads: found.downloads,
-        date_modified: found.dateModified,
-        author: { username: found.author },
-        body: [
-          `## 简介`,
-          ``,
-          `**${found.title}** —— 这是本地预览数据，用于在浏览器模式下验证页面布局与交互。`,
-          ``,
-          `### 特性`,
-          ``,
-          `- 覆盖分类：${found.categories.join('、')}`,
-          `- 累计下载：${found.downloads.toLocaleString('zh-CN')}`,
-          `- 维护者：${found.author}`,
-          ``,
-          `> 正式数据在 Tauri 环境下来自 Modrinth 实时接口。`,
-        ].join('\n'),
-      })
-    }
+    if (found) return JSON.stringify(previewProjectPayload(found))
   }
 
   return JSON.stringify({ preview: true })

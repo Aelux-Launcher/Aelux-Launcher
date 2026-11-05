@@ -156,6 +156,8 @@ export interface ResourceProject {
   iconUrl: string
   dateModified: string
   source: ResourceSource
+  /** 项目类型（Modrinth project_type；依赖条目跳转时用于映射资源分类） */
+  projectType?: string
   /** 后缀标签（如 .jar / .zip） */
   suffix?: string
   author?: string
@@ -163,10 +165,20 @@ export interface ResourceProject {
   versions?: string[]
 }
 
+/** Modrinth 版本的前置依赖。 */
+export interface ResourceDependency {
+  projectId: string | null
+  versionId: string | null
+  /** required / optional / incompatible / embedded */
+  type: string
+}
+
 export interface ResourceDetailData {
   project: ResourceProject
   body: string
   versions: ResourceVersion[]
+  /** 项目级前置资源（必填依赖，去重后按依赖出现顺序） */
+  dependencies: ResourceProject[]
 }
 
 export interface ResourceVersion {
@@ -180,6 +192,10 @@ export interface ResourceVersion {
   fileUrl: string
   fileName: string
   primary: boolean
+  /** release / beta / alpha */
+  releaseType?: string
+  /** 前置依赖（详情页据此汇总「前置资源」卡片） */
+  dependencies?: ResourceDependency[]
 }
 
 /* ------------------------------ 下载任务 ------------------------------ */

@@ -1254,6 +1254,8 @@ svg {
 .resource-filter-row + .resource-filter-row { margin-top: 10px; }
 .filter-field { flex: 1 1 0; min-width: 130px; display: flex; flex-direction: column; gap: 4px; }
 .filter-field-name { flex: 1 1 240px; }
+.filter-field-version { flex: 1.4 1 0; }
+.filter-field-source { flex: 0 0 150px; }
 .filter-label {
   font-size: 11px;
   color: var(--text-sub);
@@ -1285,6 +1287,17 @@ svg {
   font-size: 13px;
 }
 .filter-input-wrap input::placeholder { color: var(--text-sub); }
+.filter-static {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--hover-bg);
+  font-size: 13px;
+  color: var(--text-sub);
+}
 .filter-control {
   height: 34px;
   padding: 0 10px;
@@ -1301,33 +1314,18 @@ svg {
 }
 .filter-control:focus { border-color: var(--text-main); background: var(--bg-color); }
 .filter-control::placeholder { color: var(--text-sub); }
+/* 原生 select 使用系统下拉面板，与 PCL ComboBox 的交互一致 */
+select.filter-control { cursor: pointer; }
 .filter-actions { display: flex; align-items: flex-end; gap: 8px; flex: none; }
 .search-submit { height: 34px; padding: 0 20px; }
-.resource-filter-foot {
+.resource-filter-actions {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border-light);
-  font-size: 11px;
-  color: var(--text-sub);
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
 }
-.resource-import-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--text-sub);
-  font-family: inherit;
-  font-size: 11px;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-.resource-import-btn:hover { color: var(--text-main); }
+.resource-filter-actions .btn-download { height: 34px; padding: 0 20px; }
 
 /* 资源结果列表（单卡片 + 分隔线，PCL 列表条目的紧凑版） */
 .resource-results-card {
@@ -1365,7 +1363,8 @@ svg {
 .resource-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .resource-item-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .resource-item-title {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  max-width: 60%;
   min-width: 0;
   font-size: 14px;
   font-weight: 700;
@@ -1394,7 +1393,7 @@ svg {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.resource-item-desc { font-size: 12px; color: var(--text-sub); }
+.resource-item-desc { flex: 1 1 0; min-width: 0; font-size: 12px; color: var(--text-sub); }
 .resource-item-meta {
   display: flex;
   align-items: center;
@@ -1422,7 +1421,7 @@ svg {
   padding: 14px 0 4px;
   flex-shrink: 0;
 }
-.resource-page-info { min-width: 76px; text-align: center; font-size: 12px; color: var(--text-sub); }
+.resource-page-number { min-width: 32px; text-align: center; font-size: 14px; font-weight: 600; color: var(--text-main); }
 
 /* 状态：错误 / 空 / 骨架屏 */
 .resource-state-card {
@@ -1468,9 +1467,9 @@ svg {
 }
 
 /* ============================================================================
- * 资源详情：信息卡 / 介绍 / 版本筛选 / 文件列表
+ * 资源详情：信息卡 / 版本筛选 / 前置资源 / 版本卡
  * ========================================================================== */
-.resource-hero {
+.resource-intro {
   padding: 18px 20px;
   border: 1px solid var(--border-light);
   border-radius: 10px;
@@ -1478,10 +1477,10 @@ svg {
   margin-bottom: 16px;
   flex-shrink: 0;
 }
-.resource-hero-top { display: flex; align-items: flex-start; gap: 16px; }
-.resource-hero-icon {
-  width: 64px;
-  height: 64px;
+.resource-intro-body { display: flex; align-items: flex-start; gap: 16px; }
+.resource-intro-icon {
+  width: 62px;
+  height: 62px;
   border-radius: 12px;
   background: var(--icon-bg);
   display: flex;
@@ -1490,26 +1489,52 @@ svg {
   overflow: hidden;
   flex: none;
 }
-.resource-hero-icon svg { color: var(--text-sub); }
-.resource-hero-icon img { width: 100%; height: 100%; object-fit: cover; }
-.resource-hero-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.resource-hero-title {
+.resource-intro-icon svg { color: var(--text-sub); }
+.resource-intro-icon img { width: 100%; height: 100%; object-fit: cover; }
+.resource-intro-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.resource-intro-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.resource-intro-title {
   font-size: 20px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
-.resource-hero-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-sub); }
-.resource-hero-tags { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.resource-hero-actions { display: flex; align-items: center; gap: 6px; flex: none; }
-.resource-hero-desc {
-  margin: 14px 0 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-light);
+.resource-intro-slug {
+  font-size: 12px;
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.resource-intro-tags { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.resource-intro-tags .resource-tag { cursor: default; }
+.resource-intro-tags .resource-tag:hover { background: var(--icon-bg); color: var(--text-sub); }
+.resource-intro-desc {
   font-size: 13px;
   line-height: 1.6;
   color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.resource-intro-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.resource-intro-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+}
+.resource-intro-actions .btn-download { height: 34px; padding: 0 20px; }
 .btn-download.with-icon { display: inline-flex; align-items: center; gap: 6px; }
 
 .resource-section-card {
@@ -1520,32 +1545,9 @@ svg {
   margin-bottom: 16px;
   flex-shrink: 0;
 }
-.resource-card-title { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
-.resource-section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin: 22px 0 12px;
-  flex-shrink: 0;
-}
-.resource-section-title { font-size: 15px; font-weight: 700; }
-.resource-section-count { margin-left: 6px; font-size: 11px; font-weight: 500; color: var(--text-sub); }
-.resource-filter-clear {
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--text-sub);
-  font-family: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-.resource-filter-clear:hover { color: var(--text-main); text-decoration: underline; }
+.resource-filter-card { padding: 12px 16px; }
 
-.resource-version-filter { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; flex-shrink: 0; }
 .filter-chip-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.filter-chip-label { width: 56px; flex: none; font-size: 11px; color: var(--text-sub); }
 .filter-chip {
   padding: 4px 10px;
   border: 1px solid var(--border-light);
@@ -1561,71 +1563,146 @@ svg {
 .filter-chip:hover { background: var(--hover-bg); }
 .filter-chip.active { background: var(--text-main); border-color: var(--text-main); color: var(--bg-color); }
 
-.version-file-row { padding: 11px 16px; gap: 12px; }
-.version-file-row .item-right { opacity: 1; }
-.version-file-downloads { font-size: 11px; color: var(--text-sub); white-space: nowrap; }
-.version-file-row .btn-download { height: 28px; padding: 0 12px; font-size: 12px; }
-.version-file-row .item-title { font-size: 14px; }
-
-.resource-inline-empty {
-  padding: 28px 16px;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-sub);
-  flex-shrink: 0;
+/* 版本卡（PCL 的 MyCard：标题可折叠） */
+.version-card { padding: 0; overflow: hidden; }
+.version-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
 }
-.resource-version-cards { flex-shrink: 0; }
-
-/* Markdown 正文（资源介绍） */
-.md-body { font-size: 13px; line-height: 1.75; color: var(--text-main); overflow-wrap: anywhere; }
-.md-body > :first-child { margin-top: 0; }
-.md-body h1,
-.md-body h2,
-.md-body h3,
-.md-body h4,
-.md-body h5,
-.md-body h6 { margin: 18px 0 8px; line-height: 1.4; }
-.md-body h1 { font-size: 19px; }
-.md-body h2 { font-size: 17px; }
-.md-body h3 { font-size: 15px; }
-.md-body h4 { font-size: 14px; }
-.md-body h5,
-.md-body h6 { font-size: 13px; }
-.md-body p { margin: 0 0 10px; }
-.md-body a { color: var(--text-main); text-decoration: underline; text-underline-offset: 2px; }
-.md-body img {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  margin: 8px 0;
-  border-radius: 8px;
-  border: 1px solid var(--border-light);
+.version-card-head:hover { background: var(--hover-bg); }
+.version-card-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.md-body ul,
-.md-body ol { margin: 0 0 10px; padding-left: 22px; }
-.md-body li { margin: 3px 0; }
-.md-body code {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--icon-bg);
-  font-family: var(--aelux-font-mono);
+.version-card-chevron { color: var(--text-sub); transition: transform 0.18s; flex: none; }
+.version-card-chevron.open { transform: rotate(180deg); }
+.version-card-body { padding: 2px 18px 14px; border-top: 1px solid var(--border-light); }
+.version-card-section { padding-top: 6px; }
+.section-label {
+  margin: 10px 0 6px;
   font-size: 12px;
-}
-.md-body pre {
-  margin: 0 0 12px;
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: var(--icon-bg);
-  overflow: auto;
-}
-.md-body pre code { padding: 0; background: transparent; }
-.md-body blockquote {
-  margin: 0 0 10px;
-  padding: 2px 0 2px 12px;
-  border-left: 3px solid var(--border-light);
+  font-weight: 600;
   color: var(--text-sub);
 }
-.md-body hr { margin: 16px 0; border: none; border-top: 1px solid var(--border-light); }
+
+/* 前置资源 */
+.dependency-list { display: flex; flex-direction: column; }
+.dependency-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.dependency-item:last-child { border-bottom: none; }
+.dependency-item:hover { background: var(--hover-bg); }
+.dependency-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  background: var(--icon-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex: none;
+  color: var(--text-sub);
+}
+.dependency-icon img { width: 100%; height: 100%; object-fit: cover; }
+.dependency-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.dependency-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dependency-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dependency-desc {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dependency-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+.dependency-chevron {
+  color: var(--text-sub);
+  opacity: 0.35;
+  flex: none;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.dependency-item:hover .dependency-chevron { opacity: 0.7; transform: translateX(2px); }
+
+/* 版本文件列表 */
+.version-file-list { display: flex; flex-direction: column; }
+.version-file-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.version-file-row:last-child { border-bottom: none; }
+.version-file-row:hover { background: var(--hover-bg); }
+.version-file-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--icon-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--text-sub);
+}
+.version-file-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.version-file-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; font-weight: 600; }
+.version-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.version-file-badge {
+  padding: 0 5px;
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 15px;
+  color: var(--text-sub);
+  flex: none;
+}
+.version-file-info { font-size: 11px; line-height: 1.5; color: var(--text-sub); overflow-wrap: anywhere; }
+.version-file-download { opacity: 0.65; flex: none; }
+.version-file-row:hover .version-file-download { opacity: 1; }
+.version-file-download:disabled { opacity: 0.3; cursor: default; }
 
 /* ============================================================================
  * 进入动画关键帧（沿用既有动画体系）

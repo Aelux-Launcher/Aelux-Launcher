@@ -11,8 +11,8 @@ import { computed, ref, watch } from 'vue'
 import type { ResourceKind, ResourceProject } from '../lib/types'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
-import { categoryLabel, formatDownloads } from '../lib/modrinth'
-import { latestMcVersion } from '../lib/mcVersion'
+import { categoryLabel, formatDownloads, formatRelativeTime, RESOURCE_CATEGORIES } from '../lib/modrinth'
+import { versionRangeSummary } from '../lib/mcVersion'
 import PageHeader from '../components/PageHeader.vue'
 import AlxSearchBar from '../components/AlxSearchBar.vue'
 import AlxIcon from '../components/AlxIcon.vue'
@@ -39,11 +39,9 @@ const CAT_ICON: Record<string, string> = {
   shader: 'sun',
 }
 
-/** 加载器筛选选项（PCL 的「加载器」行；无意义的类型不展示该行）。 */
+/** 加载器筛选选项（PCL 只在 Mod 页、且选了具体游戏版本时显示该行）。 */
 const LOADER_OPTIONS: Partial<Record<ResourceKind, string[]>> = {
-  mod: ['fabric', 'forge', 'neoforge', 'quilt'],
-  modpack: ['fabric', 'forge', 'neoforge', 'quilt'],
-  shader: ['iris', 'optifine', 'canvas'],
+  mod: ['forge', 'neoforge', 'fabric', 'quilt'],
 }
 
 const LOADER_LABELS: Record<string, string> = {
@@ -51,9 +49,6 @@ const LOADER_LABELS: Record<string, string> = {
   forge: 'Forge',
   neoforge: 'NeoForge',
   quilt: 'Quilt',
-  iris: 'Iris',
-  optifine: 'OptiFine',
-  canvas: 'Canvas',
 }
 
 const props = defineProps<{ cat: string }>()
@@ -203,11 +198,26 @@ const category = computed({
 /** 当前类型可用的加载器选项 */
 const loaderOptions = computed(() => LOADER_OPTIONS[currentKind.value] ?? [])
 
-/** 当前类型可用的分类标签（Modrinth /tag/category） */
-const categoryOptions = computed(() => store.resourceTags[currentKind.value] ?? [])
+/** PCL：加载器只在 Mod 页、且已选择具体游戏版本时显示 */
+const showLoaderFilter = computed(
+  () => currentKind.value === 'mod' && Boolean(store.resourceQuery.gameVersion),
+)
 
-/** 页头版本输入建议（版本清单前 80 项） */
-const versionSuggestions = computed(() => store.versions.slice(0, 80).map((v) => v.id))
+/** 当前类型可用的分类标签（PCL 静态列表，中文文案 + Modrinth slug） */
+const categoryOptions = computed(() => RESOURCE_CATEGORIES[currentKind.value] ?? [])
+
+/** 游戏版本下拉选项（正式版清单，最新在前；首项是「全部版本」） */
+const versionOptions = computed(() =>
+  store.versions.filter((v) => v.kind === 'release').map((v) => v.id),
+)
+
+/** 世界分类：Modrinth 没有 world 类型，仅展示说明 */
+const isWorld = computed(() => currentKind.value === 'world')
+
+/** 最新正式版 id（版本范围摘要的「+」判定） */
+const latestReleaseId = computed(
+  () => store.versions.find((v) => v.kind === 'release')?.id ?? '',
+)
 
 /** 是否有筛选条件（用于重置按钮与空状态） */
 const hasActiveFilters = computed(
@@ -218,42 +228,46 @@ const hasActiveFilters = computed(
     Boolean(store.resourceQuery.category),
 )
 
-/** 执行检索（筛选条件变更 / 回车 / 搜索按钮共用） */
+/** 执行检索（点击「搜索」或名称框回车，PCL 不随输入自动检索） */
 function applyFilters() {
   void store.searchResources()
 }
 
-/** 重置条件后立即检索 */
+/** 重置条件：只清空输入，不自动检索（PCL 行为） */
 function resetFilters() {
+  store.resetResourceFilters()
+}
+
+/** 空状态里的「清除筛选」：清空并重新检索，避免列表停在旧条件 */
+function clearFiltersAndSearch() {
   store.resetResourceFilters()
   void store.searchResources()
 }
 
-/** 进入分类时同步资源类型、标签与结果（setResourceKind 会清空旧结果，避免串类）。 */
+/** 进入分类时同步资源类型与结果（setResourceKind 会清空旧结果，避免串类）。 */
 watch(
   () => props.cat,
   (c) => {
     if (c === 'original') return
     store.setResourceKind(c as ResourceKind)
-    void store.loadResourceTags()
     void store.searchResources()
   },
   { immediate: true },
 )
 
-/** ISO 时间 → `2026/10/28` */
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '未知'
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
-}
+/** 清空游戏版本时同步清空隐藏的加载器条件，避免「看不见但生效」。 */
+watch(
+  () => store.resourceQuery.gameVersion,
+  (v) => {
+    if (!v && store.resourceQuery.loader) store.setResourceQuery({ loader: '' })
+  },
+)
 
-/** 条目副文本：支持的游戏版本范围 */
+/** 条目副文本：支持的游戏版本范围（PCL 的「1.21+, 1.12-」摘要） */
 function projectVersionSummary(p: ResourceProject): string {
   const list = p.versions ?? []
   if (list.length === 0) return ''
-  const latest = latestMcVersion(list)
-  return list.length > 1 ? `${latest} 等 ${list.length} 个版本` : latest
+  return versionRangeSummary(list, latestReleaseId.value)
 }
 
 /** 条目标签：取分类 slug 的前三个（中文文案） */
@@ -292,11 +306,11 @@ function openResource(p: ResourceProject) {
   })
 }
 
-/** 分页信息 */
-const totalPages = computed(() => Math.max(1, Math.ceil(store.resourceTotal / store.resourcePageSize)))
-const currentPage = computed(() => Math.min(store.resourcePage, totalPages.value - 1))
-const canPrev = computed(() => currentPage.value > 0)
-const canNext = computed(() => currentPage.value + 1 < totalPages.value)
+/** 翻页（PCL 只有首页 / 上一页 / 页码 / 下一页四个元素）。 */
+const canPrev = computed(() => store.resourcePage > 0)
+const canNext = computed(
+  () => (store.resourcePage + 1) * store.resourcePageSize < store.resourceTotal,
+)
 
 function goPage(page: number) {
   store.setResourcePage(page)
@@ -441,85 +455,83 @@ function retrySearch() {
     <template v-else>
       <PageHeader :title="CAT_TITLE[cat] ?? cat" />
 
-      <!-- PCL 式筛选卡片：名称 / 游戏版本 / 加载器 / 类型 -->
-      <section class="resource-search-card">
-        <div class="resource-filter-row">
-          <div class="filter-field filter-field-name">
-            <span class="filter-label">名称</span>
-            <div class="filter-input-wrap">
-              <AlxIcon name="search" :size="15" />
-              <input
-                v-model="keyword"
-                type="text"
-                :placeholder="`搜索${CAT_TITLE[cat] ?? '资源'}...`"
-                @change="applyFilters"
-              />
+      <!-- 世界：Modrinth 没有 world 项目类型（PCL2 也没有世界下载页） -->
+      <div v-if="isWorld" class="resource-state-card">
+        <AlxIcon name="globe" :size="28" />
+        <div class="resource-state-title">Modrinth 暂未提供「世界」类项目</div>
+        <div class="resource-state-desc">
+          Modrinth 的项目类型只有 Mod、整合包、资源包、光影包和数据包，PCL2 也没有世界下载分类。
+          该页面保留给后续接入其他下载源，目前不会返回内容。
+        </div>
+      </div>
+
+      <template v-else>
+        <!-- PCL 式筛选卡片：名称 + 来源 / 游戏版本 + 加载器 + 类型 / 按钮行 -->
+        <section class="resource-search-card">
+          <div class="resource-filter-row">
+            <div class="filter-field filter-field-name">
+              <span class="filter-label">名称</span>
+              <div class="filter-input-wrap">
+                <AlxIcon name="search" :size="15" />
+                <input
+                  v-model="keyword"
+                  type="text"
+                  :placeholder="`搜索${CAT_TITLE[cat] ?? '资源'}...`"
+                  @keydown.enter="applyFilters"
+                />
+              </div>
+            </div>
+            <div class="filter-field filter-field-source">
+              <span class="filter-label">来源</span>
+              <div class="filter-static">Modrinth</div>
             </div>
           </div>
-          <button
-            type="button"
-            class="btn-download search-submit"
-            :disabled="store.resourceLoading"
-            @click="applyFilters"
-          >
-            搜索
-          </button>
-        </div>
 
-        <div class="resource-filter-row">
-          <div class="filter-field">
-            <span class="filter-label">游戏版本</span>
-            <input
-              v-model="gameVersion"
-              class="filter-control"
-              type="text"
-              list="mc-version-options"
-              placeholder="全部版本"
-              @change="applyFilters"
-            />
+          <div class="resource-filter-row">
+            <div class="filter-field filter-field-version">
+              <span class="filter-label">游戏版本</span>
+              <select v-model="gameVersion" class="filter-control">
+                <option value="">全部版本</option>
+                <option v-for="id in versionOptions" :key="id" :value="id">{{ id }}</option>
+              </select>
+            </div>
+            <div v-if="showLoaderFilter" class="filter-field">
+              <span class="filter-label">加载器</span>
+              <select v-model="loader" class="filter-control">
+                <option value="">任意 Mod 加载器</option>
+                <option v-for="l in loaderOptions" :key="l" :value="l">{{ LOADER_LABELS[l] ?? l }}</option>
+              </select>
+            </div>
+            <div v-if="categoryOptions.length" class="filter-field">
+              <span class="filter-label">类型</span>
+              <select v-model="category" class="filter-control">
+                <option value="">全部类型</option>
+                <option v-for="c in categoryOptions" :key="c.slug" :value="c.slug">{{ c.label }}</option>
+              </select>
+            </div>
           </div>
-          <div v-if="loaderOptions.length" class="filter-field">
-            <span class="filter-label">加载器</span>
-            <select v-model="loader" class="filter-control" @change="applyFilters">
-              <option value="">任意加载器</option>
-              <option v-for="l in loaderOptions" :key="l" :value="l">{{ LOADER_LABELS[l] ?? l }}</option>
-            </select>
-          </div>
-          <div v-if="categoryOptions.length" class="filter-field">
-            <span class="filter-label">类型</span>
-            <select v-model="category" class="filter-control" @change="applyFilters">
-              <option value="">全部类型</option>
-              <option v-for="c in categoryOptions" :key="c.slug" :value="c.slug">{{ c.label }}</option>
-            </select>
-          </div>
-          <div class="filter-actions">
+
+          <div class="resource-filter-actions">
             <button
               type="button"
-              class="btn-download btn-ghost"
-              :disabled="!hasActiveFilters || store.resourceLoading"
-              @click="resetFilters"
+              class="btn-download search-submit"
+              :disabled="store.resourceLoading"
+              @click="applyFilters"
             >
-              重置条件
+              搜索
+            </button>
+            <button type="button" class="btn-download btn-ghost" @click="resetFilters">重置条件</button>
+            <button
+              v-if="cat === 'modpack'"
+              type="button"
+              class="btn-download btn-ghost with-icon"
+              @click="store.importModpack()"
+            >
+              <AlxIcon name="folder" :size="14" />
+              <span>安装已有整合包</span>
             </button>
           </div>
-        </div>
-
-        <div class="resource-filter-foot">
-          <span class="resource-filter-source">
-            来源：Modrinth<template v-if="store.resourceTotal > 0">
-              · 共 {{ store.resourceTotal }} 个结果</template>
-          </span>
-          <button v-if="cat === 'modpack'" type="button" class="resource-import-btn" @click="store.importModpack()">
-            <AlxIcon name="folder" :size="14" />
-            <span>安装已有整合包</span>
-          </button>
-        </div>
-      </section>
-
-      <!-- 游戏版本输入建议 -->
-      <datalist id="mc-version-options">
-        <option v-for="id in versionSuggestions" :key="id" :value="id" />
-      </datalist>
+        </section>
 
       <!-- 检索中：骨架屏 -->
       <div v-if="store.resourceLoading" class="resource-results-card">
@@ -542,115 +554,107 @@ function retrySearch() {
       </div>
 
       <!-- 无结果 -->
-      <div v-else-if="store.resourceProjects.length === 0" class="resource-state-card">
-        <AlxIcon name="search" :size="28" />
-        <div class="resource-state-title">没有找到相关资源</div>
-        <div class="resource-state-desc">试试更换关键词，或放宽版本 / 加载器 / 类型筛选。</div>
-        <button v-if="hasActiveFilters" type="button" class="btn-download btn-ghost" @click="resetFilters">
-          清除筛选
-        </button>
-      </div>
-
-      <!-- 资源结果列表 -->
-      <template v-else>
-        <div class="resource-results-card">
-          <article
-            v-for="p in store.resourceProjects"
-            :key="p.projectId"
-            class="resource-item"
-            @click="openResource(p)"
-          >
-            <div class="resource-item-icon">
-              <img
-                v-if="p.iconUrl && !failedIcons.has(p.projectId)"
-                :src="p.iconUrl"
-                :alt="p.title"
-                @error="markIconFailed(p.projectId)"
-              />
-              <AlxIcon v-else :name="CAT_ICON[cat] ?? 'package'" :size="22" />
-            </div>
-
-            <div class="resource-item-main">
-              <div class="resource-item-head">
-                <span class="resource-item-title">{{ p.title }}</span>
-                <span v-if="projectTags(p).length" class="resource-item-tags">
-                  <button
-                    v-for="c in projectTags(p)"
-                    :key="c"
-                    type="button"
-                    class="resource-tag"
-                    :title="`按类型「${categoryLabel(c)}」筛选`"
-                    @click.stop="filterByCategory(c)"
-                  >
-                    {{ categoryLabel(c) }}
-                  </button>
-                </span>
-              </div>
-              <div class="resource-item-desc">{{ p.description }}</div>
-              <div class="resource-item-meta">
-                <span class="resource-meta-item">
-                  <AlxIcon name="user" :size="12" />
-                  {{ p.author ?? '未知作者' }}
-                </span>
-                <span v-if="projectVersionSummary(p)" class="resource-meta-item">
-                  <AlxIcon name="columns" :size="12" />
-                  {{ projectVersionSummary(p) }}
-                </span>
-                <span class="resource-meta-item">
-                  <AlxIcon name="download" :size="12" />
-                  {{ formatDownloads(p.downloads) }}
-                </span>
-                <span class="resource-meta-item">
-                  <AlxIcon name="clock" :size="12" />
-                  {{ formatDate(p.dateModified) }}
-                </span>
-              </div>
-            </div>
-
-            <AlxIcon name="chevron-right" :size="18" class="resource-item-chevron" />
-          </article>
-        </div>
-
-        <!-- 翻页（PCL 式：首页 / 上一页 / 页码 / 下一页 / 末页） -->
-        <div class="resource-pager">
-          <button
-            type="button"
-            class="icon-btn"
-            title="第一页"
-            :disabled="!canPrev"
-            @click="goPage(0)"
-          >
-            <AlxIcon name="chevrons-left" :size="16" />
-          </button>
-          <button
-            type="button"
-            class="icon-btn"
-            title="上一页"
-            :disabled="!canPrev"
-            @click="goPage(currentPage - 1)"
-          >
-            <AlxIcon name="chevron-left" :size="16" />
-          </button>
-          <span class="resource-page-info">{{ currentPage + 1 }} / {{ totalPages }}</span>
-          <button
-            type="button"
-            class="icon-btn"
-            title="下一页"
-            :disabled="!canNext"
-            @click="goPage(currentPage + 1)"
-          >
-            <AlxIcon name="chevron-right" :size="16" />
-          </button>
-          <button
-            type="button"
-            class="icon-btn"
-            title="最后一页"
-            :disabled="!canNext"
-            @click="goPage(totalPages - 1)"
-          >
-            <AlxIcon name="chevrons-right" :size="16" />
+        <div v-else-if="store.resourceProjects.length === 0" class="resource-state-card">
+          <AlxIcon name="search" :size="28" />
+          <div class="resource-state-title">没有找到相关资源</div>
+          <div class="resource-state-desc">试试更换关键词，或放宽版本 / 加载器 / 类型筛选。</div>
+          <button v-if="hasActiveFilters" type="button" class="btn-download btn-ghost" @click="clearFiltersAndSearch">
+            清除筛选
           </button>
         </div>
+
+        <!-- 资源结果列表（PCL MyResourceItem：标题 + 标签 + 描述 / 版本范围 / 下载量 / 时间 / 来源） -->
+        <template v-else>
+          <div class="resource-results-card">
+            <article
+              v-for="p in store.resourceProjects"
+              :key="p.projectId"
+              class="resource-item"
+              @click="openResource(p)"
+            >
+              <div class="resource-item-icon">
+                <img
+                  v-if="p.iconUrl && !failedIcons.has(p.projectId)"
+                  :src="p.iconUrl"
+                  :alt="p.title"
+                  @error="markIconFailed(p.projectId)"
+                />
+                <AlxIcon v-else :name="CAT_ICON[cat] ?? 'package'" :size="22" />
+              </div>
+
+              <div class="resource-item-main">
+                <div class="resource-item-head">
+                  <span class="resource-item-title">{{ p.title }}</span>
+                  <span v-if="projectTags(p).length" class="resource-item-tags">
+                    <button
+                      v-for="c in projectTags(p)"
+                      :key="c"
+                      type="button"
+                      class="resource-tag"
+                      :title="`按类型「${categoryLabel(c)}」筛选`"
+                      @click.stop="filterByCategory(c)"
+                    >
+                      {{ categoryLabel(c) }}
+                    </button>
+                  </span>
+                  <span class="resource-item-desc">{{ p.description }}</span>
+                </div>
+                <div class="resource-item-meta">
+                  <span v-if="projectVersionSummary(p)" class="resource-meta-item">
+                    <AlxIcon name="columns" :size="12" />
+                    {{ projectVersionSummary(p) }}
+                  </span>
+                  <span class="resource-meta-item">
+                    <AlxIcon name="download" :size="12" />
+                    {{ formatDownloads(p.downloads) }}
+                  </span>
+                  <span class="resource-meta-item">
+                    <AlxIcon name="clock" :size="12" />
+                    {{ formatRelativeTime(p.dateModified) }}
+                  </span>
+                  <span class="resource-meta-item">
+                    <AlxIcon name="globe" :size="12" />
+                    Modrinth
+                  </span>
+                </div>
+              </div>
+
+              <AlxIcon name="chevron-right" :size="18" class="resource-item-chevron" />
+            </article>
+          </div>
+
+          <!-- 翻页（PCL 式：首页 / 上一页 / 页码 / 下一页） -->
+          <div v-if="store.resourceTotal > store.resourcePageSize" class="resource-pager">
+            <button
+              type="button"
+              class="icon-btn"
+              title="第一页"
+              :disabled="!canPrev"
+              @click="goPage(0)"
+            >
+              <AlxIcon name="chevrons-left" :size="16" />
+            </button>
+            <button
+              type="button"
+              class="icon-btn"
+              title="上一页"
+              :disabled="!canPrev"
+              @click="goPage(store.resourcePage - 1)"
+            >
+              <AlxIcon name="chevron-left" :size="16" />
+            </button>
+            <span class="resource-page-number">{{ store.resourcePage + 1 }}</span>
+            <button
+              type="button"
+              class="icon-btn"
+              title="下一页"
+              :disabled="!canNext"
+              @click="goPage(store.resourcePage + 1)"
+            >
+              <AlxIcon name="chevron-right" :size="16" />
+            </button>
+          </div>
+        </template>
       </template>
     </template>
   </div>
