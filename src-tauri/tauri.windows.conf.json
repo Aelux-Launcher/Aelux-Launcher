@@ -5,7 +5,7 @@
       {
         "decorations": false,
         "transparent": false,
-        "shadow": false
+        "shadow": true
       }
     ]
   },

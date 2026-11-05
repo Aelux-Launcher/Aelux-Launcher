@@ -135,21 +135,24 @@ async function handleOfflineLogin() {
 
 <template>
   <aside class="sidebar">
-    <template v-for="group in groups" :key="group.title">
-      <div class="nav-group active">
-        <div class="nav-title">{{ group.title }}</div>
-        <button
-          v-for="item in group.items"
-          :key="item.key"
-          type="button"
-          :class="['nav-item', activeKey === item.key ? 'active' : '']"
-          @click="onNav(item.key)"
-        >
-          <AlxIcon :name="item.icon" :size="16" />
-          {{ item.label }}
-        </button>
-      </div>
-    </template>
+    <!-- 导航区：可滚动；账户区在滚动容器之外，固定于底部 -->
+    <div class="sidebar-scroll">
+      <template v-for="group in groups" :key="group.title">
+        <div class="nav-group active">
+          <div class="nav-title">{{ group.title }}</div>
+          <button
+            v-for="item in group.items"
+            :key="item.key"
+            type="button"
+            :class="['nav-item', activeKey === item.key ? 'active' : '']"
+            @click="onNav(item.key)"
+          >
+            <AlxIcon :name="item.icon" :size="16" />
+            {{ item.label }}
+          </button>
+        </div>
+      </template>
+    </div>
 
     <!-- 底部账户区 -->
     <div class="account-section">

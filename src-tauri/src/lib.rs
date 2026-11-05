@@ -53,24 +53,13 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
 
-            // Windows：关闭 Win11 系统圆角。透明无边框窗口被 DWM 强制裁圆角时，
-            // 四角会露出系统裁剪的缝隙；圆角改由前端容器自绘（.aelux-app）。
-            #[cfg(target_os = "windows")]
-            {
-                use tauri::Manager;
-                if let Some(win) = app.get_webview_window("main") {
-                    disable_system_rounded_corners(&win);
-                    // 双保险：conf 的 center:true 之外显式居中一次
-                    let _ = win.center();
-                }
-            }
-
-            #[cfg(not(target_os = "windows"))]
-            {
-                use tauri::Manager;
-                if let Some(win) = app.get_webview_window("main") {
-                    let _ = win.center();
-                }
+            // 窗口形态：不透明铺满 + 系统圆角（Win11 DWM）+ 系统阴影（tao undecorated
+            // shadow，conf 里 shadow:true）。不关系统圆角——圆角由 DWM 裁剪，
+            // 与内容边缘重合，无空气边；Win10 无 DWM 圆角则呈现方角。
+            use tauri::Manager;
+            if let Some(win) = app.get_webview_window("main") {
+                // 双保险：conf 的 center:true 之外显式居中一次
+                let _ = win.center();
             }
 
             core_api::init(&app.handle().clone());
@@ -78,26 +67,6 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("Aelux Launcher 运行失败");
-}
-
-/// 关闭 Win11 系统圆角（DWMWA_WINDOW_CORNER_PREFERENCE → DONOTROUND）。
-/// 当前 tauri/tao 版本未暴露该能力，直接走 DWM API。
-#[cfg(target_os = "windows")]
-fn disable_system_rounded_corners(win: &tauri::WebviewWindow) {
-    use windows_sys::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND,
-    };
-    if let Ok(hwnd) = win.hwnd() {
-        let pref = DWMWCP_DONOTROUND; // i32（DWM_WINDOW_CORNER_PREFERENCE）
-        unsafe {
-            DwmSetWindowAttribute(
-                hwnd.0 as _,
-                DWMWA_WINDOW_CORNER_PREFERENCE as u32,
-                &pref as *const i32 as *const core::ffi::c_void,
-                4,
-            );
-        }
-    }
 }
 
 /// CI 绑定漂移检查：重新导出 bindings.ts，diff 非空即失败。

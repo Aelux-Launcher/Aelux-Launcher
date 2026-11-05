@@ -144,15 +144,26 @@ svg {
   min-height: 0;
 }
 
-/* ---------------- 侧栏 ---------------- */
+/* ---------------- 侧栏 ----------------
+   布局：导航区滚动（.sidebar-scroll），账户区固定在底部不参与滚动。
+   overflow-x 一律 hidden：入场动画（translateX(-25px) 滑入）的瞬时位移
+   会计入可滚动区域，不禁止横向就会在每次切模块时闪现横向滚动条。 */
 .sidebar {
   width: 220px;
   border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  overflow-y: auto;
+  overflow: hidden;
   user-select: none;
+}
+
+/* 导航滚动容器（账户区之外的部分） */
+.sidebar-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .nav-group {
@@ -199,8 +210,9 @@ svg {
 
 /* ---------------- 底部账户区 ---------------- */
 .account-section {
-  margin-top: auto;
+  /* 固定于侧栏底部，不随导航区滚动（在 .sidebar-scroll 之外） */
   flex-shrink: 0;
+  border-top: 1px solid var(--border-light);
 }
 
 .account-title {
@@ -285,12 +297,14 @@ svg {
   .alx-stage__layer--leaving { animation: none; display: none; }
 }
 
-/* ---------------- 页面容器 ---------------- */
+/* ---------------- 页面容器 ----------------
+   overflow-x 一律 hidden：同侧栏，入场动画的横向位移不产生横向滚动条。 */
 .page-view {
   display: none;
   width: 100%;
   height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
 }
 .page-view.active {
