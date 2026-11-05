@@ -57,15 +57,32 @@ release-ffi = ["dep:libloading"]      # 发布打包
 
 ## 打包与分发
 
-```bash
-npm run build:release                     # tauri build --features release-ffi
-npm run build:win                         # NSIS + MSI
-node scripts/fetch-core.mjs               # 打包前就位内核 dll（R2 / 私有 Release）
-```
+三种产物形态，按发布场景选：
 
-- Windows：便携 ZIP 首选（exe + 内核 dll，解压即用，数据写 exe 同级 `data/`），NSIS / MSI 备选
-- macOS：DMG / App（需签名 + 公证）
-- Linux：deb / rpm / AppImage
+| 命令 | 产物 | 内核来源 | 适用场景 |
+| --- | --- | --- | --- |
+| `npm run build:single` | **单文件 exe**（内核静态编译进 exe，无需 dll） | 内核源码（dev-path） | **你自己在有源码的机器上发布**，最简单 |
+| `npm run build:portable` | 便携 ZIP（exe + 内核 dll） | 下载二进制（fetch-core） | 公开 CI / 别的机器打包，源码不外泄 |
+| `npm run build:release` | NSIS / MSI 安装器 | 下载二进制 | 需要安装器形态时 |
+
+- 单文件 exe 复制到任意目录即用，数据写 exe 同级 `data/`
+- 便携 ZIP 内含 exe + `aelux_core.dll` + 说明，解压双击即用
+- 三种形态的数据目录行为完全一致（exe 同级 `data/`，整目录拷走即迁移）
+
+**版本策略（测试期）**：版本号统一为 `0.1.0`，不随构建自增，改版本时手动同步三处——
+`package.json`、`src-tauri/tauri.conf.json`（启动器）、`Aelux-Core/Cargo.toml`（内核）。
+「关于」页同时展示启动器版本（Tauri 运行时读取）与内核版本（`get_core_version` 命令）。
+
+**发布触发（均手动，自动创建 GitHub Release 并上传产物）**：
+1. `git tag v0.1.0 && git push origin v0.1.0` —— Release 以 tag 命名
+2. Actions 页面 → Release → Run workflow → 填版本号参数
+
+> CI（release.yml）走的是 `build:portable`（dll 形态）；想要 CI 产出单文件 exe，
+> 需要给 CI 配 `CORE_ACCESS_TOKEN` + `CORE_REPO` secrets 拉取内核源码并改用
+> `build:single`（单文件依赖源码，公开 fork 无法构建）。
+
+内核版本独立走 core 仓库的 tag：core 打 `v0.1.0` → core CI 产出三平台 cdylib + manifest.json
+（`core_version` 取自 tag）→ launcher 打包时 fetch-core 按 manifest 拉取。
 
 CI（`.github/workflows/`）：`ci.yml`（类型检查 / 构建 / 编译 / bindings 漂移），
 `release.yml`（tag 触发：fetch-core → release-ffi 打包 → 便携 ZIP → 公开 Release，当前先支持 Windows）。

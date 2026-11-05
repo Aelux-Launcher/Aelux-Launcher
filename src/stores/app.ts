@@ -37,7 +37,8 @@ export interface PageStackEntry {
   sub?: string
 }
 
-const APP_VERSION = '1.0.0'
+/** 测试期版本基线（三处版本号统一维护：package.json / tauri.conf.json / 内核 Cargo.toml）。 */
+const APP_VERSION_FALLBACK = '0.1.0'
 
 const DEFAULT_SETTINGS: Settings = {
   memoryMb: 2048,
@@ -172,6 +173,12 @@ export const useAppStore = defineStore('app', () => {
   const pendingAnnouncements = ref<Announcement[]>([])
   const updateAvailable = ref(false)
 
+  /* ------------------------------- 版本信息 ------------------------------- */
+  /** 启动器版本：运行时从 Tauri 读取（tauri.conf.json 的 version）；浏览器预览用基线值。 */
+  const appVersion = ref(APP_VERSION_FALLBACK)
+  /** 内核版本：aelux-core 的 CARGO_PKG_VERSION，经 get_core_version 命令读取。 */
+  const coreVersion = ref('preview')
+
   /* ------------------------------ 版本 / 下载 ----------------------------- */
   const versions = ref<VersionEntry[]>([])
   const versionsLoading = ref(false)
@@ -234,6 +241,19 @@ export const useAppStore = defineStore('app', () => {
     applyTheme(((await kvGet('theme')) === 'dark' ? 'dark' : 'light') as 'light' | 'dark', false)
     initError.value = null
     browserMode.value = !('__TAURI_INTERNALS__' in window)
+
+    // 版本信息：启动器版本来自 Tauri 运行时，内核版本来自内核命令
+    try {
+      const { getVersion } = await import('@tauri-apps/api/app')
+      appVersion.value = (await getVersion()) || APP_VERSION_FALLBACK
+    } catch {
+      /* 浏览器预览环境：保留基线值 */
+    }
+    try {
+      coreVersion.value = await call<string>('get_core_version')
+    } catch {
+      /* 预览环境无内核 */
+    }
 
     // 逐段容错：任何一段失败都不应把启动器卡死
     try {
@@ -722,7 +742,8 @@ export const useAppStore = defineStore('app', () => {
     showBack,
     subPage,
     route,
-    APP_VERSION,
+    appVersion,
+    coreVersion,
     /* actions */
     init,
     setView,

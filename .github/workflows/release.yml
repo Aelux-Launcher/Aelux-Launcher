@@ -1,24 +1,31 @@
 name: Release
 
-# 打 tag（v*）触发：拉取私有内核 cdylib → 打包安装包 → 便携 ZIP → 公开 Release。
-# 内核二进制来源：CORE_MANIFEST_URL（secrets，指向 R2 桶或私有 core 仓库的 manifest.json）。
-# 当前先支持 Windows；扩展平台时在 matrix 中追加即可（mac/linux 打包步骤已在历史中验证过模板）。
+# 发布 Windows 便携包（免安装，解压即用）。
+#
+# 触发方式（二选一，均为手动）：
+#   1. 打 tag：git tag v0.1.0 && git push origin v0.1.0（Release 会以 tag 命名）
+#   2. Actions 页面手动运行 workflow_dispatch（测试构建，Release 以运行时的 tag 参数命名）
+#
+# 测试期版本号策略：三处版本号统一维护为 0.1.0，不随构建自增——
+#   package.json / src-tauri/tauri.conf.json（启动器）、Aelux-Core/Cargo.toml（内核）。
+name: Release
+
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "发布版本号（如 0.1.0；仅用于 Release 命名）"
+        required: false
+        default: "0.1.0"
 
 permissions:
   contents: write
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            name: windows-x64
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     env:
       CORE_MANIFEST_URL: ${{ secrets.CORE_MANIFEST_URL }}
     steps:
@@ -46,8 +53,9 @@ jobs:
       - name: Fetch core cdylib
         run: node scripts/fetch-core.mjs
 
-      - name: Build (release-ffi)
-        run: npm run build:release
+      # --bundles none：只产出裸 exe，不打 NSIS/MSI 安装器（便携分发）
+      - name: Build portable (release-ffi)
+        run: npm run build:portable
 
       - name: Package portable ZIP
         shell: pwsh
@@ -56,18 +64,14 @@ jobs:
           New-Item -ItemType Directory -Force $stage | Out-Null
           Copy-Item "src-tauri/target/release/aelux-launcher-app.exe" $stage
           Copy-Item "src-tauri/lib/windows-x64/aelux_core.dll" $stage
-          Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath "Aelux-Launcher-portable-windows-x64.zip" -Force
-
-      - name: Collect installers
-        shell: bash
-        run: |
-          mkdir -p release-assets
-          find src-tauri/target/release/bundle -type f \( -name "*.exe" -o -name "*.msi" \) -exec cp {} release-assets/ \; || true
-          ls release-assets
+          # 使用说明：解压后双击 exe 即用；数据写在 exe 同级 data/ 目录
+          "# Aelux Launcher`n`n解压到任意目录，双击 aelux-launcher-app.exe 即可运行（免安装）。`n数据保存在本目录 data/ 下，整目录拷走即可迁移。`n" | Set-Content "$stage/README.txt"
+          $tag = "${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}"
+          Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath "Aelux-Launcher-portable-windows-x64-$tag.zip" -Force
+          Write-Host "artifact=Aelux-Launcher-portable-windows-x64-$tag.zip" >> $env:GITHUB_OUTPUT
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            release-assets/*
-            Aelux-Launcher-portable-windows-x64.zip
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}
+          files: Aelux-Launcher-portable-windows-x64-*.zip

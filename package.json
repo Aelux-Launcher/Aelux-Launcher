@@ -15,6 +15,8 @@
     "build:web": "vite build",
     "build:desktop": "tauri build",
     "build:release": "tauri build --features release-ffi",
+    "build:portable": "tauri build --features release-ffi --bundles none",
+    "build:single": "tauri build --features dev-path --bundles none",
     "build:win": "tauri build --bundles nsis,msi",
     "build:mac": "tauri build --bundles dmg,app",
     "build:linux": "tauri build --bundles deb,rpm,appimage",

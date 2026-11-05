@@ -187,11 +187,23 @@ async function copyAddress(s: ServerEntry) {
         <div class="item-left">
           <div class="item-icon"><AlxIcon name="code" :size="20" /></div>
           <div class="item-info">
-            <div class="item-title">当前版本</div>
-            <div class="item-desc">v{{ store.APP_VERSION }}</div>
+            <div class="item-title">启动器版本</div>
+            <div class="item-desc">v{{ store.appVersion }}</div>
           </div>
         </div>
-        <span class="tag">正式版</span>
+        <span class="tag">测试版</span>
+      </div>
+      <div class="list-item">
+        <div class="item-left">
+          <div class="item-icon"><AlxIcon name="package" :size="20" /></div>
+          <div class="item-info">
+            <div class="item-title">内核版本</div>
+            <div class="item-desc">
+              {{ store.coreVersion === 'preview' ? '预览模式（无内核）' : `aelux-core v${store.coreVersion}` }}
+            </div>
+          </div>
+        </div>
+        <span class="tag">动态库</span>
       </div>
       <div class="list-item">
         <div class="item-left">
