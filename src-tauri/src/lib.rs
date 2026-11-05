@@ -58,6 +58,9 @@ pub fn run() {
             // 与内容边缘重合，无空气边；Win10 无 DWM 圆角则呈现方角。
             use tauri::Manager;
             if let Some(win) = app.get_webview_window("main") {
+                // 窗口尺寸固定 1280×720（PCL 同款 16:9）：默认 = 最小，
+                // 想要更大由用户手动拖大；不做屏幕自适应放大。
+                let _ = win.set_min_size(Some(tauri::LogicalSize::new(1280.0, 720.0)));
                 // 双保险：conf 的 center:true 之外显式居中一次
                 let _ = win.center();
             }
