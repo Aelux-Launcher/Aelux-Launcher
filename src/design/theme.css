@@ -854,7 +854,7 @@ svg {
 .setting-range { width: 200px; accent-color: var(--text-main); }
 
 /* 折叠面板 */
-.accordion-item { border-bottom: 1px solid var(--border-light); padding: 16px 0; cursor: pointer; }
+.accordion-item { padding: 16px; border-radius: 8px; cursor: pointer; }
 .accordion-item:hover { background-color: var(--hover-bg); }
 .accordion-item:active { background-color: var(--icon-bg); }
 .accordion-header {
