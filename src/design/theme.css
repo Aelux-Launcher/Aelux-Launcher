@@ -296,49 +296,17 @@ svg {
 }
 .alx-stage__layer > * { flex: 1; min-width: 0; }
 .alx-stage__layer--entering {
-  animation-duration: 220ms;
-  animation-timing-function: var(--alx-ease-out-fluent);
-  animation-fill-mode: both;
+  /* 页面容器不做位移：它与内容逐项位移叠加会形成斜向轨迹。 */
+  animation: none;
 }
-.alx-stage__layer--entering.alx-stage__layer--forward { animation-name: alx-stage-enter-forward; }
-.alx-stage__layer--entering.alx-stage__layer--back { animation-name: alx-stage-enter-back; }
-.alx-stage__layer--entering.alx-stage__layer--swap { animation-name: alx-stage-enter-swap; }
 .alx-stage__layer--leaving {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 0;
   pointer-events: none;
-  animation-duration: 180ms;
-  animation-timing-function: var(--alx-ease-in-fluent-weak);
-  animation-fill-mode: both;
-}
-/* 新页始终在下层先就绪，旧页离场时不会露出空白。 */
-.alx-stage__layer--leaving.alx-stage__layer--forward { animation-name: alx-stage-leave-forward; }
-.alx-stage__layer--leaving.alx-stage__layer--back { animation-name: alx-stage-leave-back; }
-.alx-stage__layer--leaving.alx-stage__layer--swap { animation-name: alx-stage-leave-swap; }
-@keyframes alx-stage-enter-forward {
-  from { opacity: 0; transform: translateX(28px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-@keyframes alx-stage-leave-forward {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(-18px); }
-}
-@keyframes alx-stage-enter-back {
-  from { opacity: 0; transform: translateX(-28px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-@keyframes alx-stage-leave-back {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(18px); }
-}
-@keyframes alx-stage-enter-swap {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes alx-stage-leave-swap {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(-6px); }
+  /* 新页面挂载后立即遮蔽旧页面，避免内容重叠造成残影。 */
+  visibility: hidden;
+  animation: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .alx-stage__layer--entering,
@@ -699,6 +667,15 @@ svg {
 }
 .loader-group .loader-item:hover { background: var(--hover-bg); }
 .loader-group .loader-item:active { background: var(--icon-bg); }
+.loader-group.selected { border-color: var(--text-main); }
+.loader-group.unavailable { opacity: 0.48; }
+.loader-group .loader-item:disabled { cursor: not-allowed; color: var(--text-sub); }
+.loader-group .loader-item:disabled:hover { background: transparent; }
+.loader-brand-icon { color: var(--text-sub); flex-shrink: 0; }
+.loader-group.selected .loader-brand-icon,
+.loader-cancel-icon { color: var(--text-main); }
+.loader-cancel-icon { cursor: pointer; border-radius: 4px; }
+.loader-cancel-icon:hover { background: var(--icon-bg); }
 .loader-name { font-size: 15px; font-weight: 700; color: var(--text-main); width: 96px; flex-shrink: 0; }
 .loader-hint { font-size: 13px; color: var(--text-sub); flex: 1; min-width: 0; }
 .loader-chevron { color: var(--text-sub); flex-shrink: 0; transition: transform 0.25s var(--alx-ease-out-fluent-strong); }
@@ -709,15 +686,60 @@ svg {
   transition: grid-template-rows 0.25s var(--alx-ease-out-fluent-strong);
 }
 .loader-group.open .loader-expand { grid-template-rows: 1fr; }
-.loader-expand-inner { min-height: 0; overflow: hidden; }
+.loader-expand-inner {
+  min-height: 0;
+  max-height: min(360px, 40vh);
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+}
 .loader-expand-empty { padding: 8px 20px 14px; font-size: 13px; color: var(--text-sub); }
-.loader-version-row { margin: 0 8px; }
+.loader-version-row { margin: 0 8px; cursor: pointer; border-radius: 7px; }
+.loader-version-row:hover { background: var(--hover-bg); }
+.loader-version-row.selected { background: var(--icon-bg); }
+.loader-version-row .item-info { flex-direction: row; align-items: center; gap: 10px; }
+.loader-version-icon { color: var(--text-sub); flex-shrink: 0; }
+.loader-row-actions { display: flex; align-items: center; gap: 2px; }
+.loader-row-actions .icon-btn { opacity: 0.68; transition: opacity 0.15s; }
+.loader-version-row:hover .icon-btn,
+.loader-version-row:focus-within .icon-btn { opacity: 1; }
+.loader-row-actions .icon-btn:disabled { opacity: 0.35; }
 .loader-expand-inner .loader-version-row:last-child { margin-bottom: 8px; }
+.fabric-api-choice {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  border: 0;
+  border-top: 1px solid var(--border-light);
+  background: var(--hover-bg);
+  color: var(--text-main);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.fabric-api-choice:hover { background: var(--icon-bg); }
+.fabric-api-choice > span:nth-child(2) { font-weight: 600; }
+.fabric-api-hint { flex: 1; color: var(--text-sub); font-size: 13px; }
+.fabric-api-choice > svg:last-child { color: var(--text-main); }
+.version-detail-page {
+  overflow: hidden;
+  padding-bottom: 0;
+}
+.version-detail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 2px 20px;
+}
 .version-actions {
   display: flex;
   justify-content: center;
-  padding: 20px 0 8px;
+  padding: 16px 0 24px;
   flex-shrink: 0;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-color);
 }
 .version-start-btn {
   display: inline-flex;
@@ -1239,37 +1261,8 @@ svg {
 }
 
 @keyframes alx-card-in {
-  0% { transform: translateY(-16px); opacity: 0; }
-  3.333% { transform: translateY(-14.658px); opacity: 0.22; }
-  6.667% { transform: translateY(-13.16px); opacity: 0.412; }
-  10% { transform: translateY(-11.549px); opacity: 0.577; }
-  13.333% { transform: translateY(-9.87px); opacity: 0.716; }
-  16.667% { transform: translateY(-8.17px); opacity: 0.826; }
-  20% { transform: translateY(-6.493px); opacity: 0.91; }
-  23.333% { transform: translateY(-4.879px); opacity: 0.966; }
-  26.667% { transform: translateY(-3.365px); opacity: 0.996; }
-  30% { transform: translateY(-1.983px); opacity: 1; }
-  33.333% { transform: translateY(-0.759px); opacity: 1; }
-  36.667% { transform: translateY(0.291px); opacity: 1; }
-  40% { transform: translateY(1.154px); opacity: 1; }
-  43.333% { transform: translateY(1.826px); opacity: 1; }
-  46.667% { transform: translateY(2.31px); opacity: 1; }
-  50% { transform: translateY(2.615px); opacity: 1; }
-  53.333% { transform: translateY(2.756px); opacity: 1; }
-  56.667% { transform: translateY(2.752px); opacity: 1; }
-  60% { transform: translateY(2.626px); opacity: 1; }
-  63.333% { transform: translateY(2.405px); opacity: 1; }
-  66.667% { transform: translateY(2.115px); opacity: 1; }
-  70% { transform: translateY(1.785px); opacity: 1; }
-  73.333% { transform: translateY(1.441px); opacity: 1; }
-  76.667% { transform: translateY(1.105px); opacity: 1; }
-  80% { transform: translateY(0.796px); opacity: 1; }
-  83.333% { transform: translateY(0.529px); opacity: 1; }
-  86.667% { transform: translateY(0.315px); opacity: 1; }
-  90% { transform: translateY(0.158px); opacity: 1; }
-  93.333% { transform: translateY(0.059px); opacity: 1; }
-  96.667% { transform: translateY(0.01px); opacity: 1; }
-  100% { transform: translateY(0); opacity: 1; }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* 逐项延迟：侧栏项 max(15-i,7)*2ms；内容块每项 25ms。
@@ -1307,8 +1300,8 @@ svg {
 /* 内容块入场（仅激活页直接子级） */
 .page-view.active > * {
   animation-name: alx-card-in;
-  animation-duration: 350ms;
-  animation-timing-function: linear;
+  animation-duration: 180ms;
+  animation-timing-function: var(--alx-ease-out-fluent);
   animation-fill-mode: both;
 }
 

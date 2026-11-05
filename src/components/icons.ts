@@ -55,6 +55,13 @@ export const ICONS = {
   zap: { vb: V, body: `<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>` },
   send: { vb: V, body: `<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>` },
   check: { vb: V, body: `<polyline points="20 6 9 17 4 12"/>` },
+  /* 加载器标识：Aelux 自绘的辨识图形，不复用第三方品牌素材。 */
+  forge: { vb: V, body: `<path d="M4 14h16l-2 5H6l-2-5z"/><path d="M7 14V9h10v5M9 9V6h6v3M10 19v2M14 19v2"/>` },
+  neoforge: { vb: V, body: `<path d="M12 2c2 4-1 5 1 8 1.5-1 2.5-2 3-4 3 4 3 10-1 14H9c-4-3-4-8-.5-12C9 11 10.5 12 12 10c-1.5-3 0-5 0-8z"/>` },
+  fabric: { vb: V, body: `<path d="M4 7l8-4 8 4-8 4-8-4zM4 12l8 4 8-4M4 17l8 4 8-4"/>` },
+  quilt: { vb: V, body: `<path d="M4 5h7v7H4zM13 5h7v7h-7zM4 14h7v6H4zM13 14h7v6h-7z"/><path d="M8 5v7M17 14v6"/>` },
+  optifine: { vb: V, body: `<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/>` },
+  minecraft: { vb: V, body: `<path d="M4 7l8-4 8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10M4 7h16"/>` },
   'arrow-left': { vb: V, body: `<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>` },
   'alert-circle': { vb: V, body: `<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>` },
 } satisfies Record<string, IconDef>

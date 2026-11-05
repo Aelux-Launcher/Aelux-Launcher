@@ -542,6 +542,14 @@ export const useAppStore = defineStore('app', () => {
         })
         const arr = JSON.parse(raw) as Array<{ loader: { version: string } }>
         versions = arr.map((e) => e.loader.version)
+      } else if (loader === 'quilt') {
+        const raw = await call<string>('fetch_json', {
+          url: `https://meta.quiltmc.org/v3/versions/loader/${mcVersion}`,
+        })
+        const arr = JSON.parse(raw) as Array<{ loader?: { version?: string }; version?: string }>
+        versions = arr
+          .map((e) => e.loader?.version ?? e.version ?? '')
+          .filter(Boolean)
       } else if (loader === 'neoforge') {
         const raw = await call<string>('fetch_json', {
           url: 'https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge',
