@@ -3,11 +3,11 @@
  *
  * 视觉系统（配色 / 组件 / 动画）全部在 theme.css。
  *
- * 无缝要点（Windows 透明无边框窗口）：
- *   - 全局 margin/padding 清零，html/body/#app 铺满视口；
- *   - 8px 悬浮边距用 body 的 padding 实现（box-sizing: border-box），
- *     而不是手写 calc(100vh - 16px) —— 后者在高 DPI 取整时会产生 1px 缝；
- *   - 系统侧的阴影与圆角分别在 tauri.conf（shadow:false）与 Rust 侧 DWM 关闭。
+ * 外壳形态（与 PCL 一致）：窗口铺满、不透明，内容 100% 填充。
+ *   - 不做透明悬浮卡片：透明窗口的 8px 悬浮边距会让系统缩放热区落在空边上，
+ *     拖拽边缘缩放体验差；铺满后缩放热区与内容边缘完全重合。
+ *   - html/body/#app 全局清零并铺满视口（避免 webview 默认边距产生白边）。
+ *   - 系统圆角在 Rust 侧关闭（DWM DONOTROUND），窗口四角为方角、无裁剪缝。
  * ========================================================================== */
 
 * {
@@ -24,24 +24,15 @@ body,
 }
 body {
   font-family: var(--aelux-font-sans);
-  background: transparent;
+  background: var(--bg-color);
   color: var(--text-main);
   -webkit-font-smoothing: antialiased;
   user-select: none;
-  /* 8px 悬浮边距：窗口透明，露出桌面 */
-  padding: 8px;
 }
 
-/* ---------------------------------------------------------------------------
- * Linux：Wayland 下透明窗口不可靠，配置里关掉了透明，窗口底色由 webview 提供，
- * 此时改为「铺满 + 补背景色 + 去圆角投影」。
- * ------------------------------------------------------------------------- */
-html[data-platform='linux'] body {
-  background: var(--bg-color);
-  padding: 0;
-}
-
-html[data-platform='linux'] .aelux-app {
+/* 窗口铺满：无外边距、无圆角、无投影 */
+.aelux-app {
+  height: 100%;
   border-radius: 0;
   box-shadow: none;
 }

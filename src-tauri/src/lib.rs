@@ -60,6 +60,16 @@ pub fn run() {
                 use tauri::Manager;
                 if let Some(win) = app.get_webview_window("main") {
                     disable_system_rounded_corners(&win);
+                    // 双保险：conf 的 center:true 之外显式居中一次
+                    let _ = win.center();
+                }
+            }
+
+            #[cfg(not(target_os = "windows"))]
+            {
+                use tauri::Manager;
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.center();
                 }
             }
 

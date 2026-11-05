@@ -62,16 +62,16 @@ jobs:
         run: |
           $stage = "portable/Aelux-Launcher"
           New-Item -ItemType Directory -Force $stage | Out-Null
-          Copy-Item "src-tauri/target/release/aelux-launcher-app.exe" $stage
+          Copy-Item "src-tauri/target/release/aelux-launcher-app.exe" "$stage/Aelux-Launcher.exe"
           Copy-Item "src-tauri/lib/windows-x64/aelux_core.dll" $stage
           # 使用说明：解压后双击 exe 即用；数据写在 exe 同级 data/ 目录
-          "# Aelux Launcher`n`n解压到任意目录，双击 aelux-launcher-app.exe 即可运行（免安装）。`n数据保存在本目录 data/ 下，整目录拷走即可迁移。`n" | Set-Content "$stage/README.txt"
+          "# Aelux Launcher`n`n解压到任意目录，双击 Aelux-Launcher.exe 即可运行（免安装）。`n数据保存在本目录 data/ 下，整目录拷走即可迁移。`n" | Set-Content "$stage/README.txt"
+          # 测试期产物命名：Aelux-Launcher-v0.1.0-Beta.zip（正式版发布时改 -Stable 或去掉后缀）
           $tag = "${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}"
-          Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath "Aelux-Launcher-portable-windows-x64-$tag.zip" -Force
-          Write-Host "artifact=Aelux-Launcher-portable-windows-x64-$tag.zip" >> $env:GITHUB_OUTPUT
+          Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath "Aelux-Launcher-$tag-Beta.zip" -Force
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}
-          files: Aelux-Launcher-portable-windows-x64-*.zip
+          files: Aelux-Launcher-*-Beta.zip
