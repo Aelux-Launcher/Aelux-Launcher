@@ -17,6 +17,7 @@ import TaskManager from '../views/TaskManager.vue'
 import Instance from '../views/Instance.vue'
 import ResourceDetail from '../views/ResourceDetail.vue'
 import HelpDetail from '../views/HelpDetail.vue'
+import VersionDetail from '../views/VersionDetail.vue'
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -45,6 +46,7 @@ export const router = createRouter({
       meta: { sub: 'resource' },
     },
     { path: '/help/:entryId', name: 'help', component: HelpDetail, meta: { sub: 'help' } },
+    { path: '/version/:versionId', name: 'version', component: VersionDetail, meta: { sub: 'version' } },
     { path: '/:pathMatch(.*)*', redirect: '/home' },
   ],
 })

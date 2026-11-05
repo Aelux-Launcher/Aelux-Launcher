@@ -1,17 +1,24 @@
 <script setup lang="ts">
 /**
  * 启动页（设计稿规格：内容靠右）：
- *   登录方式切换（正版 / 第三方 / 离线）→ 档案区（头像 + 玩家名）
- *   → 启动按钮 + 实例选择 / 版本设置副按钮。
+ *   登录方式展示（跟随 store 偏好 / 当前会话，本页不选择）
+ *   → 档案区（头像 + 玩家名）→ 启动按钮 + 实例选择 / 版本设置副按钮。
  * 业务动作走 store；启动日志并入任务管理页（store.pushLaunchLog）。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import AlxIcon from '../components/AlxIcon.vue'
 
-/** 登录方式（设计稿三模式） */
+/** 登录方式（与 store 偏好一致） */
 type LoginMode = 'official' | 'third' | 'offline'
+
+/** 登录方式 → 展示文案（启动页左上角单个徽标） */
+const MODE_LABEL: Record<LoginMode, string> = {
+  official: '正版',
+  third: '第三方',
+  offline: '离线',
+}
 
 const SESSION_LABEL: Record<string, string> = {
   microsoft: '正版（微软账号）',
@@ -29,18 +36,18 @@ const LOADER_LABEL: Record<string, string> = {
 
 const store = useAppStore()
 
-const mode = ref<LoginMode>('official')
 const launching = ref(false)
 
-// 会话变化时同步登录方式。
-watch(
-  () => store.session,
-  (session) => {
-    if (!session) return
-    mode.value = session.type === 'offline' ? 'offline' : 'official'
-  },
-  { immediate: true },
-)
+/**
+ * 启动页展示的登录方式：已登录跟随会话类型，未登录跟随偏好设置。
+ * 本页只展示不选择——偏好由登录动作 / 设置页更新（store.setLoginMode）。
+ */
+const displayMode = computed<LoginMode>(() => {
+  if (store.session) {
+    return store.session.type === 'offline' ? 'offline' : store.session.type === 'third' ? 'third' : 'official'
+  }
+  return store.loginMode
+})
 
 const selected = computed(() => store.instances[0] ?? null)
 const selectedLoader = computed(() =>
@@ -111,11 +118,9 @@ function openInstanceSetup() {
 <template>
   <div class="page-view active launch-page">
     <div class="launch-side">
-      <!-- 登录方式 -->
-      <div class="login-modes">
-        <button :class="mode === 'official' ? 'active' : ''" @click="mode = 'official'">正版</button>
-        <button :class="mode === 'third' ? 'active' : ''" @click="mode = 'third'">第三方</button>
-        <button :class="mode === 'offline' ? 'active' : ''" @click="mode = 'offline'">离线</button>
+      <!-- 登录方式（仅展示当前选择，本页不切换） -->
+      <div class="login-modes static">
+        <button type="button" class="active">{{ MODE_LABEL[displayMode] }}</button>
       </div>
 
       <!-- 档案区 -->
@@ -138,13 +143,13 @@ function openInstanceSetup() {
       <!-- 动作区 -->
       <div class="action-section">
         <div class="action-group">
-          <!-- 登录按钮（未登录时） -->
+          <!-- 登录按钮（未登录时，依据当前登录方式） -->
           <template v-if="!store.session">
-            <button v-if="mode === 'official'" type="button" class="btn-launch" @click="handleOfficialLogin">
+            <button v-if="displayMode === 'official'" type="button" class="btn-launch" @click="handleOfficialLogin">
               <span class="main-text">微软账号登录</span>
               <span class="sub-text">正版验证</span>
             </button>
-            <button v-else-if="mode === 'third'" type="button" class="btn-launch" @click="handleThirdLogin">
+            <button v-else-if="displayMode === 'third'" type="button" class="btn-launch" @click="handleThirdLogin">
               <span class="main-text">服务器账号登录</span>
               <span class="sub-text">第三方认证</span>
             </button>

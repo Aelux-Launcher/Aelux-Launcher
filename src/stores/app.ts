@@ -92,6 +92,8 @@ export const useAppStore = defineStore('app', () => {
         entryId: String(route.value.params.entryId ?? ''),
         title: String(route.value.query.title ?? ''),
       }
+    if (meta.sub === 'version')
+      return { kind: 'version', versionId: String(route.value.params.versionId ?? '') }
     return null
   })
 
@@ -272,6 +274,14 @@ export const useAppStore = defineStore('app', () => {
       /* 会话读取失败静默 */
     }
     try {
+      const savedMode = await kvGet('login-mode')
+      if (savedMode === 'official' || savedMode === 'third' || savedMode === 'offline') {
+        loginMode.value = savedMode
+      }
+    } catch {
+      /* 登录方式读取失败用默认值 */
+    }
+    try {
       await loadSettings()
     } catch {
       /* 设置读取失败用默认值 */
@@ -440,6 +450,42 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  /** 拉取版本 JSON（含 client / server 下载地址）。 */
+  async function fetchVersionJson(id: string): Promise<VersionJson> {
+    const entry = versions.value.find((v) => v.id === id)
+    if (!entry) throw new Error('版本不存在')
+    const raw = await call<string>('fetch_json', { url: entry.url })
+    return JSON.parse(raw) as VersionJson
+  }
+
+  /**
+   * 另存为：选位置保存客户端 jar。
+   * 对话框取消返回 null；成功返回保存路径（绝对路径，内核 join 语义下可直接落盘）。
+   */
+  async function saveVersionClient(id: string): Promise<string | null> {
+    const { save } = await import('@tauri-apps/plugin-dialog')
+    const path = await save({
+      defaultPath: `${id}.jar`,
+      filters: [{ name: 'Minecraft 客户端', extensions: ['jar'] }],
+    })
+    if (!path) return null
+    const json = await fetchVersionJson(id)
+    const client = json.downloads?.client
+    if (!client) throw new Error('该版本没有提供客户端下载')
+    await call('download_file', { url: client.url, dest: path, sha1: client.sha1 })
+    return path
+  }
+
+  /** 下载服务端 jar 到数据目录 minecraft/servers/<id>/server.jar，返回落盘路径。 */
+  async function downloadVersionServer(id: string): Promise<string> {
+    const json = await fetchVersionJson(id)
+    const server = json.downloads?.server
+    if (!server) throw new Error('该版本没有提供服务端下载')
+    const dest = `minecraft/servers/${id}/server.jar`
+    await call('download_file', { url: server.url, dest, sha1: server.sha1 })
+    return dest
+  }
+
   interface TaskInput {
     url: string
     dest: string
@@ -497,16 +543,29 @@ export const useAppStore = defineStore('app', () => {
     session.value = raw ? (JSON.parse(raw) as Session) : null
   }
 
+  /* ------------------------------- 登录方式 ------------------------------- */
+
+  /** 登录方式偏好：启动页展示与登录按钮依据（会话存在时展示跟随会话）。 */
+  const loginMode = ref<'official' | 'third' | 'offline'>('official')
+
+  /** 更新登录方式偏好并持久化（登录动作 / 设置页调用）。 */
+  function setLoginMode(m: 'official' | 'third' | 'offline') {
+    loginMode.value = m
+    void call('kv_set', { key: 'login-mode', value: m })
+  }
+
   async function loginOffline(username: string) {
     if (!username.trim()) throw new Error('用户名不能为空')
     const uuid = offlineUuid(username.trim())
     const s: Session = { type: 'offline', username: username.trim(), uuid }
     session.value = s
+    setLoginMode('offline')
     await call('kv_set', { key: 'session', value: JSON.stringify(s) })
   }
 
   /** 微软登录：设备码流在内核 auth 模块，接入前给出明确提示。 */
   async function loginMicrosoft(): Promise<never> {
+    setLoginMode('official')
     throw new Error('微软登录将在内核 auth 模块（设备码流 + keyring）就绪后开放')
   }
 
@@ -762,7 +821,11 @@ export const useAppStore = defineStore('app', () => {
     launchInstance,
     loadVersions,
     installVersion,
+    saveVersionClient,
+    downloadVersionServer,
     restoreSession,
+    loginMode,
+    setLoginMode,
     loginOffline,
     loginMicrosoft,
     logout,
@@ -796,6 +859,8 @@ function subPath(p: SubPage): string {
       return `/resource/${p.resourceKind}/${p.projectId}?title=${encodeURIComponent(p.title)}`
     case 'help':
       return `/help/${p.entryId}?title=${encodeURIComponent(p.title)}`
+    case 'version':
+      return `/version/${p.versionId}`
   }
 }
 

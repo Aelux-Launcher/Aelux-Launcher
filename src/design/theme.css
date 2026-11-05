@@ -353,6 +353,9 @@ svg {
   border-color: var(--border-light);
   background-color: var(--bg-color);
 }
+/* 仅展示态（启动页单徽标）：不可点 */
+.login-modes.static button { cursor: default; }
+.login-modes.static button:hover { color: var(--text-main); font-weight: 600; }
 
 .profile-section { display: flex; flex-direction: column; align-items: center; }
 
@@ -522,9 +525,9 @@ svg {
   padding: 16px 16px 4px;
 }
 .version-card .list-item { margin: 0 8px; }
-.version-card .version-latest-item:last-child { margin-bottom: 8px; }
+.version-card .list-item:last-child { margin-bottom: 8px; }
 
-/* 最新版本行：操作按钮 hover 淡入 */
+/* 版本行：操作按钮 hover 淡入 */
 .icon-btn {
   width: 32px;
   height: 32px;
@@ -542,11 +545,11 @@ svg {
 .icon-btn:hover { background: var(--icon-bg); color: var(--text-main); }
 .icon-btn:disabled { opacity: 0.45; cursor: default; }
 .icon-btn:disabled:hover { background: transparent; color: var(--text-sub); }
-.version-latest-item .item-right { opacity: 0; transition: opacity 0.15s; }
-.version-latest-item:hover .item-right,
-.version-latest-item:focus-within .item-right { opacity: 1; }
+.version-row .item-right { opacity: 0; transition: opacity 0.15s; }
+.version-row:hover .item-right,
+.version-row:focus-within .item-right { opacity: 1; }
 
-/* 分类折叠组 */
+/* 分类折叠组：PCL2 式平滑展开（grid-rows 0fr→1fr 过渡，双向动画） */
 .version-group-header {
   width: 100%;
   display: flex;
@@ -565,14 +568,94 @@ svg {
 .version-group-header:hover { background: var(--hover-bg); }
 .version-group-chevron {
   color: var(--text-sub);
-  transition: transform 0.2s var(--alx-ease-out-fluent);
+  transition: transform 0.25s var(--alx-ease-out-fluent-strong);
 }
 .version-group.open .version-group-chevron { transform: rotate(180deg); }
-.version-group-body { padding-bottom: 8px; }
+.version-group-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s var(--alx-ease-out-fluent-strong);
+}
+.version-group.open .version-group-body { grid-template-rows: 1fr; }
+.version-group-inner { min-height: 0; overflow: hidden; }
 .version-group-empty {
   padding: 8px 16px 12px;
   font-size: 13px;
   color: var(--text-sub);
+}
+
+/* 版本详情页（原版下载二级页）：返回 + 版本号 + 加载器行 + 开始下载 */
+.version-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-color);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+.version-hero-name {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loader-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  background: var(--bg-color);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.loader-item:hover { background: var(--hover-bg); }
+.loader-name { font-size: 15px; font-weight: 700; color: var(--text-main); width: 96px; flex-shrink: 0; }
+.loader-hint { font-size: 13px; color: var(--text-sub); flex: 1; min-width: 0; }
+.loader-chevron { color: var(--text-sub); flex-shrink: 0; }
+.version-actions {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0 8px;
+  flex-shrink: 0;
+}
+.version-start-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 44px;
+  background: var(--text-main);
+  color: var(--bg-color);
+  border: none;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+.version-start-btn:hover { opacity: 0.85; }
+.version-start-btn:disabled { opacity: 0.4; cursor: default; }
+.version-start-btn.btn-ghost {
+  background: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
 }
 
 /* 设置组 */

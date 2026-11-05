@@ -21,6 +21,7 @@ import TaskManager from './views/TaskManager.vue'
 import Instance from './views/Instance.vue'
 import ResourceDetail from './views/ResourceDetail.vue'
 import HelpDetail from './views/HelpDetail.vue'
+import VersionDetail from './views/VersionDetail.vue'
 
 /** 离场动画时长（须与 theme.css 里 alx-stage-out 的时长一致） */
 const LEAVE_MS = 110
@@ -43,6 +44,7 @@ const COMPONENTS: Record<string, Component> = {
   instance: Instance,
   resource: ResourceDetail,
   help: HelpDetail,
+  version: VersionDetail,
 }
 
 const store = useAppStore()
@@ -54,6 +56,7 @@ function stageKey(r: (typeof route.value)): string {
   if (name === 'instance') return `instance:${r.params.instanceId}:${r.params.tab ?? 'overall'}`
   if (name === 'resource') return `resource:${r.params.projectId}`
   if (name === 'help') return `help:${r.params.entryId}`
+  if (name === 'version') return `version:${r.params.versionId}`
   if (name === 'download') return `download:${r.params.cat}`
   if (name === 'settings') return `settings:${r.params.sec}`
   if (name === 'more') return `more:${r.params.sec}`
@@ -72,6 +75,7 @@ function stageProps(r: (typeof route.value)): Record<string, unknown> {
       title: String(r.query.title ?? ''),
     }
   if (name === 'help') return { entryId: String(r.params.entryId ?? ''), title: String(r.query.title ?? '') }
+  if (name === 'version') return { versionId: String(r.params.versionId ?? '') }
   if (name === 'download') return { cat: String(r.params.cat ?? 'original') }
   if (name === 'settings') return { sec: String(r.params.sec ?? 'global') }
   if (name === 'more') return { sec: String(r.params.sec ?? 'help') }

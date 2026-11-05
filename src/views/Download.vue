@@ -14,6 +14,7 @@ import { toast } from '../lib/toast'
 import PageHeader from '../components/PageHeader.vue'
 import AlxSearchBar from '../components/AlxSearchBar.vue'
 import AlxIcon from '../components/AlxIcon.vue'
+import VersionRowActions from '../components/VersionRowActions.vue'
 
 /** 分类 → 页头标题（与侧栏文案一致） */
 const CAT_TITLE: Record<string, string> = {
@@ -129,12 +130,9 @@ function isInstalled(id: string): boolean {
   return store.instances.some((i) => i.version === id)
 }
 
-/** 安装版本（沿用旧版反馈：成功 / 失败 toast） */
-async function handleInstall(id: string) {
-  await store.installVersion(id)
-  const err = store.installError
-  if (err) toast.error(`安装失败：${err}`)
-  else toast.success(`已安装 ${id}，可在「启动」页一键启动`)
+/** 点击版本行 → 进入版本详情页（加载器选择 + 开始下载）。 */
+function openVersionPage(id: string) {
+  store.openSubPage({ kind: 'version', versionId: id })
 }
 
 /* ------------------------------ 社区资源 ------------------------------ */
@@ -220,7 +218,10 @@ function onResourceDownload() {
         <div v-if="latestRelease || latestSnapshot" class="version-card">
           <div class="version-card-title">最新版本</div>
           <template v-if="latestRelease">
-            <div class="list-item version-latest-item">
+            <div
+              class="list-item list-clickable version-row"
+              @click="openVersionPage(latestRelease.id)"
+            >
               <div class="item-left">
                 <div class="item-icon">
                   <AlxIcon name="columns" :size="20" />
@@ -230,21 +231,17 @@ function onResourceDownload() {
                   <div class="item-desc">最新正式版，发布于 {{ formatDateTime(latestRelease.releaseTime) }}</div>
                 </div>
               </div>
-              <div class="item-right">
-                <button
-                  type="button"
-                  class="icon-btn"
-                  :disabled="isInstalled(latestRelease.id) || store.installing !== null"
-                  :title="isInstalled(latestRelease.id) ? '已安装' : '安装'"
-                  @click="handleInstall(latestRelease.id)"
-                >
-                  <AlxIcon :name="isInstalled(latestRelease.id) ? 'check' : 'download'" :size="18" />
-                </button>
-              </div>
+              <VersionRowActions
+                :version-id="latestRelease.id"
+                :installed="isInstalled(latestRelease.id)"
+              />
             </div>
           </template>
           <template v-if="latestSnapshot">
-            <div class="list-item version-latest-item">
+            <div
+              class="list-item list-clickable version-row"
+              @click="openVersionPage(latestSnapshot.id)"
+            >
               <div class="item-left">
                 <div class="item-icon">
                   <AlxIcon name="columns" :size="20" />
@@ -254,17 +251,10 @@ function onResourceDownload() {
                   <div class="item-desc">最新预览版，发布于 {{ formatDateTime(latestSnapshot.releaseTime) }}</div>
                 </div>
               </div>
-              <div class="item-right">
-                <button
-                  type="button"
-                  class="icon-btn"
-                  :disabled="isInstalled(latestSnapshot.id) || store.installing !== null"
-                  :title="isInstalled(latestSnapshot.id) ? '已安装' : '安装'"
-                  @click="handleInstall(latestSnapshot.id)"
-                >
-                  <AlxIcon :name="isInstalled(latestSnapshot.id) ? 'check' : 'download'" :size="18" />
-                </button>
-              </div>
+              <VersionRowActions
+                :version-id="latestSnapshot.id"
+                :installed="isInstalled(latestSnapshot.id)"
+              />
             </div>
           </template>
         </div>
@@ -280,31 +270,28 @@ function onResourceDownload() {
             <span>{{ g.title }}</span>
             <AlxIcon name="chevron-down" :size="18" class="version-group-chevron" />
           </button>
-          <div v-if="isGroupOpen(g.key)" class="version-group-body">
-            <div v-for="v in g.items" :key="v.id" class="list-item">
-              <div class="item-left">
-                <div class="item-icon">
-                  <AlxIcon name="columns" :size="20" />
+          <div class="version-group-body">
+            <div class="version-group-inner" :inert="!isGroupOpen(g.key)">
+              <div
+                v-for="v in g.items"
+                :key="v.id"
+                class="list-item list-clickable version-row"
+                @click="openVersionPage(v.id)"
+              >
+                <div class="item-left">
+                  <div class="item-icon">
+                    <AlxIcon name="columns" :size="20" />
+                  </div>
+                  <div class="item-info">
+                    <div class="item-title">{{ v.id }}</div>
+                    <div class="item-desc">发布于 {{ formatDateTime(v.releaseTime) }}</div>
+                  </div>
                 </div>
-                <div class="item-info">
-                  <div class="item-title">{{ v.id }}</div>
-                  <div class="item-desc">发布于 {{ formatDateTime(v.releaseTime) }}</div>
-                </div>
+                <VersionRowActions :version-id="v.id" :installed="isInstalled(v.id)" />
               </div>
-              <div class="item-right">
-                <button
-                  type="button"
-                  class="btn-download"
-                  :class="isInstalled(v.id) ? 'btn-ghost' : ''"
-                  :disabled="isInstalled(v.id) || store.installing !== null"
-                  @click="handleInstall(v.id)"
-                >
-                  {{ store.installing === v.id ? '安装中' : isInstalled(v.id) ? '已安装' : '安装' }}
-                </button>
+              <div v-if="g.items.length === 0" class="version-group-empty">
+                {{ hasKeyword ? `没有匹配「${versionKeyword.trim()}」的版本` : '暂无版本' }}
               </div>
-            </div>
-            <div v-if="g.items.length === 0" class="version-group-empty">
-              {{ hasKeyword ? `没有匹配「${versionKeyword.trim()}」的版本` : '暂无版本' }}
             </div>
           </div>
         </div>

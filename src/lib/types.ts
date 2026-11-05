@@ -198,3 +198,4 @@ export type SubPage =
   | { kind: 'instance'; instanceId: string; tab: InstanceTab }
   | { kind: 'resource'; resourceKind: ResourceKind; projectId: string; title: string }
   | { kind: 'help'; entryId: string; title: string }
+  | { kind: 'version'; versionId: string }
