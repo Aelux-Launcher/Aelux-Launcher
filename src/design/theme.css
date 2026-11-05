@@ -1052,6 +1052,28 @@ svg {
 .dialog-input:focus { border-color: var(--text-main); }
 .dialog-input::placeholder { color: var(--text-sub); }
 
+/* 添加认证服务器：第二步的地址 / 名称行 */
+.auth-wizard-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+}
+.auth-wizard-label {
+  flex: none;
+  width: 72px;
+  font-size: 13px;
+  color: var(--text-sub);
+}
+.auth-wizard-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-main);
+  word-break: break-all;
+}
+.auth-wizard-row .dialog-input { flex: 1; height: 34px; }
+
 /* toast */
 .aelux-toasts {
   position: fixed;
@@ -1223,14 +1245,13 @@ svg {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.auth-server-url {
+.auth-server-desc {
   margin-top: 2px;
   font-size: 11px;
   color: var(--text-sub);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--aelux-font-mono);
 }
 .auth-server-row .icon-btn { flex-shrink: 0; }
 /* 底部固定区（账户管理页）：分隔线与内边距，避免与列表粘连 */

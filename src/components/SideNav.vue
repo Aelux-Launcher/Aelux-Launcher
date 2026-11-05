@@ -11,6 +11,7 @@ import { toast } from '../lib/toast'
 import { confirmDialog, promptDialog } from '../lib/dialog'
 import { call } from '../lib/bridge'
 import AlxIcon from './AlxIcon.vue'
+import AuthServerModal from './AuthServerModal.vue'
 import type { StoredFolder } from '../lib/types'
 
 interface NavEntry {
@@ -221,28 +222,29 @@ async function addOffline() {
   }
 }
 
-/** 添加外置登录认证服务器（地址必填，名称缺省取域名）。 */
-async function addAuthServer() {
-  const r = await promptDialog({
-    title: '添加认证服务器',
-    message: '填写外置登录（authlib-injector）服务器信息。',
-    fields: [
-      { key: 'name', label: '名称（可选）', placeholder: '留空则使用域名' },
-      { key: 'url', label: '服务器地址', placeholder: 'https://example.com/api/yggdrasil' },
-    ],
-    confirmText: '添加',
-  })
-  if (!r) return
-  const url = r.url.trim()
-  if (!url) {
-    toast.warning('服务器地址不能为空')
-    return
-  }
+/** 添加外置登录认证服务器（两步弹窗，参考 HMCL）。 */
+function addAuthServer() {
+  authServerModalOpen.value = true
+}
+
+const authServerModalOpen = ref(false)
+
+async function submitAuthServer(server: { name: string; url: string }) {
   try {
-    await store.addAuthServer(r.name, url)
+    await store.addAuthServer(server.name, server.url)
+    authServerModalOpen.value = false
     toast.success('认证服务器已添加')
   } catch (e) {
     toast.error((e as Error).message)
+  }
+}
+
+/** 服务器地址 → 域名（列表里作为描述显示，完整地址只放 hover title）。 */
+function serverHost(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
   }
 }
 
@@ -352,11 +354,18 @@ function selectFolder(f: StoredFolder) {
           </span>
         </button>
 
-        <!-- 已添加的外置登录服务器：依次显示在离线模式下方 -->
-        <div v-for="s in store.authServers" :key="s.id" class="auth-server-row">
+        <!-- 已添加的外置登录服务器：依次显示在离线模式下方（完整地址仅 hover 显示） -->
+        <div
+          v-for="s in store.authServers"
+          :key="s.id"
+          class="auth-server-row"
+          :title="s.url"
+        >
           <div class="auth-server-info">
             <div class="auth-server-name">{{ s.name }}</div>
-            <div class="auth-server-url">{{ s.url }}</div>
+            <div v-if="serverHost(s.url) !== s.name" class="auth-server-desc">
+              {{ serverHost(s.url) }}
+            </div>
           </div>
           <button
             type="button"
@@ -433,5 +442,11 @@ function selectFolder(f: StoredFolder) {
         </div>
       </button>
     </div>
+    <!-- 添加认证服务器弹窗（两步；账户管理页底部按钮触发） -->
+    <AuthServerModal
+      :open="authServerModalOpen"
+      @close="authServerModalOpen = false"
+      @submit="submitAuthServer"
+    />
   </aside>
 </template>
