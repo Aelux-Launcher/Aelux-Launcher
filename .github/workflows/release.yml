@@ -53,7 +53,7 @@ jobs:
       - name: Fetch core cdylib
         run: node scripts/fetch-core.mjs
 
-      # --bundles none：只产出裸 exe，不打 NSIS/MSI 安装器（便携分发）
+      # --no-bundle：只产出裸 exe，不打 NSIS/MSI 安装器（便携分发）
       - name: Build portable (release-ffi)
         run: npm run build:portable
 
