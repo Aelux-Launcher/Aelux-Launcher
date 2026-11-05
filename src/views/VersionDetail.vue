@@ -122,6 +122,7 @@ function openLoaderChangelog(loader: LoaderKey) {
     forge: 'https://files.minecraftforge.net/',
     neoforge: 'https://neoforged.net/',
     fabric: 'https://fabricmc.net/develop/',
+    quilt: 'https://quiltmc.org/',
     optifine: 'https://optifine.net/changelog',
   }
   void call('open_external', { url: urls[loader] }).catch(() => toast.error('无法打开更新日志'))

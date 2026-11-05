@@ -79,6 +79,8 @@ function stageProps(r: (typeof route.value)): Record<string, unknown> {
       resourceKind: String(r.params.kind ?? 'mod'),
       projectId: String(r.params.projectId ?? ''),
       title: String(r.query.title ?? ''),
+      gameVersion: String(r.query.version ?? ''),
+      loader: String(r.query.loader ?? ''),
     }
   if (name === 'help') return { entryId: String(r.params.entryId ?? ''), title: String(r.query.title ?? '') }
   if (name === 'version') return { versionId: String(r.params.versionId ?? '') }

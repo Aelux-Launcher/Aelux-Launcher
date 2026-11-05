@@ -137,6 +137,12 @@ export type ResourceSource = 'all' | 'modrinth' | 'curseforge'
 export interface ResourceQuery {
   name: string
   source: ResourceSource
+  /** 游戏版本筛选（空串 = 全部版本） */
+  gameVersion: string
+  /** 加载器筛选（空串 = 任意加载器） */
+  loader: string
+  /** 分类标签筛选（Modrinth category slug，空串 = 全部类型） */
+  category: string
 }
 
 export interface ResourceProject {
@@ -153,6 +159,8 @@ export interface ResourceProject {
   /** 后缀标签（如 .jar / .zip） */
   suffix?: string
   author?: string
+  /** 搜索结果附带的支持游戏版本（详情接口不含该字段） */
+  versions?: string[]
 }
 
 export interface ResourceDetailData {
@@ -225,7 +233,15 @@ export type SubPage =
   | { kind: 'select' }
   | { kind: 'tasks' }
   | { kind: 'instance'; instanceId: string; tab: InstanceTab }
-  | { kind: 'resource'; resourceKind: ResourceKind; projectId: string; title: string }
+  | {
+      kind: 'resource'
+      resourceKind: ResourceKind
+      projectId: string
+      title: string
+      /** 从列表页带入的筛选条件（详情页会预选，可清空） */
+      gameVersion?: string
+      loader?: string
+    }
   | { kind: 'help'; entryId: string; title: string }
   | { kind: 'version'; versionId: string }
   | { kind: 'accounts' }

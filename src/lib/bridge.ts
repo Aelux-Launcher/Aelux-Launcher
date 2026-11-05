@@ -187,14 +187,37 @@ function mockFetchJson(url: string): string {
     return JSON.stringify({ versions: ['21.4.136', '21.4.117', '21.4.95', '20.1.112'] })
   }
 
-  // 搜索：/search?query=...&facets=[[ "project_type:<kind>" ]]
+  // 分类标签：/tag/category（按 project_type 供筛选下拉使用）
+  if (url.includes('/tag/category')) {
+    const tags = [
+      ['mod', ['adventure', 'decoration', 'library', 'magic', 'optimization', 'storage', 'technology', 'utility', 'worldgen']],
+      ['modpack', ['adventure', 'challenging', 'kitchen-sink', 'magic', 'multiplayer', 'optimization', 'quests', 'technology']],
+      ['resourcepack', ['decoration', 'fonts', 'models', 'realism', 'themed', 'tweaks', 'utility', 'vanilla-like']],
+      ['shader', ['bloom', 'cartoon', 'lighting', 'realistic', 'reflections', 'shadows', 'water']],
+      ['datapack', ['adventure', 'game-mechanics', 'library', 'mobs', 'optimization', 'utility', 'worldgen']],
+      ['world', ['adventure', 'buildings', 'fantasy', 'parkour', 'realistic']],
+    ] as const
+    return JSON.stringify(
+      tags.flatMap(([projectType, names]) =>
+        names.map((name) => ({ name, project_type: projectType, header: '', icon: '' })),
+      ),
+    )
+  }
+
+  // 搜索：/search?query=...&facets=[[ "project_type:<kind>" ], ...]
   if (url.includes('/search?')) {
     const u = new URL(url)
     const facet = JSON.parse(u.searchParams.get('facets') ?? '[]') as string[][]
     const kind = facet[0]?.[0]?.split(':')[1] ?? ''
+    const categories = facet
+      .slice(1)
+      .map((group) => group[0] ?? '')
+      .filter((f) => f.startsWith('categories:'))
+      .map((f) => f.slice('categories:'.length))
     const q = (u.searchParams.get('query') ?? '').trim().toLowerCase()
     const hits = (PREVIEW_RESOURCES[kind] ?? [])
       .filter((r) => !q || r.title.toLowerCase().includes(q) || r.slug.includes(q))
+      .filter((r) => categories.length === 0 || categories.some((c) => r.categories.includes(c)))
       .map((r) => ({
         project_id: r.projectId,
         slug: r.slug,
@@ -205,6 +228,7 @@ function mockFetchJson(url: string): string {
         downloads: r.downloads,
         date_modified: r.dateModified,
         author: r.author,
+        versions: ['1.21.4', '1.20.1', '1.16.5'],
       }))
     return JSON.stringify({ total_hits: hits.length, hits })
   }

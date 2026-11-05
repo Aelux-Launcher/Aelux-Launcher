@@ -32,7 +32,16 @@ import type {
   SubPage,
   VersionEntry,
 } from '../lib/types'
-import { buildResourceSearchUrl, buildResourceDetailUrl, buildResourceVersionsUrl } from '../lib/modrinth'
+import {
+  buildResourceDetailUrl,
+  buildResourceSearchUrl,
+  buildResourceTagsUrl,
+  buildResourceTeamMembersUrl,
+  buildResourceVersionsUrl,
+  categoryLabel,
+  RESOURCE_PAGE_SIZE,
+  type CategoryOption,
+} from '../lib/modrinth'
 import { md5 } from '../lib/md5'
 
 /** 页面栈记录：进入详情页之前待返回的位置。 */
@@ -90,6 +99,8 @@ export const useAppStore = defineStore('app', () => {
         resourceKind: String(route.value.params.kind ?? 'mod') as ResourceKind,
         projectId: String(route.value.params.projectId ?? ''),
         title: String(route.value.query.title ?? ''),
+        gameVersion: String(route.value.query.version ?? '') || undefined,
+        loader: String(route.value.query.loader ?? '') || undefined,
       }
     if (meta.sub === 'help')
       return {
@@ -225,13 +236,26 @@ export const useAppStore = defineStore('app', () => {
 
   /* ------------------------------- 社区资源 ------------------------------- */
   const resourceKind = ref<ResourceKind>('mod')
-  const resourceQuery = ref<ResourceQuery>({ name: '', source: 'all' })
+  const resourceQuery = ref<ResourceQuery>({
+    name: '',
+    source: 'all',
+    gameVersion: '',
+    loader: '',
+    category: '',
+  })
   const resourceTotal = ref(0)
+  const resourcePage = ref(0)
+  const resourcePageSize = RESOURCE_PAGE_SIZE
   const resourceProjects = ref<ResourceProject[]>([])
   const resourceLoading = ref(false)
   const resourceError = ref<string | null>(null)
   const resourceDetailData = ref<ResourceDetailData | null>(null)
   const resourceDetailLoading = ref(false)
+  /** Modrinth 分类标签（project_type → 可选项），首次进入资源页时拉取。 */
+  const resourceTags = ref<Record<string, CategoryOption[]>>({})
+  let resourceTagsPending: Promise<void> | null = null
+  /** 搜索请求序号：切换筛选/翻页时丢弃过期响应。 */
+  let resourceSearchToken = 0
 
   /* ------------------------------- 实例设置 ------------------------------- */
   const instanceSettings = ref<Record<string, Record<string, unknown>>>({})
@@ -913,25 +937,71 @@ export const useAppStore = defineStore('app', () => {
 
   /* ------------------------------- 社区资源 ------------------------------- */
 
+  /** 切换资源类型（PCL 行为：类型切换后清空筛选与翻页）。 */
   function setResourceKind(k: ResourceKind) {
     resourceKind.value = k
     resourceProjects.value = []
     resourceTotal.value = 0
+    resourcePage.value = 0
+    resourceError.value = null
+    resourceQuery.value = { name: '', source: 'all', gameVersion: '', loader: '', category: '' }
   }
 
   function setResourceQuery(patch: Partial<ResourceQuery>) {
     resourceQuery.value = { ...resourceQuery.value, ...patch }
   }
 
-  async function searchResources() {
+  /** 重置筛选条件（不触发检索，调用方决定何时搜索）。 */
+  function resetResourceFilters() {
+    resourceQuery.value = { name: '', source: 'all', gameVersion: '', loader: '', category: '' }
+    resourcePage.value = 0
+  }
+
+  /** 拉取 Modrinth 分类标签（全类型一次，失败时静默并允许下次重试）。 */
+  function loadResourceTags(): Promise<void> {
+    if (resourceTagsPending) return resourceTagsPending
+    resourceTagsPending = (async () => {
+      try {
+        const raw = await call<string>('fetch_json', { url: buildResourceTagsUrl() })
+        const parsed = JSON.parse(raw) as unknown
+        if (!Array.isArray(parsed)) return
+        const groups: Record<string, CategoryOption[]> = {}
+        for (const item of parsed as Array<{ name?: string; project_type?: string }>) {
+          if (!item.name || !item.project_type) continue
+          (groups[item.project_type] ??= []).push({ slug: item.name, label: categoryLabel(item.name) })
+        }
+        for (const key of Object.keys(groups)) {
+          groups[key].sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'))
+        }
+        resourceTags.value = groups
+      } catch {
+        resourceTagsPending = null
+      }
+    })()
+    return resourceTagsPending
+  }
+
+  /** 搜索社区资源（resetPage=true 时回到第一页；翻页传 false）。 */
+  async function searchResources(resetPage = true) {
+    if (resetPage) resourcePage.value = 0
+    const token = ++resourceSearchToken
     resourceLoading.value = true
     resourceError.value = null
     try {
       if (resourceQuery.value.source === 'curseforge') {
         throw new Error('CurseForge 源需要 API key，暂不可用；请使用 Modrinth 源')
       }
-      const url = buildResourceSearchUrl(resourceQuery.value.name, resourceKind.value)
+      const url = buildResourceSearchUrl({
+        kind: resourceKind.value,
+        name: resourceQuery.value.name,
+        gameVersion: resourceQuery.value.gameVersion,
+        loader: resourceQuery.value.loader,
+        category: resourceQuery.value.category,
+        page: resourcePage.value,
+        pageSize: resourcePageSize,
+      })
       const raw = await call<string>('fetch_json', { url })
+      if (token !== resourceSearchToken) return
       const data = JSON.parse(raw) as {
         total_hits: number
         hits: Array<{
@@ -945,6 +1015,7 @@ export const useAppStore = defineStore('app', () => {
           icon_url?: string
           date_modified: string
           author: string
+          versions?: string[]
         }>
       }
       resourceTotal.value = data.total_hits
@@ -961,17 +1032,28 @@ export const useAppStore = defineStore('app', () => {
         author: h.author,
         source: 'modrinth' as const,
         suffix: `.${resourceKind.value === 'mod' ? 'jar' : 'zip'}`,
+        versions: h.versions ?? [],
       }))
     } catch (e) {
+      if (token !== resourceSearchToken) return
       resourceError.value = (e as Error).message
     } finally {
-      resourceLoading.value = false
+      if (token === resourceSearchToken) resourceLoading.value = false
     }
+  }
+
+  /** 翻页：页码从 0 开始。 */
+  function setResourcePage(page: number) {
+    const next = Math.max(0, page)
+    if (next === resourcePage.value) return
+    resourcePage.value = next
+    void searchResources(false)
   }
 
   async function loadResourceDetail(projectId: string) {
     resourceDetailLoading.value = true
     resourceDetailData.value = null
+    resourceError.value = null
     try {
       const raw = await call<string>('fetch_json', { url: buildResourceDetailUrl(projectId) })
       const p = JSON.parse(raw) as {
@@ -985,9 +1067,33 @@ export const useAppStore = defineStore('app', () => {
         icon_url?: string
         date_modified: string
         body: string
+        team?: string
+        /** 预览数据 / 兼容字段（正式接口没有作者名，走团队接口） */
         author?: { username?: string }
       }
-      const rawVersions = await call<string>('fetch_json', { url: buildResourceVersionsUrl(projectId) })
+      // 版本列表与团队成员并行请求；团队接口失败不影响主流程（作者名可缺省）。
+      const [rawVersions, rawMembers] = await Promise.all([
+        call<string>('fetch_json', { url: buildResourceVersionsUrl(projectId) }),
+        p.team
+          ? call<string>('fetch_json', { url: buildResourceTeamMembersUrl(p.team) }).catch(() => null)
+          : Promise.resolve(null),
+      ])
+      let author: string | undefined
+      if (rawMembers) {
+        try {
+          const members = JSON.parse(rawMembers) as Array<{
+            user?: { username?: string }
+            role?: string
+            accepted?: boolean
+          }>
+          const active = members.filter((m) => m.accepted !== false)
+          const owner =
+            active.find((m) => (m.role ?? '').toLowerCase() === 'owner') ?? active[0] ?? members[0]
+          author = owner?.user?.username
+        } catch {
+          author = undefined
+        }
+      }
       const vs = JSON.parse(rawVersions) as Array<{
         id: string
         name: string
@@ -1024,7 +1130,7 @@ export const useAppStore = defineStore('app', () => {
           downloads: p.downloads,
           iconUrl: p.icon_url ?? '',
           dateModified: p.date_modified,
-          author: p.author?.username,
+          author: p.author?.username ?? author,
           source: 'modrinth',
         },
         body: p.body,
@@ -1034,6 +1140,58 @@ export const useAppStore = defineStore('app', () => {
       resourceError.value = (e as Error).message
     } finally {
       resourceDetailLoading.value = false
+    }
+  }
+
+  /**
+   * 下载资源版本文件：Tauri 下弹出保存对话框，浏览器预览落到模拟路径。
+   * 取消返回 null；成功返回保存路径。下载任务在任务管理页可见。
+   */
+  async function saveResourceFile(v: ResourceVersion, label = '资源文件'): Promise<string | null> {
+    if (!v.fileUrl) throw new Error('该版本没有可下载文件')
+    const fallbackName = v.fileName || `${v.versionNumber || v.id}.jar`
+    let dest: string
+    if (isTauri) {
+      const { save } = await import('@tauri-apps/plugin-dialog')
+      const ext = fallbackName.includes('.') ? fallbackName.split('.').pop() ?? 'jar' : 'jar'
+      const picked = await save({
+        defaultPath: fallbackName,
+        filters: [{ name: label, extensions: [ext] }],
+      })
+      if (!picked) return null
+      dest = picked
+    } else {
+      dest = `preview/resources/${fallbackName}`
+    }
+
+    const task: DownloadTaskState = {
+      id: `resource-${v.id}-${Date.now()}`,
+      name: fallbackName,
+      url: v.fileUrl,
+      received: 0,
+      total: 0,
+      status: 'pending',
+    }
+    const ds = downloadState.value
+    ds.tasks = [...ds.tasks, task]
+    ds.finished = false
+    ds.pending = ds.tasks.filter((t) => t.status === 'pending').length
+    task.status = 'downloading'
+    ds.active += 1
+    try {
+      await call('download_file', { url: v.fileUrl, dest, sha1: null })
+      task.status = 'done'
+      return dest
+    } catch (e) {
+      task.status = 'failed'
+      task.error = (e as Error).message
+      throw e
+    } finally {
+      ds.active = Math.max(0, ds.active - 1)
+      ds.done = ds.tasks.filter((t) => t.status === 'done').length
+      ds.failed = ds.tasks.filter((t) => t.status === 'failed').length
+      ds.pending = ds.tasks.filter((t) => t.status === 'pending').length
+      ds.finished = ds.pending === 0 && ds.active === 0
     }
   }
 
@@ -1092,9 +1250,12 @@ export const useAppStore = defineStore('app', () => {
     resourceKind,
     resourceQuery,
     resourceTotal,
+    resourcePage,
+    resourcePageSize,
     resourceProjects,
     resourceLoading,
     resourceError,
+    resourceTags,
     resourceDetailData,
     resourceDetailLoading,
     instanceSettings,
@@ -1157,8 +1318,12 @@ export const useAppStore = defineStore('app', () => {
     removeServer,
     setResourceKind,
     setResourceQuery,
+    resetResourceFilters,
+    loadResourceTags,
     searchResources,
+    setResourcePage,
     loadResourceDetail,
+    saveResourceFile,
     loadInstanceSettings,
     updateInstanceSettings,
     markAnnouncementShown,
@@ -1176,8 +1341,12 @@ function subPath(p: SubPage): string {
       return '/tasks'
     case 'instance':
       return `/instance/${p.instanceId}/${p.tab}`
-    case 'resource':
-      return `/resource/${p.resourceKind}/${p.projectId}?title=${encodeURIComponent(p.title)}`
+    case 'resource': {
+      const query = new URLSearchParams({ title: p.title })
+      if (p.gameVersion) query.set('version', p.gameVersion)
+      if (p.loader) query.set('loader', p.loader)
+      return `/resource/${p.resourceKind}/${p.projectId}?${query.toString()}`
+    }
     case 'help':
       return `/help/${p.entryId}?title=${encodeURIComponent(p.title)}`
     case 'version':

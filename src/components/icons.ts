@@ -34,6 +34,12 @@ export const ICONS = {
   'chevron-down': { vb: V, body: `<polyline points="6 9 12 15 18 9"/>` },
   'chevron-left': { vb: V, body: `<polyline points="15 18 9 12 15 6"/>` },
   'chevron-right': { vb: V, body: `<polyline points="9 18 15 12 9 6"/>` },
+  'chevrons-left': { vb: V, body: `<polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/>` },
+  'chevrons-right': { vb: V, body: `<polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/>` },
+  copy: {
+    vb: V,
+    body: `<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>`,
+  },
   play: { vb: V, body: `<polygon points="6 3 20 12 6 21 6 3" fill="currentColor" stroke="none"/>` },
 
   /* -------- 功能页补充图标（feather） -------- */
