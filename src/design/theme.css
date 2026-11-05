@@ -420,7 +420,11 @@ svg {
   border-color: var(--border-light);
   background-color: var(--bg-color);
 }
-/* 仅展示态（启动页单徽标）：不可点 */
+/* 仅展示态（启动页单徽标）：不可点；未登录时无文字，仅占高度 */
+.login-modes.static {
+  min-height: 32px;
+  align-items: center;
+}
 .login-modes.static button { cursor: default; }
 .login-modes.static button:hover { color: var(--text-main); font-weight: 600; }
 
@@ -1076,6 +1080,49 @@ svg {
 }
 .auth-wizard-row .dialog-input { flex: 1; height: 34px; }
 
+/* 添加外置登录账户：认证服务器 / 用户名 / 密码行 */
+.auth-login-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 8px 0;
+}
+.auth-login-label {
+  flex: none;
+  width: 72px;
+  padding-top: 9px;
+  font-size: 13px;
+  color: var(--text-sub);
+}
+.auth-login-control { flex: 1; min-width: 0; }
+.auth-login-server {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+}
+.auth-login-server-name { font-size: 13px; }
+.auth-login-links { display: flex; gap: 14px; flex-shrink: 0; }
+.link-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-sub);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.link-btn:hover { color: var(--text-main); }
+.field-error {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #d9534f;
+}
+
 /* toast */
 .aelux-toasts {
   position: fixed;
@@ -1256,6 +1303,12 @@ svg {
   white-space: nowrap;
 }
 .auth-server-row .icon-btn { flex-shrink: 0; }
+/* 未添加账户：整行可点击，打开外置登录账户弹窗 */
+.auth-server-row.clickable {
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.auth-server-row.clickable:hover { border-color: var(--text-main); }
 /* 底部固定区（账户管理页）：分隔线与内边距，避免与列表粘连 */
 .account-section .auth-server-add {
   margin: 0;

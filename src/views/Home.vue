@@ -142,9 +142,9 @@ function openInstanceSetup() {
 <template>
   <div class="page-view active launch-page">
     <div class="launch-side">
-      <!-- 登录方式（仅展示当前选择，本页不切换；未登录也保留该行高度） -->
+      <!-- 登录方式（仅展示已登录时的当前方式；未登录不显示文字，但保留行高） -->
       <div class="login-modes static">
-        <button type="button" class="active">{{ modeLabel }}</button>
+        <button v-if="store.session" type="button" class="active">{{ modeLabel }}</button>
       </div>
 
       <!-- 档案区（未登录时不显示文字，但保留高度避免跳动） -->

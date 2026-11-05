@@ -31,21 +31,37 @@ function hostOf(addr: string): string {
   }
 }
 
-/** 读取 authlib-injector 元数据里的服务器名称（失败时回退域名）。 */
+/** 读取 authlib-injector 元数据里的服务器名称（不把域名当名称）。 */
 async function fetchServerName(addr: string): Promise<string | null> {
-  try {
-    const raw = await call<string>('fetch_json', { url: addr })
-    const data = JSON.parse(raw) as { meta?: { serverName?: string } }
-    return data.meta?.serverName?.trim() || null
-  } catch {
-    return null
+  const parse = (raw: string): string | null => {
+    try {
+      const data = JSON.parse(raw) as { meta?: { serverName?: string } }
+      return data.meta?.serverName?.trim() || null
+    } catch {
+      return null
+    }
   }
+  // 桌面端走后端请求（不受 CORS 限制）
+  try {
+    const name = parse(await call<string>('fetch_json', { url: addr }))
+    if (name) return name
+  } catch {
+    /* 继续尝试浏览器直连 */
+  }
+  // 浏览器预览：服务器允许跨域时可直接取元数据
+  try {
+    const res = await fetch(addr, { headers: { Accept: 'application/json' } })
+    if (res.ok) return parse(await res.text())
+  } catch {
+    /* 取不到名称时留空，由用户填写 */
+  }
+  return null
 }
 
 async function goNext() {
   if (!cleanUrl.value) return
   step.value = 2
-  name.value = hostOf(cleanUrl.value)
+  name.value = ''
   fetching.value = true
   const fetched = await fetchServerName(cleanUrl.value)
   if (fetched && step.value === 2) name.value = fetched

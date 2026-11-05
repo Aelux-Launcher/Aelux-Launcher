@@ -12,7 +12,8 @@ import { confirmDialog, promptDialog } from '../lib/dialog'
 import { call } from '../lib/bridge'
 import AlxIcon from './AlxIcon.vue'
 import AuthServerModal from './AuthServerModal.vue'
-import type { StoredFolder } from '../lib/types'
+import AuthLoginModal from './AuthLoginModal.vue'
+import type { AuthServer, StoredFolder } from '../lib/types'
 
 interface NavEntry {
   key: string
@@ -248,6 +249,21 @@ function serverHost(url: string): string {
   }
 }
 
+/** 认证服务器行点击 → 添加该服务器的外置登录账户。 */
+const authLoginOpen = ref(false)
+const authLoginServer = ref<AuthServer | null>(null)
+
+function openAuthLogin(server: AuthServer) {
+  authLoginServer.value = server
+  authLoginOpen.value = true
+}
+
+function submitAuthLogin() {
+  authLoginOpen.value = false
+  // 内核尚未提供 authlib-injector 认证接口：先保留完整前端流程
+  toast.info('外置登录认证尚未接入内核，账户暂未添加')
+}
+
 /** 删除认证服务器（二级锁：弹窗确认）。 */
 async function deleteAuthServer(id: string) {
   const srv = store.authServers.find((s) => s.id === id)
@@ -358,8 +374,9 @@ function selectFolder(f: StoredFolder) {
         <div
           v-for="s in store.authServers"
           :key="s.id"
-          class="auth-server-row"
+          class="auth-server-row clickable"
           :title="s.url"
+          @click="openAuthLogin(s)"
         >
           <div class="auth-server-info">
             <div class="auth-server-name">{{ s.name }}</div>
@@ -447,6 +464,14 @@ function selectFolder(f: StoredFolder) {
       :open="authServerModalOpen"
       @close="authServerModalOpen = false"
       @submit="submitAuthServer"
+    />
+
+    <!-- 外置登录账户弹窗（点击认证服务器条目触发） -->
+    <AuthLoginModal
+      :open="authLoginOpen"
+      :server="authLoginServer"
+      @close="authLoginOpen = false"
+      @submit="submitAuthLogin"
     />
   </aside>
 </template>
