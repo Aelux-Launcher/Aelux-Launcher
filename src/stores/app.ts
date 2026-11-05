@@ -848,8 +848,29 @@ export const useAppStore = defineStore('app', () => {
   /** 已添加的认证服务器（落 kv 'auth-servers'，账户管理侧栏在离线模式下方列出）。 */
   const authServers = ref<AuthServer[]>([])
 
+  /** 首次初始化时自带的认证服务器：LittleSkin（用户删除后不再自动补回）。 */
+  const DEFAULT_AUTH_SERVERS: AuthServer[] = [
+    {
+      id: 'littleskin',
+      name: 'LittleSkin',
+      url: 'https://littleskin.cn/api/yggdrasil',
+    },
+  ]
+
   async function loadAuthServers() {
     const raw = await kvGet('auth-servers')
+    const seeded = await kvGet('auth-servers-seeded')
+    if (!seeded) {
+      // 首次（含升级后第一次启动）：合并默认服务器并只播种一次
+      const list = raw ? (JSON.parse(raw) as AuthServer[]) : []
+      if (!list.some((s) => s.id === 'littleskin')) {
+        list.unshift(...DEFAULT_AUTH_SERVERS)
+      }
+      authServers.value = list
+      await persistAuthServers()
+      await call('kv_set', { key: 'auth-servers-seeded', value: '1' })
+      return
+    }
     authServers.value = raw ? (JSON.parse(raw) as AuthServer[]) : []
   }
 
