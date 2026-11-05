@@ -10,6 +10,7 @@ import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import { promptDialog } from '../lib/dialog'
 import AlxIcon from '../components/AlxIcon.vue'
+import MicrosoftLoginModal from '../components/MicrosoftLoginModal.vue'
 
 /** 登录方式（与 store 偏好一致） */
 type LoginMode = 'official' | 'third' | 'offline'
@@ -94,8 +95,15 @@ function handleThirdLogin() {
   toast.info(`${thirdLabel.value} 登录尚未接入内核，请使用离线或微软登录。`)
 }
 
-/** 正版登录：设备码流（内核 auth 模块），弹窗展示设备码并轮询。 */
-async function handleOfficialLogin() {
+/** 正版登录：先弹窗确认，再走设备码流（避免一点就跳浏览器）。 */
+const microsoftModalOpen = ref(false)
+
+function handleOfficialLogin() {
+  microsoftModalOpen.value = true
+}
+
+async function startMicrosoftLogin() {
+  microsoftModalOpen.value = false
   await store.startMicrosoftLogin()
 }
 
@@ -209,5 +217,12 @@ function openInstanceSetup() {
         </div>
       </div>
     </div>
+
+    <!-- 微软账户确认弹窗（确认后才跳转浏览器登录） -->
+    <MicrosoftLoginModal
+      :open="microsoftModalOpen"
+      @close="microsoftModalOpen = false"
+      @submit="startMicrosoftLogin"
+    />
   </div>
 </template>

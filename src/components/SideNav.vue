@@ -5,7 +5,7 @@
  *   侧栏切换为对应模块的分类菜单；底部固定账户区。
  *   视觉与交互 1:1 对应设计稿（nav-group / nav-item / account-card）。
  */
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import { confirmDialog, promptDialog } from '../lib/dialog'
@@ -13,6 +13,7 @@ import { call } from '../lib/bridge'
 import AlxIcon from './AlxIcon.vue'
 import AuthServerModal from './AuthServerModal.vue'
 import AuthLoginModal from './AuthLoginModal.vue'
+import MicrosoftLoginModal from './MicrosoftLoginModal.vue'
 import type { AuthServer, StoredFolder } from '../lib/types'
 
 interface NavEntry {
@@ -154,16 +155,25 @@ const sidePanelKind = computed(() => {
 
 /* ----- 版本选择页：文件夹列表 ----- */
 
-const folderMenuOpen = ref(false)
+/** 当前展开设置菜单的文件夹 id（null = 未展开）。 */
+const folderMenuId = ref<string | null>(null)
 
-function toggleFolderMenu() {
-  folderMenuOpen.value = !folderMenuOpen.value
+function toggleFolderMenu(id: string) {
+  folderMenuId.value = folderMenuId.value === id ? null : id
 }
 
-/** 当前文件夹动作：重命名 / 打开 / 刷新 / 清空（内核文件夹管线接入前仅开放「打开」）。 */
-async function folderAction(action: 'rename' | 'open' | 'refresh' | 'clear') {
-  folderMenuOpen.value = false
-  const folder = store.gameFolders.find((f) => f.id === store.selectedFolderId)
+/** 点击菜单以外的地方收起菜单。 */
+function closeFolderMenu() {
+  folderMenuId.value = null
+}
+
+onMounted(() => document.addEventListener('click', closeFolderMenu))
+onBeforeUnmount(() => document.removeEventListener('click', closeFolderMenu))
+
+/** 文件夹动作：重命名 / 打开 / 刷新 / 清空（内核文件夹管线接入前仅开放「打开」）。 */
+async function folderAction(action: 'rename' | 'open' | 'refresh' | 'clear', folderId: string) {
+  folderMenuId.value = null
+  const folder = store.gameFolders.find((f) => f.id === folderId)
   if (action === 'open') {
     if (!folder?.path) {
       toast.warning('该文件夹路径不可用')
@@ -198,7 +208,15 @@ async function deleteFolder(id: string) {
 
 /* ----- 账户管理页：添加账户 ----- */
 
-async function addMicrosoft() {
+/** 微软账户：先弹窗确认，避免一点就跳转浏览器。 */
+const microsoftModalOpen = ref(false)
+
+function addMicrosoft() {
+  microsoftModalOpen.value = true
+}
+
+async function startMicrosoftLogin() {
+  microsoftModalOpen.value = false
   await store.startMicrosoftLogin()
 }
 
@@ -281,7 +299,7 @@ async function deleteAuthServer(id: string) {
 
 /** 文件夹选中态（侧栏与内容区共享 store 状态）。 */
 function selectFolder(f: StoredFolder) {
-  folderMenuOpen.value = false
+  folderMenuId.value = null
   store.selectFolder(f.id)
 }
 </script>
@@ -303,19 +321,18 @@ function selectFolder(f: StoredFolder) {
         >
           <div class="folder-head">
             <span class="folder-name">{{ store.folderDisplayName(f) }}</span>
-            <!-- 当前文件夹：设置菜单（重命名 / 打开 / 刷新 / 清空，自动生成的文件夹不可删） -->
+            <!-- 每个文件夹都有设置菜单（重命名 / 打开 / 刷新 / 清空） -->
             <button
-              v-if="f.type === 'current'"
               type="button"
               class="icon-btn"
               title="文件夹设置"
-              @click.stop="toggleFolderMenu"
+              @click.stop="toggleFolderMenu(f.id)"
             >
               <AlxIcon name="settings" :size="15" />
             </button>
-            <!-- 添加的文件夹：可删除 -->
+            <!-- 添加的文件夹额外提供删除 -->
             <button
-              v-else-if="f.type === 'added'"
+              v-if="f.type === 'added'"
               type="button"
               class="icon-btn account-remove"
               title="删除文件夹"
@@ -326,12 +343,12 @@ function selectFolder(f: StoredFolder) {
           </div>
           <div class="folder-path">{{ f.path || '未检测到官方启动器文件夹' }}</div>
 
-          <!-- 设置菜单 -->
-          <div v-if="folderMenuOpen && f.type === 'current'" class="folder-menu" @click.stop>
-            <button type="button" @click="folderAction('rename')">重命名</button>
-            <button type="button" @click="folderAction('open')">打开</button>
-            <button type="button" @click="folderAction('refresh')">刷新</button>
-            <button type="button" @click="folderAction('clear')">清空</button>
+          <!-- 设置菜单（点击别处自动收起） -->
+          <div v-if="folderMenuId === f.id" class="folder-menu" @click.stop>
+            <button type="button" @click="folderAction('rename', f.id)">重命名</button>
+            <button type="button" @click="folderAction('open', f.id)">打开</button>
+            <button type="button" @click="folderAction('refresh', f.id)">刷新</button>
+            <button type="button" @click="folderAction('clear', f.id)">清空</button>
           </div>
         </div>
 
@@ -472,6 +489,13 @@ function selectFolder(f: StoredFolder) {
       :server="authLoginServer"
       @close="authLoginOpen = false"
       @submit="submitAuthLogin"
+    />
+
+    <!-- 微软账户弹窗（确认后才跳转浏览器登录） -->
+    <MicrosoftLoginModal
+      :open="microsoftModalOpen"
+      @close="microsoftModalOpen = false"
+      @submit="startMicrosoftLogin"
     />
   </aside>
 </template>

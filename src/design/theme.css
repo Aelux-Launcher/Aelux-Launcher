@@ -1117,10 +1117,26 @@ svg {
   cursor: pointer;
 }
 .link-btn:hover { color: var(--text-main); }
+
+/* 微软账户确认弹窗 */
+.ms-login-hint {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--icon-bg);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-sub);
+}
+.ms-login-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 14px;
+}
 .field-error {
   margin-top: 4px;
   font-size: 11px;
-  color: #d9534f;
+  color: var(--danger);
 }
 
 /* toast */

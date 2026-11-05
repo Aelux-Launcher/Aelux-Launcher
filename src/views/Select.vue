@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * 版本选择页（副页面，PCL 式）：
  *   侧栏 = 文件夹列表（见 SideNav 的子页面板）；本页内容 = 按加载器分组的实例，
@@ -6,17 +6,17 @@
  */
 import { computed, ref } from 'vue'
 import { useAppStore } from '../stores/app'
-import PageHeader from '../components/PageHeader.vue'
 import AlxIcon from '../components/AlxIcon.vue'
+import type { GameInstance } from '../lib/types'
 
 const store = useAppStore()
 
-/** 清单版本类型 → 中文。 */
+/** 清单版本类型 → 中文（快照 = 预览版，旧版统一归为远古版）。 */
 const KIND_LABEL: Record<string, string> = {
   release: '正式版',
-  snapshot: '快照',
-  old_beta: 'Beta 旧版',
-  old_alpha: 'Alpha 旧版',
+  snapshot: '快照版',
+  old_beta: '远古版',
+  old_alpha: '远古版',
 }
 
 const LOADER_ORDER = ['vanilla', 'fabric', 'forge', 'neoforge', 'quilt'] as const
@@ -34,6 +34,38 @@ const LOADER_SHORT: Record<string, string> = {
   forge: 'Forge',
   neoforge: 'NeoForge',
   quilt: 'Quilt',
+}
+
+/** 验证方式（跟随当前账户；未登录时跟随偏好设置）。 */
+function verifyLabel(): string {
+  const type = store.session?.type ?? (store.loginMode === 'official' ? 'microsoft' : store.loginMode)
+  if (type === 'microsoft') return '正版验证'
+  if (type === 'third') return 'Authlib 验证'
+  return '离线验证'
+}
+
+/** 加载器段：`Forge_54.1.17`（loaderVersion 缺失时从包名后缀解析）。 */
+function loaderText(instance: GameInstance): string {
+  const key = instance.loader || 'vanilla'
+  if (key === 'vanilla') return ''
+  const label = LOADER_SHORT[key] ?? key
+  const lv =
+    instance.loaderVersion ||
+    (instance.name.includes('_') ? instance.name.slice(instance.name.lastIndexOf('_') + 1) : '')
+  return lv ? `${label}_${lv}` : label
+}
+
+/** 实例行副文本：`正式版 1.21.4，Forge_54.1.17，离线验证`。 */
+function instanceDesc(instance: GameInstance): string {
+  const entry = store.versions.find((v) => v.id === instance.version)
+  const kind = entry ? (KIND_LABEL[entry.kind] ?? entry.kind) : '正式版'
+  return [`${kind} ${instance.version}`, loaderText(instance), verifyLabel()].filter(Boolean).join('，')
+}
+
+/** 实例图标跟随加载器（原版用 Minecraft 图标）。 */
+function loaderIcon(instance: GameInstance): string {
+  const key = instance.loader || 'vanilla'
+  return key === 'vanilla' ? 'minecraft' : key
 }
 
 /** 按加载器分组的实例（空组隐藏）。 */
@@ -58,14 +90,6 @@ function toggleGroup(key: string) {
   else s.add(key)
 }
 
-/** 实例行副文本：`正式版 1.21.4 · Fabric 0.16.9`。 */
-function instanceDesc(instance: { version: string; loader?: string | null; loaderVersion?: string | null }): string {
-  const entry = store.versions.find((v) => v.id === instance.version)
-  const kind = entry ? (KIND_LABEL[entry.kind] ?? entry.kind) : '未知类型'
-  const lv = instance.loaderVersion ? ` · ${LOADER_SHORT[instance.loader ?? ''] ?? ''} ${instance.loaderVersion}`.trim() : ''
-  return `${kind} ${instance.version}${lv}`
-}
-
 /** 点击实例 → 实例详情页。 */
 function openInstance(id: string) {
   store.openSubPage({ kind: 'instance', instanceId: id, tab: 'overall' })
@@ -74,8 +98,6 @@ function openInstance(id: string) {
 
 <template>
   <div class="page-view active sub-page">
-    <PageHeader title="版本选择" />
-
     <!-- 非当前文件夹：暂无实例信息（内核扫描接入前） -->
     <div v-if="store.selectedFolderId !== 'current'" class="empty-state">
       <AlxIcon name="folder" :size="32" />
@@ -109,7 +131,7 @@ function openInstance(id: string) {
             >
               <div class="item-left">
                 <div class="item-icon">
-                  <AlxIcon name="columns" :size="20" />
+                  <AlxIcon :name="loaderIcon(i)" :size="20" />
                 </div>
                 <div class="item-info">
                   <div class="item-title">{{ i.name }}</div>
