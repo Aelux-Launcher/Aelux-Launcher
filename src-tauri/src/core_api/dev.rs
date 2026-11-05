@@ -5,7 +5,7 @@
 
 use aelux_core::CoreApi;
 use serde_json::Value;
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
 
 use crate::dto::{GameInstance, LauncherConfig, OsInfo, VersionManifest};
 

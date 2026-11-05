@@ -1,3 +1,5 @@
+// Path 仅 release-ffi 分支使用（内核库就位检查），避免 dev-path/mock 构建的 unused 警告
+#[cfg(feature = "release-ffi")]
 use std::path::Path;
 
 fn main() {
