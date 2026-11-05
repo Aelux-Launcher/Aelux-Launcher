@@ -963,28 +963,7 @@ svg {
 .aelux-alert__title { font-weight: 700; }
 .aelux-alert__desc { color: var(--text-sub); line-height: 1.6; margin-bottom: 8px; }
 
-/* 账户管理页（HMCL 式：左添加 / 右列表） */
-.account-manage {
-  display: flex;
-  gap: 24px;
-  align-items: flex-start;
-  flex-shrink: 0;
-}
-.add-account-panel {
-  width: 220px;
-  flex-shrink: 0;
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  background: var(--bg-color);
-  padding: 8px;
-}
-.add-account-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-sub);
-  letter-spacing: 0.5px;
-  padding: 8px 12px 4px;
-}
+/* 账户管理页列表（侧栏面板复用 add-account-item 条目样式） */
 .add-account-item {
   width: 100%;
   display: flex;
@@ -1007,7 +986,7 @@ svg {
 .add-account-item .main { font-size: 14px; font-weight: 600; }
 .add-account-item .sub { font-size: 11px; color: var(--text-sub); }
 
-.account-list { flex: 1; min-width: 0; }
+.account-list { min-width: 0; }
 .account-empty { padding: 60px 0; }
 .account-row {
   display: flex;
@@ -1039,14 +1018,8 @@ svg {
 }
 .account-remove:hover { color: var(--danger); background: var(--hover-bg); }
 
-/* 版本选择页（PCL 式：左文件夹列表 / 右实例分组） */
-.select-layout {
-  display: flex;
-  gap: 24px;
-  align-items: flex-start;
-  flex-shrink: 0;
-}
-.folder-panel { width: 280px; flex-shrink: 0; }
+/* 子页侧栏面板（PCL 式：版本选择 → 文件夹列表；账户管理 → 添加账户） */
+.folder-panel { padding: 4px 10px 12px; }
 .folder-section-title {
   font-size: 12px;
   font-weight: 700;
@@ -1110,7 +1083,8 @@ svg {
 }
 .folder-menu button:hover { background: var(--hover-bg); }
 .folder-menu button:active { background: var(--icon-bg); }
-.instance-groups { flex: 1; min-width: 0; }
+.instance-groups { min-width: 0; }
+.account-list { min-width: 0; }
 
 /* 微软设备码登录弹窗 */
 .device-tip { margin: 0 0 14px; font-size: 14px; }

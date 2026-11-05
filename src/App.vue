@@ -23,6 +23,7 @@ import ResourceDetail from './views/ResourceDetail.vue'
 import HelpDetail from './views/HelpDetail.vue'
 import VersionDetail from './views/VersionDetail.vue'
 import Accounts from './views/Accounts.vue'
+import DeviceLoginModal from './components/DeviceLoginModal.vue'
 
 /** 离场动画时长（须与 theme.css 里 alx-stage-out 的时长一致） */
 const LEAVE_MS = 110
@@ -208,6 +209,9 @@ const showPreviewTip = ref(true)
         </button>
       </template>
     </AlxModal>
+
+    <!-- 微软设备码登录弹窗（全局：启动页 / 账户管理页侧栏均可触发） -->
+    <DeviceLoginModal />
 
     <!-- 全局 toast -->
     <div class="aelux-toasts">

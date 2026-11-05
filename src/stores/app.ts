@@ -596,6 +596,21 @@ export const useAppStore = defineStore('app', () => {
     ...addedFolders.value,
   ])
 
+  /** 版本选择页当前选中的文件夹（决定内容区显示哪个文件夹的实例）。 */
+  const selectedFolderId = ref('current')
+
+  function selectFolder(id: string) {
+    selectedFolderId.value = id
+  }
+
+  /** 文件夹展示名：内置类型用固定名，添加的取路径末段。 */
+  function folderDisplayName(f: StoredFolder): string {
+    if (f.type === 'current') return '当前文件夹'
+    if (f.type === 'official') return '官方文件夹'
+    const tail = f.path.split(/[\\/]/).filter(Boolean).pop()
+    return tail || f.path || '文件夹'
+  }
+
   /** 添加已有文件夹（Tauri 目录对话框；浏览器预览退化为路径输入）。 */
   async function addGameFolder(): Promise<void> {
     let path: string | null = null
@@ -1110,6 +1125,9 @@ export const useAppStore = defineStore('app', () => {
     loadLoaderVersions,
     dataDir,
     gameFolders,
+    selectedFolderId,
+    selectFolder,
+    folderDisplayName,
     addGameFolder,
     removeGameFolder,
     importModpack,

@@ -9,7 +9,6 @@ import { computed, ref } from 'vue'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import AlxIcon from '../components/AlxIcon.vue'
-import DeviceLoginModal from '../components/DeviceLoginModal.vue'
 
 /** 登录方式（与 store 偏好一致） */
 type LoginMode = 'official' | 'third' | 'offline'
@@ -181,8 +180,5 @@ function openInstanceSetup() {
         </div>
       </div>
     </div>
-
-    <!-- 微软设备码登录弹窗 -->
-    <DeviceLoginModal />
   </div>
 </template>

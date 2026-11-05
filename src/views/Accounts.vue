@@ -1,16 +1,15 @@
 ﻿<script setup lang="ts">
 /**
- * 账户管理页（副页面，HMCL 式布局的极简黑白演绎）：
- *   左栏「添加账户」：微软账户（设备码流）/ 离线模式；
- *   右栏账户列表：单选当前账户 + 删除；微软 / 离线均可多账户并存。
- * 设备码登录弹窗由 DeviceLoginModal 承担，状态在 store。
+ * 账户管理页（副页面，PCL 式）：
+ *   侧栏 = 添加账户（见 SideNav 的子页面板）；本页内容 = 账户列表
+ *   （单选当前账户 + 删除；微软 / 离线均可多账户并存）。
+ * 设备码登录弹窗由 App.vue 全局挂载，状态在 store。
  */
 import { computed } from 'vue'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import AlxIcon from '../components/AlxIcon.vue'
 import PageHeader from '../components/PageHeader.vue'
-import DeviceLoginModal from '../components/DeviceLoginModal.vue'
 
 const store = useAppStore()
 
@@ -35,23 +34,6 @@ function fmtTime(unix: string): string {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-/** 添加微软账户：走设备码流（弹窗由 store 状态驱动）。 */
-async function addMicrosoft() {
-  await store.startMicrosoftLogin()
-}
-
-/** 添加离线账户。 */
-async function addOffline() {
-  const name = window.prompt('输入游戏用户名（离线登录）')
-  if (!name) return
-  try {
-    await store.loginOffline(name)
-    toast.success(`已添加离线账户「${name.trim()}」`)
-  } catch (e) {
-    toast.error((e as Error).message)
-  }
-}
-
 /** 选中账户 → 设为当前会话。 */
 async function selectAccount(id: string) {
   if (id === currentId.value) return
@@ -72,64 +54,41 @@ async function deleteAccount(id: string) {
 <template>
   <div class="page-view active sub-page">
     <PageHeader title="账户管理" />
-    <div class="account-manage">
-      <!-- 左栏：添加账户 -->
-      <div class="add-account-panel">
-        <div class="add-account-title">添加账户</div>
-        <button type="button" class="add-account-item" @click="addMicrosoft">
-          <AlxIcon name="grid" :size="18" />
-          <span>
-            <span class="main">微软账户</span>
-            <span class="sub">正版验证</span>
-          </span>
-        </button>
-        <button type="button" class="add-account-item" @click="addOffline">
-          <AlxIcon name="user" :size="18" />
-          <span>
-            <span class="main">离线模式</span>
-            <span class="sub">本地身份</span>
-          </span>
-        </button>
+
+    <div class="account-list">
+      <div v-if="store.accounts.length === 0" class="empty-state account-empty">
+        <AlxIcon name="user" :size="32" />
+        <div>还没有账户，从左侧添加一个</div>
       </div>
 
-      <!-- 右栏：账户列表 -->
-      <div class="account-list">
-        <div v-if="store.accounts.length === 0" class="empty-state account-empty">
-          <AlxIcon name="user" :size="32" />
-          <div>还没有账户，从左侧添加一个</div>
+      <div
+        v-for="a in store.accounts"
+        :key="a.id"
+        class="account-row"
+        :class="{ current: a.id === currentId }"
+        @click="selectAccount(a.id)"
+      >
+        <span class="account-radio" :class="{ on: a.id === currentId }" />
+        <div class="item-icon">
+          <AlxIcon name="user" :size="20" />
         </div>
-
-        <div
-          v-for="a in store.accounts"
-          :key="a.id"
-          class="account-row"
-          :class="{ current: a.id === currentId }"
-          @click="selectAccount(a.id)"
-        >
-          <span class="account-radio" :class="{ on: a.id === currentId }" />
-          <div class="item-icon">
-            <AlxIcon name="user" :size="20" />
+        <div class="item-info">
+          <div class="item-title">{{ a.username }}</div>
+          <div class="item-desc">
+            {{ TYPE_LABEL[a.type] }}<template v-if="fmtTime(a.loggedInAt)"> · 登录于 {{ fmtTime(a.loggedInAt) }}</template>
           </div>
-          <div class="item-info">
-            <div class="item-title">{{ a.username }}</div>
-            <div class="item-desc">
-              {{ TYPE_LABEL[a.type] }}<template v-if="fmtTime(a.loggedInAt)"> · 登录于 {{ fmtTime(a.loggedInAt) }}</template>
-            </div>
-          </div>
-          <div class="item-right">
-            <button
-              type="button"
-              class="icon-btn account-remove"
-              title="删除账户"
-              @click.stop="deleteAccount(a.id)"
-            >
-              <AlxIcon name="trash" :size="16" />
-            </button>
-          </div>
+        </div>
+        <div class="item-right">
+          <button
+            type="button"
+            class="icon-btn account-remove"
+            title="删除账户"
+            @click.stop="deleteAccount(a.id)"
+          >
+            <AlxIcon name="trash" :size="16" />
+          </button>
         </div>
       </div>
     </div>
-
-    <DeviceLoginModal />
   </div>
 </template>
