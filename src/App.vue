@@ -5,7 +5,7 @@
  *   + 侧栏（按模块分组切换 + 底部账户区）
  *   + 内容舞台（双层交叉过渡，沿用既有动画体系）
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { router } from './router'
 import { useAppStore } from './stores/app'
 import TopHeader from './components/TopHeader.vue'
@@ -26,7 +26,9 @@ import Accounts from './views/Accounts.vue'
 import DeviceLoginModal from './components/DeviceLoginModal.vue'
 
 /** 离场动画时长（须与 theme.css 里 alx-stage-out 的时长一致） */
-const LEAVE_MS = 110
+const LEAVE_MS = 180
+
+type StageMotion = 'forward' | 'back' | 'swap'
 
 interface StageLayer {
   id: number
@@ -34,6 +36,7 @@ interface StageLayer {
   comp: Component
   props: Record<string, unknown>
   leaving: boolean
+  motion: StageMotion
 }
 
 const COMPONENTS: Record<string, Component> = {
@@ -85,6 +88,38 @@ function stageProps(r: (typeof route.value)): Record<string, unknown> {
   return {}
 }
 
+/**
+ * 根据页面层级决定过渡方向：模块进入详情是“推进”，从详情或模块回首页是“回退”；
+ * 同一模块的分类切换保持克制，避免用户在筛选资源时感到页面被重新打开。
+ */
+function stageMotion(from: (typeof route.value), to: (typeof route.value)): StageMotion {
+  const fromSub = Boolean(from.meta.sub)
+  const toSub = Boolean(to.meta.sub)
+  const fromModule = String(from.meta.module ?? 'home')
+  const toModule = String(to.meta.module ?? 'home')
+
+  if (!fromSub && toSub) return 'forward'
+  if (fromSub && !toSub) return 'back'
+  if (toModule === 'home' && fromModule !== 'home') return 'back'
+  if (fromModule === 'home' && toModule !== 'home') return 'forward'
+  return 'swap'
+}
+
+/** 每页独立记录滚动位置；从详情返回列表时不会丢失阅读位置。 */
+const scrollPositions = new Map<string, number>()
+
+function saveScroll(key: string) {
+  const page = document.querySelector<HTMLElement>('.alx-stage__layer:last-child .page-view')
+  if (page) scrollPositions.set(key, page.scrollTop)
+}
+
+function restoreScroll(key: string) {
+  void nextTick(() => {
+    const page = document.querySelector<HTMLElement>('.alx-stage__layer:last-child .page-view')
+    if (page) page.scrollTop = scrollPositions.get(key) ?? 0
+  })
+}
+
 const layers = ref<StageLayer[]>([
   {
     id: 0,
@@ -92,6 +127,7 @@ const layers = ref<StageLayer[]>([
     comp: COMPONENTS[String(route.value.name ?? 'home')] ?? Home,
     props: stageProps(route.value),
     leaving: false,
+    motion: 'swap',
   },
 ])
 let nextId = 1
@@ -99,19 +135,36 @@ let nextId = 1
 // 目标页变化 → 旧层转退场，新层立即入场。
 watch(
   () => stageKey(route.value),
-  (key) => {
+  (key, previousKey) => {
     const top = layers.value[layers.value.length - 1]
     if (!top || top.key === key) return
+    const motion = stageMotion(topRoute.value, route.value)
+    saveScroll(previousKey)
     layers.value = [
-      ...layers.value.map((l, i) => (i === layers.value.length - 1 ? { ...l, leaving: true } : l)),
+      ...layers.value.map((l, i) =>
+        i === layers.value.length - 1 ? { ...l, leaving: true, motion } : l,
+      ),
       {
         id: nextId++,
         key,
         comp: COMPONENTS[String(route.value.name ?? 'home')] ?? Home,
         props: stageProps(route.value),
         leaving: false,
+        motion,
       },
     ]
+    restoreScroll(key)
+  },
+  // 同步捕捉：DOM 仍是旧页，且 topRoute 尚未被路由快照观察器覆盖。
+  { flush: 'sync' },
+)
+
+/** 路由快照用于在响应式路由切换后仍能判断上一页的层级。 */
+const topRoute = ref(route.value)
+watch(
+  route,
+  (current, previous) => {
+    if (stageKey(current) !== stageKey(previous)) topRoute.value = previous
   },
 )
 
@@ -163,7 +216,12 @@ const showPreviewTip = ref(true)
           <div
             v-for="layer in layers"
             :key="layer.id"
-            :class="['alx-stage__layer', layer.leaving && 'alx-stage__layer--leaving']"
+            :class="[
+              'alx-stage__layer',
+              `alx-stage__layer--${layer.motion}`,
+              layer.leaving && 'alx-stage__layer--leaving',
+              !layer.leaving && layer.id !== 0 && 'alx-stage__layer--entering',
+            ]"
             :style="layer.id === 0 ? undefined : { '--alx-enter-base': `${LEAVE_MS}ms` }"
             :aria-hidden="layer.leaving || undefined"
             :inert="layer.leaving || undefined"

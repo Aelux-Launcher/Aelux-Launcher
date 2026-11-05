@@ -263,7 +263,10 @@ svg {
 .account-info .sub { font-size: 11px; color: var(--text-sub); }
 
 /* ============================================================================
- * 内容区 + 舞台（双层交叉过渡，沿用既有动画体系）
+ * 内容区 + 舞台（分层页面过渡）
+ *
+ * 详情页以短距离水平推进，返回反向回退；同级分类用更轻的淡入淡出。
+ * 它比全页缩放更能表达信息层级，也避免大列表切换时的“抽离感”。
  * ========================================================================== */
 .content-area {
   flex: 1;
@@ -286,20 +289,62 @@ svg {
   display: flex;
 }
 .alx-stage__layer > * { flex: 1; min-width: 0; }
+.alx-stage__layer--entering {
+  animation-duration: 220ms;
+  animation-timing-function: var(--alx-ease-out-fluent);
+  animation-fill-mode: both;
+}
+.alx-stage__layer--entering.alx-stage__layer--forward { animation-name: alx-stage-enter-forward; }
+.alx-stage__layer--entering.alx-stage__layer--back { animation-name: alx-stage-enter-back; }
+.alx-stage__layer--entering.alx-stage__layer--swap { animation-name: alx-stage-enter-swap; }
 .alx-stage__layer--leaving {
   position: absolute;
   inset: 0;
   z-index: 2;
   pointer-events: none;
-  animation: alx-stage-out 110ms var(--alx-ease-in-fluent-weak) both;
+  animation-duration: 180ms;
+  animation-timing-function: var(--alx-ease-in-fluent-weak);
+  animation-fill-mode: both;
 }
-@keyframes alx-stage-out {
-  0% { opacity: 1; transform: scale(1); }
-  27.273% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(0.95); }
+/* 新页始终在下层先就绪，旧页离场时不会露出空白。 */
+.alx-stage__layer--leaving.alx-stage__layer--forward { animation-name: alx-stage-leave-forward; }
+.alx-stage__layer--leaving.alx-stage__layer--back { animation-name: alx-stage-leave-back; }
+.alx-stage__layer--leaving.alx-stage__layer--swap { animation-name: alx-stage-leave-swap; }
+@keyframes alx-stage-enter-forward {
+  from { opacity: 0; transform: translateX(28px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes alx-stage-leave-forward {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(-18px); }
+}
+@keyframes alx-stage-enter-back {
+  from { opacity: 0; transform: translateX(-28px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes alx-stage-leave-back {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(18px); }
+}
+@keyframes alx-stage-enter-swap {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes alx-stage-leave-swap {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-6px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .alx-stage__layer--leaving { animation: none; display: none; }
+  .alx-stage__layer--entering,
+  .alx-stage__layer--leaving,
+  .nav-group.active > .nav-item,
+  .page-view.active > *,
+  .back-btn,
+  .alx-modal,
+  .alx-modal__box {
+    animation: none;
+  }
+  .alx-stage__layer--leaving { display: none; }
 }
 
 /* ---------------- 页面容器 ----------------
