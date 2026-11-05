@@ -169,7 +169,6 @@ svg {
 .nav-group {
   display: none;
   flex-direction: column;
-  padding-top: 12px;
 }
 .nav-group.active { display: flex; }
 
@@ -627,7 +626,7 @@ svg {
 
 /* 空状态 */
 .empty-state {
-  padding: 48px 0;
+  padding: 150px 0;
   text-align: center;
   color: var(--text-sub);
   font-size: 13px;
@@ -899,16 +898,19 @@ svg {
  * ========================================================================== */
 .page-view::-webkit-scrollbar,
 .sidebar::-webkit-scrollbar,
+.sidebar-scroll::-webkit-scrollbar,
 .content-area::-webkit-scrollbar {
   width: 8px;
 }
 .page-view::-webkit-scrollbar-track,
 .sidebar::-webkit-scrollbar-track,
+.sidebar-scroll::-webkit-scrollbar-track,
 .content-area::-webkit-scrollbar-track {
   background: transparent;
 }
 .page-view::-webkit-scrollbar-thumb,
 .sidebar::-webkit-scrollbar-thumb,
+.sidebar-scroll::-webkit-scrollbar-thumb,
 .content-area::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.18);
   border-radius: 3px;
@@ -916,12 +918,14 @@ svg {
   background-clip: content-box;
 }
 .page-view::-webkit-scrollbar-thumb:hover,
-.sidebar::-webkit-scrollbar-thumb:hover {
+.sidebar::-webkit-scrollbar-thumb:hover,
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.35);
   background-clip: content-box;
 }
 [data-theme="dark"] .page-view::-webkit-scrollbar-thumb,
-[data-theme="dark"] .sidebar::-webkit-scrollbar-thumb {
+[data-theme="dark"] .sidebar::-webkit-scrollbar-thumb,
+[data-theme="dark"] .sidebar-scroll::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
   background-clip: content-box;
 }
