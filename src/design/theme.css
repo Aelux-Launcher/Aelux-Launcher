@@ -107,6 +107,7 @@ svg {
   animation: alx-subbar-in 200ms var(--alx-ease-out-fluent) both;
 }
 .back-btn:hover { color: var(--text-main); }
+.back-btn:active { color: var(--text-main); opacity: 0.7; }
 
 .logo {
   font-size: 22px;
@@ -132,7 +133,9 @@ svg {
   transition: color var(--alx-dur-in) linear;
 }
 .window-controls button:hover { color: var(--text-main); }
+.window-controls button:active { background-color: var(--icon-bg); color: var(--text-main); }
 .window-controls button.win-close:hover { color: var(--danger); }
+.window-controls button.win-close:active { color: var(--danger); }
 
 /* ============================================================================
  * 主体布局：侧栏（220px）+ 内容区
@@ -206,6 +209,9 @@ svg {
 .nav-item.active {
   background-color: var(--hover-bg);
 }
+.nav-item:active {
+  background-color: var(--icon-bg);
+}
 
 /* ---------------- 底部账户区 ---------------- */
 .account-section {
@@ -238,6 +244,7 @@ svg {
   color: var(--text-main);
 }
 .account-card:hover { background-color: var(--hover-bg); }
+.account-card:active { background-color: var(--icon-bg); }
 
 .account-avatar {
   width: 32px;
@@ -319,7 +326,7 @@ svg {
   flex-direction: row;
   justify-content: flex-end;
   align-items: center;
-  padding-right: 12%;
+  padding-right: 6%;
   overflow: hidden;
 }
 
@@ -331,7 +338,7 @@ svg {
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  padding: 40px 0 60px 0;
+  padding: 16px 0;
 }
 
 .login-modes { display: flex; gap: 8px; }
@@ -468,6 +475,7 @@ svg {
 }
 .list-item:hover { background-color: var(--hover-bg); }
 .list-item.list-clickable { cursor: pointer; }
+.list-item.list-clickable:active { background-color: var(--icon-bg); }
 
 .item-left { display: flex; align-items: center; gap: 16px; min-width: 0; }
 .item-icon {
@@ -497,10 +505,11 @@ svg {
   font-size: 13px;
   cursor: pointer;
   font-family: inherit;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, transform 0.1s;
   flex-shrink: 0;
 }
 .btn-download:hover { opacity: 0.8; }
+.btn-download:active { transform: scale(0.97); }
 .btn-download:disabled { opacity: 0.4; cursor: default; }
 .btn-download.btn-ghost {
   background: transparent;
@@ -539,10 +548,11 @@ svg {
   border: none;
   color: var(--text-sub);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
   flex-shrink: 0;
 }
 .icon-btn:hover { background: var(--icon-bg); color: var(--text-main); }
+.icon-btn:active { transform: scale(0.94); }
 .icon-btn:disabled { opacity: 0.45; cursor: default; }
 .icon-btn:disabled:hover { background: transparent; color: var(--text-sub); }
 .version-row .item-right { opacity: 0; transition: opacity 0.15s; }
@@ -566,6 +576,7 @@ svg {
   transition: background 0.15s;
 }
 .version-group-header:hover { background: var(--hover-bg); }
+.version-group-header:active { background: var(--icon-bg); }
 .version-group-chevron {
   color: var(--text-sub);
   transition: transform 0.25s var(--alx-ease-out-fluent-strong);
@@ -626,6 +637,7 @@ svg {
   flex-shrink: 0;
 }
 .loader-item:hover { background: var(--hover-bg); }
+.loader-item:active { background: var(--icon-bg); }
 .loader-name { font-size: 15px; font-weight: 700; color: var(--text-main); width: 96px; flex-shrink: 0; }
 .loader-hint { font-size: 13px; color: var(--text-sub); flex: 1; min-width: 0; }
 .loader-chevron { color: var(--text-sub); flex-shrink: 0; }
@@ -648,9 +660,10 @@ svg {
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, transform 0.1s;
 }
 .version-start-btn:hover { opacity: 0.85; }
+.version-start-btn:active { transform: scale(0.97); }
 .version-start-btn:disabled { opacity: 0.4; cursor: default; }
 .version-start-btn.btn-ghost {
   background: transparent;
@@ -748,6 +761,8 @@ svg {
 
 /* 折叠面板 */
 .accordion-item { border-bottom: 1px solid var(--border-light); padding: 16px 0; cursor: pointer; }
+.accordion-item:hover { background-color: var(--hover-bg); }
+.accordion-item:active { background-color: var(--icon-bg); }
 .accordion-header {
   display: flex;
   justify-content: space-between;
