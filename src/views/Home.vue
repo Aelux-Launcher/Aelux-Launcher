@@ -106,6 +106,11 @@ function openSelect() {
   store.openSubPage({ kind: 'select' })
 }
 
+/** 没有任何账户时，主按钮改为「添加账户」→ 账户管理页。 */
+function openAccounts() {
+  store.openSubPage({ kind: 'accounts' })
+}
+
 function openInstanceSetup() {
   if (!selected.value) {
     toast.warning('请先安装一个游戏版本')
@@ -118,8 +123,8 @@ function openInstanceSetup() {
 <template>
   <div class="page-view active launch-page">
     <div class="launch-side">
-      <!-- 登录方式（仅展示当前选择，本页不切换） -->
-      <div class="login-modes static">
+      <!-- 登录方式（仅展示当前选择，本页不切换；没有任何账户时不显示方式徽标） -->
+      <div v-if="store.session || store.accounts.length > 0" class="login-modes static">
         <button type="button" class="active">{{ MODE_LABEL[displayMode] }}</button>
       </div>
 
@@ -143,9 +148,18 @@ function openInstanceSetup() {
       <!-- 动作区 -->
       <div class="action-section">
         <div class="action-group">
-          <!-- 登录按钮（未登录时，依据当前登录方式） -->
+          <!-- 登录按钮（未登录时：没有任何账户 → 添加账户；否则依据当前登录方式） -->
           <template v-if="!store.session">
-            <button v-if="displayMode === 'official'" type="button" class="btn-launch" @click="handleOfficialLogin">
+            <button
+              v-if="store.accounts.length === 0"
+              type="button"
+              class="btn-launch"
+              @click="openAccounts"
+            >
+              <span class="main-text">添加账户</span>
+              <span class="sub-text">当前未添加任何登录方式</span>
+            </button>
+            <button v-else-if="displayMode === 'official'" type="button" class="btn-launch" @click="handleOfficialLogin">
               <span class="main-text">微软账号登录</span>
               <span class="sub-text">正版验证</span>
             </button>

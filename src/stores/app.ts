@@ -14,6 +14,7 @@ import { toast } from '../lib/toast'
 import type {
   Announcement,
   AppModuleKey,
+  AuthServer,
   DeviceFlowState,
   DownloadManagerState,
   DownloadTaskState,
@@ -316,6 +317,11 @@ export const useAppStore = defineStore('app', () => {
       /* 账户列表读取失败按空处理 */
     }
     try {
+      await loadAuthServers()
+    } catch {
+      /* 认证服务器列表读取失败按空处理 */
+    }
+    try {
       dataDir.value = await call<string>('get_data_dir')
     } catch {
       /* 数据目录读取失败留空 */
@@ -393,8 +399,9 @@ export const useAppStore = defineStore('app', () => {
   /**
    * 安装版本：版本 JSON → 客户端 jar → 依赖库 → 资源索引 → 资源对象。
    * 进度写入 downloadState，任务管理页实时可见。
+   * meta 用于登记实例：name 为包名（如 `1.21.4-Forge_54.1.17`），loader 为加载器标识。
    */
-  async function installVersion(id: string) {
+  async function installVersion(id: string, meta?: { name?: string; loader?: string }) {
     if (installing.value) return
     installing.value = id
     installError.value = null
@@ -484,8 +491,8 @@ export const useAppStore = defineStore('app', () => {
 
       if (ds.failed > 0) throw new Error(`${ds.failed} 个文件下载失败，安装未完成`)
 
-      // 5. 登记为实例，主页即可一键启动
-      await createInstance(id, id, 'vanilla')
+      // 5. 登记为实例，主页即可一键启动（包名 = 版本号-加载器_加载器版本）
+      await createInstance(meta?.name?.trim() || id, id, meta?.loader ?? 'vanilla')
     } catch (e) {
       installError.value = (e as Error).message
     } finally {
@@ -827,6 +834,47 @@ export const useAppStore = defineStore('app', () => {
     setLoginMode('offline')
     await applyAccount(acc)
     await persistAccounts()
+  }
+
+  /* --------------------------- 外置登录服务器 --------------------------- */
+
+  /** 已添加的认证服务器（落 kv 'auth-servers'，账户管理侧栏在离线模式下方列出）。 */
+  const authServers = ref<AuthServer[]>([])
+
+  async function loadAuthServers() {
+    const raw = await kvGet('auth-servers')
+    authServers.value = raw ? (JSON.parse(raw) as AuthServer[]) : []
+  }
+
+  async function persistAuthServers() {
+    await call('kv_set', { key: 'auth-servers', value: JSON.stringify(authServers.value) })
+  }
+
+  /** 添加认证服务器：名称为空时取地址的域名。 */
+  async function addAuthServer(name: string, url: string): Promise<AuthServer> {
+    const addr = url.trim().replace(/\/+$/, '')
+    if (!addr) throw new Error('认证服务器地址不能为空')
+    if (authServers.value.some((s) => s.url === addr)) throw new Error('该认证服务器已添加')
+    let host = addr
+    try {
+      host = new URL(addr).host
+    } catch {
+      /* 非法 URL 时保留原始输入作为名称 */
+    }
+    const srv: AuthServer = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: name.trim() || host,
+      url: addr,
+    }
+    authServers.value = [...authServers.value, srv]
+    await persistAuthServers()
+    return srv
+  }
+
+  /** 删除认证服务器（调用方负责二次确认）。 */
+  async function removeAuthServer(id: string) {
+    authServers.value = authServers.value.filter((s) => s.id !== id)
+    await persistAuthServers()
   }
 
   /* ----------------------------- 微软设备码登录 ----------------------------- */
@@ -1368,6 +1416,10 @@ export const useAppStore = defineStore('app', () => {
     importModpack,
     restoreSession,
     accounts,
+    loadAccounts,
+    authServers,
+    addAuthServer,
+    removeAuthServer,
     deviceFlow,
     startMicrosoftLogin,
     cancelMicrosoftLogin,

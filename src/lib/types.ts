@@ -83,6 +83,16 @@ export interface StoredAccount {
   loggedInAt: string
 }
 
+/** 外置登录认证服务器（authlib-injector）。 */
+export interface AuthServer {
+  /** 稳定 id（时间戳 + 随机后缀） */
+  id: string
+  /** 展示名（缺省取服务器域名） */
+  name: string
+  /** 认证服务器地址 */
+  url: string
+}
+
 /** 微软设备码登录的状态机（登录弹窗渲染依据）。 */
 export interface DeviceFlowState {
   status: 'idle' | 'starting' | 'waiting' | 'success' | 'error'

@@ -1172,6 +1172,37 @@ svg {
   word-break: break-all;
   font-family: var(--aelux-font-mono);
 }
+
+/* 外置登录认证服务器（离线模式下方依次列出，行末叉号删除） */
+.auth-server-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-color);
+}
+.auth-server-info { flex: 1; min-width: 0; }
+.auth-server-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.auth-server-url {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--aelux-font-mono);
+}
+.auth-server-row .icon-btn { flex-shrink: 0; }
+.auth-server-add { margin-top: 10px; }
 .folder-menu {
   position: absolute;
   right: 10px;

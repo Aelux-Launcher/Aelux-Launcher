@@ -204,6 +204,27 @@ async function addOffline() {
   }
 }
 
+/** 添加外置登录认证服务器（地址必填，名称缺省取域名）。 */
+async function addAuthServer() {
+  const url = window.prompt('输入认证服务器地址（authlib-injector）')
+  if (!url?.trim()) return
+  try {
+    await store.addAuthServer('', url)
+    toast.success('认证服务器已添加')
+  } catch (e) {
+    toast.error((e as Error).message)
+  }
+}
+
+/** 删除认证服务器（二级锁：弹窗确认）。 */
+async function deleteAuthServer(id: string) {
+  const srv = store.authServers.find((s) => s.id === id)
+  if (!srv) return
+  if (!window.confirm(`确定删除认证服务器「${srv.name}」？`)) return
+  await store.removeAuthServer(id)
+  toast.success('认证服务器已删除')
+}
+
 /** 文件夹选中态（侧栏与内容区共享 store 状态）。 */
 function selectFolder(f: StoredFolder) {
   folderMenuOpen.value = false
@@ -277,7 +298,7 @@ function selectFolder(f: StoredFolder) {
         </button>
       </div>
 
-      <!-- 账户管理页：侧栏切换为添加账户（PCL 式） -->
+      <!-- 账户管理页：侧栏切换为添加账户 + 外置登录服务器（PCL 式） -->
       <div v-else-if="sidePanelKind === 'accounts'" class="folder-panel">
         <div class="folder-section-title">添加账户</div>
         <button type="button" class="add-account-item" @click="addMicrosoft">
@@ -292,6 +313,30 @@ function selectFolder(f: StoredFolder) {
           <span>
             <span class="main">离线模式</span>
             <span class="sub">本地身份</span>
+          </span>
+        </button>
+
+        <!-- 已添加的外置登录服务器：依次显示在离线模式下方 -->
+        <div v-for="s in store.authServers" :key="s.id" class="auth-server-row">
+          <div class="auth-server-info">
+            <div class="auth-server-name">{{ s.name }}</div>
+            <div class="auth-server-url">{{ s.url }}</div>
+          </div>
+          <button
+            type="button"
+            class="icon-btn account-remove"
+            title="删除认证服务器"
+            @click.stop="deleteAuthServer(s.id)"
+          >
+            <AlxIcon name="x" :size="15" />
+          </button>
+        </div>
+
+        <button type="button" class="add-account-item auth-server-add" @click="addAuthServer">
+          <AlxIcon name="globe" :size="18" />
+          <span>
+            <span class="main">添加认证服务器</span>
+            <span class="sub">外置登录 · authlib-injector</span>
           </span>
         </button>
       </div>
@@ -336,8 +381,8 @@ function selectFolder(f: StoredFolder) {
       </template>
     </div>
 
-    <!-- 底部账户区：点击进入账户管理页 -->
-    <div class="account-section">
+    <!-- 底部账户区：点击进入账户管理页（账户管理页内不再显示，避免与列表重复） -->
+    <div v-if="sidePanelKind !== 'accounts'" class="account-section">
       <div class="account-title">账户</div>
       <button type="button" class="account-card" @click="openAccounts">
         <div class="account-avatar">

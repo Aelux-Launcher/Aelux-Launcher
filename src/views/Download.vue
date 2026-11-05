@@ -126,11 +126,6 @@ const versionGroups = computed(() =>
   })),
 )
 
-/** 该版本是否已安装（用于列表里的「已安装」标签） */
-function isInstalled(id: string): boolean {
-  return store.instances.some((i) => i.version === id)
-}
-
 /** 点击版本行 → 进入版本详情页（加载器选择 + 开始下载）。 */
 function openVersionPage(id: string) {
   store.openSubPage({ kind: 'version', versionId: id })
@@ -324,11 +319,7 @@ function retrySearch() {
                 <AlxIcon name="columns" :size="20" />
               </div>
               <div class="item-info">
-                <div class="item-title">
-                  {{ latestRelease.id }}
-                  <span class="tag">推荐</span>
-                  <span v-if="isInstalled(latestRelease.id)" class="tag">已安装</span>
-                </div>
+                <div class="item-title">{{ latestRelease.id }}</div>
                 <div class="item-desc">最新正式版，发布于 {{ formatDateTime(latestRelease.releaseTime) }}</div>
               </div>
             </div>
@@ -344,11 +335,7 @@ function retrySearch() {
                 <AlxIcon name="columns" :size="20" />
               </div>
               <div class="item-info">
-                <div class="item-title">
-                  {{ latestSnapshot.id }}
-                  <span class="tag">预览</span>
-                  <span v-if="isInstalled(latestSnapshot.id)" class="tag">已安装</span>
-                </div>
+                <div class="item-title">{{ latestSnapshot.id }}</div>
                 <div class="item-desc">最新预览版，发布于 {{ formatDateTime(latestSnapshot.releaseTime) }}</div>
               </div>
             </div>
@@ -383,10 +370,7 @@ function retrySearch() {
                     <AlxIcon name="columns" :size="20" />
                   </div>
                   <div class="item-info">
-                    <div class="item-title">
-                      {{ v.id }}
-                      <span v-if="isInstalled(v.id)" class="tag">已安装</span>
-                    </div>
+                    <div class="item-title">{{ v.id }}</div>
                     <div class="item-desc">发布于 {{ formatDateTime(v.releaseTime) }}</div>
                   </div>
                 </div>

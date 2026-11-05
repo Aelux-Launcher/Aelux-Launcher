@@ -44,6 +44,29 @@ const optiFineSupported = computed(() => {
   return major === 1 && Number.isFinite(minor) && minor <= 16
 })
 
+/** 加载器显示名（包名后缀用正式写法）。 */
+const LOADER_NAMES: Record<LoaderKey, string> = {
+  forge: 'Forge',
+  neoforge: 'NeoForge',
+  fabric: 'Fabric',
+  quilt: 'Quilt',
+  optifine: 'OptiFine',
+}
+
+/**
+ * 包名 = 版本号-加载器_加载器版本（如 `1.21.4-Forge_54.1.17`，Fabric 为 `26.3-Fabric_0.20.1`）。
+ * 未选加载器时就是纯版本号；该名字同时作为实例 / 文件夹名。
+ */
+const packageName = computed(() => {
+  const parts: string[] = [props.versionId]
+  const primary = primarySelection.value
+  const primaryVersion = primary ? selectedVersions.value[primary] : undefined
+  if (primary && primaryVersion) parts.push(`${LOADER_NAMES[primary]}_${primaryVersion}`)
+  const optifineVersion = selectedVersions.value.optifine
+  if (optifineVersion) parts.push(`OptiFine_${optifineVersion}`)
+  return parts.join('-')
+})
+
 function isUnavailable(key: LoaderKey): boolean {
   if (key === 'optifine') return !optiFineSupported.value
   return Boolean(primarySelection.value && primarySelection.value !== key)
@@ -134,12 +157,13 @@ function goBack() {
   store.pageBack()
 }
 
-/** 开始下载：安装原版核心，成功 / 失败均给反馈。 */
+/** 开始下载：安装原版核心，成功 / 失败均给反馈；实例名即包名。 */
 async function startDownload() {
-  await store.installVersion(props.versionId)
+  const loader = primarySelection.value ?? (selectedVersions.value.optifine ? 'optifine' : 'vanilla')
+  await store.installVersion(props.versionId, { name: packageName.value, loader })
   const err = store.installError
   if (err) toast.error(`安装失败：${err}`)
-  else toast.success(`已下载 ${props.versionId}，可在「启动」页一键启动`)
+  else toast.success(`已下载 ${packageName.value}，可在「启动」页一键启动`)
 }
 </script>
 
@@ -155,7 +179,7 @@ async function startDownload() {
         <div class="item-icon">
           <AlxIcon name="minecraft" :size="24" />
         </div>
-        <div class="version-hero-name">{{ versionId }}</div>
+        <div class="version-hero-name">{{ packageName }}</div>
       </div>
 
       <!-- 加载器列表（可展开） -->

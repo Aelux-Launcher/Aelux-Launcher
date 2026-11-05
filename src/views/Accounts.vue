@@ -10,6 +10,7 @@ import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import AlxIcon from '../components/AlxIcon.vue'
 import PageHeader from '../components/PageHeader.vue'
+import type { StoredAccount } from '../lib/types'
 
 const store = useAppStore()
 
@@ -39,6 +40,30 @@ async function selectAccount(id: string) {
   if (id === currentId.value) return
   await store.switchAccount(id)
   toast.success(`已切换到「${store.session?.username ?? ''}」`)
+}
+
+/** 刷新账户：微软走设备码重新验证；离线账户无需刷新。 */
+async function refreshAccount(a: StoredAccount) {
+  if (a.type === 'microsoft') {
+    await store.startMicrosoftLogin()
+    return
+  }
+  toast.info('离线账户无需刷新')
+}
+
+/** 上传 / 编辑皮肤（皮肤管理接入内核前给出提示）。 */
+function editSkin(a: StoredAccount) {
+  toast.info(a.type === 'offline' ? '上传皮肤功能尚未接入内核' : '编辑皮肤功能尚未接入内核')
+}
+
+/** 复制账户 UUID 到系统剪贴板。 */
+async function copyUuid(a: StoredAccount) {
+  try {
+    await navigator.clipboard.writeText(a.uuid)
+    toast.success('UUID 已复制')
+  } catch {
+    toast.error('复制失败，请手动复制')
+  }
 }
 
 /** 删除账户（当前账户删除后登出）。 */
@@ -79,6 +104,30 @@ async function deleteAccount(id: string) {
           </div>
         </div>
         <div class="item-right">
+          <button
+            type="button"
+            class="icon-btn"
+            title="刷新账户"
+            @click.stop="refreshAccount(a)"
+          >
+            <AlxIcon name="refresh" :size="16" />
+          </button>
+          <button
+            type="button"
+            class="icon-btn"
+            :title="a.type === 'offline' ? '上传皮肤' : '编辑皮肤'"
+            @click.stop="editSkin(a)"
+          >
+            <AlxIcon name="image" :size="16" />
+          </button>
+          <button
+            type="button"
+            class="icon-btn"
+            title="复制 UUID"
+            @click.stop="copyUuid(a)"
+          >
+            <AlxIcon name="copy" :size="16" />
+          </button>
           <button
             type="button"
             class="icon-btn account-remove"
