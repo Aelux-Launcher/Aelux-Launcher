@@ -8,7 +8,6 @@ name: Release
 #
 # 测试期版本号策略：三处版本号统一维护为 0.1.0，不随构建自增——
 #   package.json / src-tauri/tauri.conf.json（启动器）、Aelux-Core/Cargo.toml（内核）。
-name: Release
 
 on:
   push:
