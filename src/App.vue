@@ -22,6 +22,7 @@ import Instance from './views/Instance.vue'
 import ResourceDetail from './views/ResourceDetail.vue'
 import HelpDetail from './views/HelpDetail.vue'
 import VersionDetail from './views/VersionDetail.vue'
+import Accounts from './views/Accounts.vue'
 
 /** 离场动画时长（须与 theme.css 里 alx-stage-out 的时长一致） */
 const LEAVE_MS = 110
@@ -45,6 +46,7 @@ const COMPONENTS: Record<string, Component> = {
   resource: ResourceDetail,
   help: HelpDetail,
   version: VersionDetail,
+  accounts: Accounts,
 }
 
 const store = useAppStore()

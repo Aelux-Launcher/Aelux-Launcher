@@ -12,7 +12,7 @@ use std::sync::OnceLock;
 use serde_json::Value;
 use tauri::Manager;
 
-use crate::dto::{GameInstance, LauncherConfig, OsInfo, VersionManifest};
+use crate::dto::{Account, DeviceCodeSession, GameInstance, LauncherConfig, OsInfo, VersionManifest};
 
 use super::CoreError;
 
@@ -225,6 +225,21 @@ pub async fn download_file(url: String, dest: String, sha1: Option<String>) -> R
 pub async fn fetch_minecraft_manifest() -> Result<VersionManifest, CoreError> {
     let value = invoke("minecraft.manifest", &Value::Null).await?;
     serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn auth_start_device_flow() -> Result<DeviceCodeSession, CoreError> {
+    let value = invoke("auth.ms.start", &Value::Null).await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn auth_poll_device_flow(session: DeviceCodeSession) -> Result<Account, CoreError> {
+    let value = invoke("auth.ms.poll", &serde_json::to_value(session).map_err(|e| e.to_string())?).await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn auth_logout(msa_id: String) -> Result<(), CoreError> {
+    invoke_sync("auth.ms.logout", &serde_json::json!({ "msa_id": msa_id }))?;
+    Ok(())
 }
 
 pub fn list_instances() -> Result<Vec<GameInstance>, CoreError> {

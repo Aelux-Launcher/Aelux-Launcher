@@ -217,7 +217,6 @@ svg {
 .account-section {
   /* 固定于侧栏底部，不随导航区滚动（在 .sidebar-scroll 之外） */
   flex-shrink: 0;
-  border-top: 1px solid var(--border-light);
 }
 
 .account-title {
@@ -364,7 +363,12 @@ svg {
 .login-modes.static button { cursor: default; }
 .login-modes.static button:hover { color: var(--text-main); font-weight: 600; }
 
-.profile-section { display: flex; flex-direction: column; align-items: center; }
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
 
 .avatar {
   width: 80px;
@@ -941,6 +945,144 @@ svg {
 .aelux-alert__head { margin-bottom: 4px; }
 .aelux-alert__title { font-weight: 700; }
 .aelux-alert__desc { color: var(--text-sub); line-height: 1.6; margin-bottom: 8px; }
+
+/* 账户管理页（HMCL 式：左添加 / 右列表） */
+.account-manage {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+.add-account-panel {
+  width: 220px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--bg-color);
+  padding: 8px;
+}
+.add-account-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-sub);
+  letter-spacing: 0.5px;
+  padding: 8px 12px 4px;
+}
+.add-account-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  color: var(--text-main);
+  transition: background 0.15s;
+}
+.add-account-item:hover { background: var(--hover-bg); }
+.add-account-item:active { background: var(--icon-bg); }
+.add-account-item svg { color: var(--text-sub); flex-shrink: 0; }
+.add-account-item > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.add-account-item .main { font-size: 14px; font-weight: 600; }
+.add-account-item .sub { font-size: 11px; color: var(--text-sub); }
+
+.account-list { flex: 1; min-width: 0; }
+.account-empty { padding: 60px 0; }
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--bg-color);
+  padding: 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.account-row:hover { background: var(--hover-bg); }
+.account-row:active { background: var(--icon-bg); }
+.account-row.current { border-color: var(--text-main); }
+.account-radio {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-light);
+  flex-shrink: 0;
+  transition: border-color 0.15s;
+}
+.account-radio.on {
+  border-color: var(--text-main);
+  box-shadow: inset 0 0 0 3.5px var(--bg-color);
+  background: var(--text-main);
+}
+.account-remove:hover { color: var(--danger); background: var(--hover-bg); }
+
+/* 微软设备码登录弹窗 */
+.device-tip { margin: 0 0 14px; font-size: 14px; }
+.device-code {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--hover-bg);
+  font-family: var(--aelux-font-mono);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.device-code:hover { background: var(--icon-bg); }
+.device-code:active { transform: scale(0.99); }
+.device-code svg { color: var(--text-sub); }
+.device-sub { margin: 12px 0 0; font-size: 13px; color: var(--text-sub); }
+.device-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-main);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+.device-waiting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 0;
+  font-size: 13px;
+  color: var(--text-sub);
+}
+.device-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border-light);
+  border-top-color: var(--text-main);
+  animation: device-spin 0.8s linear infinite;
+}
+@keyframes device-spin {
+  to { transform: rotate(360deg); }
+}
+.device-success {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.device-success svg { color: var(--text-main); }
+.device-error { margin: 0 0 16px; font-size: 13px; color: var(--danger); }
+.device-retry { display: flex; justify-content: flex-end; gap: 10px; }
 
 /* ============================================================================
  * 进入动画关键帧（沿用既有动画体系）

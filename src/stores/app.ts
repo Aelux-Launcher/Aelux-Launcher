@@ -9,9 +9,11 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { router } from '../router'
 import { call, kvGet } from '../lib/bridge'
+import type { Account, DeviceCodeSession } from '../lib/bindings'
 import type {
   Announcement,
   AppModuleKey,
+  DeviceFlowState,
   DownloadManagerState,
   DownloadTaskState,
   GameInstance,
@@ -24,6 +26,7 @@ import type {
   ResourceVersion,
   Session,
   Settings,
+  StoredAccount,
   SubPage,
   VersionEntry,
 } from '../lib/types'
@@ -94,6 +97,7 @@ export const useAppStore = defineStore('app', () => {
       }
     if (meta.sub === 'version')
       return { kind: 'version', versionId: String(route.value.params.versionId ?? '') }
+    if (meta.sub === 'accounts') return { kind: 'accounts' }
     return null
   })
 
@@ -280,6 +284,11 @@ export const useAppStore = defineStore('app', () => {
       }
     } catch {
       /* 登录方式读取失败用默认值 */
+    }
+    try {
+      await loadAccounts()
+    } catch {
+      /* 账户列表读取失败按空处理 */
     }
     try {
       await loadSettings()
@@ -543,6 +552,152 @@ export const useAppStore = defineStore('app', () => {
     session.value = raw ? (JSON.parse(raw) as Session) : null
   }
 
+  /* ------------------------------- 多账户管理 ------------------------------- */
+
+  /** 账户列表（微软 / 离线多账户并存，落 kv 'accounts'）。 */
+  const accounts = ref<StoredAccount[]>([])
+
+  async function loadAccounts() {
+    const raw = await kvGet('accounts')
+    accounts.value = raw ? (JSON.parse(raw) as StoredAccount[]) : []
+  }
+
+  async function persistAccounts() {
+    await call('kv_set', { key: 'accounts', value: JSON.stringify(accounts.value) })
+  }
+
+  /** 把账户设为当前会话并落 kv。 */
+  async function applyAccount(acc: StoredAccount) {
+    const s: Session = {
+      type: acc.type === 'microsoft' ? 'microsoft' : 'offline',
+      username: acc.username,
+      uuid: acc.uuid,
+    }
+    session.value = s
+    await call('kv_set', { key: 'session', value: JSON.stringify(s) })
+  }
+
+  /** 微软账户（内核登录成功）入列并设为当前；重复登录同账户则更新。 */
+  async function addMicrosoftAccount(a: Account) {
+    const acc: StoredAccount = {
+      id: a.msaId,
+      type: 'microsoft',
+      username: a.username,
+      uuid: a.uuid,
+      loggedInAt: a.loggedInAt,
+    }
+    const idx = accounts.value.findIndex((x) => x.id === acc.id)
+    if (idx >= 0) accounts.value[idx] = acc
+    else accounts.value.push(acc)
+    setLoginMode('official')
+    await applyAccount(acc)
+    await persistAccounts()
+  }
+
+  /** 切换当前账户（账户页单选）。 */
+  async function switchAccount(id: string) {
+    const acc = accounts.value.find((a) => a.id === id)
+    if (!acc) return
+    setLoginMode(acc.type === 'microsoft' ? 'official' : 'offline')
+    await applyAccount(acc)
+  }
+
+  /** 移除账户；微软账户同时清钥匙串凭证；移除当前账户则登出会话。 */
+  async function removeAccount(id: string) {
+    const acc = accounts.value.find((a) => a.id === id)
+    if (!acc) return
+    accounts.value = accounts.value.filter((a) => a.id !== id)
+    await persistAccounts()
+    if (acc.type === 'microsoft') {
+      try {
+        await call('auth_logout', { msaId: acc.id })
+      } catch {
+        /* 钥匙串清理失败不阻断前端移除 */
+      }
+    }
+    if (session.value && session.value.uuid === acc.uuid) {
+      session.value = null
+      await call('kv_remove', { key: 'session' })
+    }
+  }
+
+  /** 离线登录：加入 / 更新离线账户并设为当前（多离线账户并存）。 */
+  async function loginOffline(username: string) {
+    if (!username.trim()) throw new Error('用户名不能为空')
+    const uuid = offlineUuid(username.trim())
+    const acc: StoredAccount = {
+      id: uuid,
+      type: 'offline',
+      username: username.trim(),
+      uuid,
+      loggedInAt: String(Math.floor(Date.now() / 1000)),
+    }
+    const idx = accounts.value.findIndex((x) => x.id === acc.id)
+    if (idx >= 0) accounts.value[idx] = acc
+    else accounts.value.push(acc)
+    setLoginMode('offline')
+    await applyAccount(acc)
+    await persistAccounts()
+  }
+
+  /* ----------------------------- 微软设备码登录 ----------------------------- */
+
+  /** 设备码流 UI 状态机：starting → waiting →(轮询)→ success / error。 */
+  const deviceFlow = ref<DeviceFlowState>({ status: 'idle', userCode: '', verificationUri: '', error: '' })
+
+  let pollTimer: number | null = null
+
+  function stopPolling() {
+    if (pollTimer !== null) {
+      window.clearTimeout(pollTimer)
+      pollTimer = null
+    }
+  }
+
+  /** 发起微软登录：拿设备码 → 自动打开验证页 → 按 interval 轮询。 */
+  async function startMicrosoftLogin() {
+    stopPolling()
+    deviceFlow.value = { status: 'starting', userCode: '', verificationUri: '', error: '' }
+    try {
+      const s = await call<DeviceCodeSession>('auth_start_device_flow')
+      deviceFlow.value = {
+        status: 'waiting',
+        userCode: s.userCode,
+        verificationUri: s.verificationUri,
+        error: '',
+      }
+      void call('open_external', { url: s.verificationUri }).catch(() => {})
+      schedulePoll(s)
+    } catch (e) {
+      deviceFlow.value = { status: 'error', userCode: '', verificationUri: '', error: (e as Error).message }
+    }
+  }
+
+  function schedulePoll(s: DeviceCodeSession) {
+    pollTimer = window.setTimeout(() => void pollOnce(s), Math.max(1000, s.interval * 1000))
+  }
+
+  async function pollOnce(s: DeviceCodeSession) {
+    try {
+      const a = await call<Account>('auth_poll_device_flow', { session: s })
+      await addMicrosoftAccount(a)
+      deviceFlow.value = { ...deviceFlow.value, status: 'success' }
+    } catch (e) {
+      const msg = (e as Error).message
+      if (msg.includes('等待') || msg.includes('稍候')) {
+        schedulePoll(s) // pending：继续按 interval 轮询
+      } else {
+        deviceFlow.value = { ...deviceFlow.value, status: 'error', error: msg }
+      }
+    }
+  }
+
+  /** 关闭登录弹窗：停止轮询并复位状态。 */
+  function cancelMicrosoftLogin() {
+    stopPolling()
+    deviceFlow.value = { status: 'idle', userCode: '', verificationUri: '', error: '' }
+  }
+
   /* ------------------------------- 登录方式 ------------------------------- */
 
   /** 登录方式偏好：启动页展示与登录按钮依据（会话存在时展示跟随会话）。 */
@@ -552,21 +707,6 @@ export const useAppStore = defineStore('app', () => {
   function setLoginMode(m: 'official' | 'third' | 'offline') {
     loginMode.value = m
     void call('kv_set', { key: 'login-mode', value: m })
-  }
-
-  async function loginOffline(username: string) {
-    if (!username.trim()) throw new Error('用户名不能为空')
-    const uuid = offlineUuid(username.trim())
-    const s: Session = { type: 'offline', username: username.trim(), uuid }
-    session.value = s
-    setLoginMode('offline')
-    await call('kv_set', { key: 'session', value: JSON.stringify(s) })
-  }
-
-  /** 微软登录：设备码流在内核 auth 模块，接入前给出明确提示。 */
-  async function loginMicrosoft(): Promise<never> {
-    setLoginMode('official')
-    throw new Error('微软登录将在内核 auth 模块（设备码流 + keyring）就绪后开放')
   }
 
   async function logout() {
@@ -824,10 +964,15 @@ export const useAppStore = defineStore('app', () => {
     saveVersionClient,
     downloadVersionServer,
     restoreSession,
+    accounts,
+    deviceFlow,
+    startMicrosoftLogin,
+    cancelMicrosoftLogin,
+    switchAccount,
+    removeAccount,
     loginMode,
     setLoginMode,
     loginOffline,
-    loginMicrosoft,
     logout,
     loadSettings,
     saveSettings,
@@ -861,6 +1006,8 @@ function subPath(p: SubPage): string {
       return `/help/${p.entryId}?title=${encodeURIComponent(p.title)}`
     case 'version':
       return `/version/${p.versionId}`
+    case 'accounts':
+      return '/accounts'
   }
 }
 

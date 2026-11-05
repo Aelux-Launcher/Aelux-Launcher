@@ -72,6 +72,25 @@ export interface Session {
   roleId?: string
 }
 
+/** 本地账户列表条目（微软 / 离线多账户并存，落 kv 'accounts'）。 */
+export interface StoredAccount {
+  /** 微软账户为 msaId（XBL uhs），离线账户为离线 UUID */
+  id: string
+  type: 'microsoft' | 'offline'
+  username: string
+  uuid: string
+  /** 登录时间（Unix 秒，仅展示） */
+  loggedInAt: string
+}
+
+/** 微软设备码登录的状态机（登录弹窗渲染依据）。 */
+export interface DeviceFlowState {
+  status: 'idle' | 'starting' | 'waiting' | 'success' | 'error'
+  userCode: string
+  verificationUri: string
+  error: string
+}
+
 /** 公告。 */
 export interface Announcement {
   id: string
@@ -199,3 +218,4 @@ export type SubPage =
   | { kind: 'resource'; resourceKind: ResourceKind; projectId: string; title: string }
   | { kind: 'help'; entryId: string; title: string }
   | { kind: 'version'; versionId: string }
+  | { kind: 'accounts' }

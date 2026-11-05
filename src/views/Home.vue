@@ -9,6 +9,7 @@ import { computed, ref } from 'vue'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import AlxIcon from '../components/AlxIcon.vue'
+import DeviceLoginModal from '../components/DeviceLoginModal.vue'
 
 /** 登录方式（与 store 偏好一致） */
 type LoginMode = 'official' | 'third' | 'offline'
@@ -85,9 +86,9 @@ function handleThirdLogin() {
   toast.info('第三方（服务器账号）登录尚未接入，请使用离线或微软登录。')
 }
 
-/** 正版登录：设备码流在内核 auth 模块，接入前提示。 */
-function handleOfficialLogin() {
-  toast.info('微软登录将在内核 auth 模块（设备码流 + keyring）就绪后开放。')
+/** 正版登录：设备码流（内核 auth 模块），弹窗展示设备码并轮询。 */
+async function handleOfficialLogin() {
+  await store.startMicrosoftLogin()
 }
 
 /** 离线登录：以昵称派生离线身份。 */
@@ -180,5 +181,8 @@ function openInstanceSetup() {
         </div>
       </div>
     </div>
+
+    <!-- 微软设备码登录弹窗 -->
+    <DeviceLoginModal />
   </div>
 </template>

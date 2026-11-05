@@ -5,7 +5,7 @@
 //! 生成类型化 TS 绑定（`src/lib/bindings.ts`，纳入 git）。
 
 use crate::core_api;
-use crate::dto::{GameInstance, LauncherConfig, OsInfo, VersionManifest};
+use crate::dto::{Account, DeviceCodeSession, GameInstance, LauncherConfig, OsInfo, VersionManifest};
 
 /* ------------------------------ 内核命令 ------------------------------ */
 
@@ -43,6 +43,26 @@ pub async fn download_file(url: String, dest: String, sha1: Option<String>) -> R
 #[specta::specta]
 pub async fn fetch_minecraft_manifest() -> Result<VersionManifest, String> {
     core_api::fetch_minecraft_manifest().await
+}
+
+/* ------------------------------ 认证命令 ------------------------------ */
+
+#[tauri::command]
+#[specta::specta]
+pub async fn auth_start_device_flow() -> Result<DeviceCodeSession, String> {
+    core_api::auth_start_device_flow().await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn auth_poll_device_flow(session: DeviceCodeSession) -> Result<Account, String> {
+    core_api::auth_poll_device_flow(session).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn auth_logout(msa_id: String) -> Result<(), String> {
+    core_api::auth_logout(msa_id)
 }
 
 #[tauri::command]

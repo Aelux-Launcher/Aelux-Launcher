@@ -103,3 +103,27 @@ impl Default for LauncherConfig {
         }
     }
 }
+
+/// 设备码登录会话（轮询时原样回传）。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceCodeSession {
+    pub user_code: String,
+    pub verification_uri: String,
+    pub interval: u64,
+    pub expires_in: u64,
+    pub device_code: String,
+}
+
+/// 已登录的微软 Minecraft 账户。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Account {
+    /// 微软账户标识（XBL user hash，多账户主键）
+    pub msa_id: String,
+    pub username: String,
+    /// Minecraft UUID（无横线）
+    pub uuid: String,
+    /// 登录时间（Unix 秒，仅展示）
+    pub logged_in_at: String,
+}

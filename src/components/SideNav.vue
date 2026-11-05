@@ -8,9 +8,6 @@
 import { computed } from 'vue'
 import { useAppStore } from '../stores/app'
 import AlxIcon from './AlxIcon.vue'
-import AlxModal from './AlxModal.vue'
-import { toast } from '../lib/toast'
-import { ref } from 'vue'
 
 interface NavEntry {
   key: string
@@ -19,7 +16,11 @@ interface NavEntry {
 }
 
 const store = useAppStore()
-const accountModalOpen = ref(false)
+
+/** 账户卡 → 账户管理页（多账户列表，参考 HMCL）。 */
+function openAccounts() {
+  store.openSubPage({ kind: 'accounts' })
+}
 
 /** 各模块的侧栏分组（key 与路由参数一致）。 */
 const GROUPS: Record<string, Array<{ title: string; items: NavEntry[] }>> = {
@@ -112,25 +113,6 @@ function onNav(key: string) {
   store.setNav(m, key)
   void store.routerPush(`/${m}/${key}`)
 }
-
-async function handleMicrosoftLogin() {
-  try {
-    await store.loginMicrosoft()
-  } catch (e) {
-    toast.info((e as Error).message)
-  }
-}
-
-async function handleOfflineLogin() {
-  const name = window.prompt('输入游戏用户名（离线登录）')
-  if (!name) return
-  try {
-    await store.loginOffline(name)
-    toast.success(`已使用离线身份「${store.session?.username}」登录`)
-  } catch (e) {
-    toast.error((e as Error).message)
-  }
-}
 </script>
 
 <template>
@@ -154,10 +136,10 @@ async function handleOfflineLogin() {
       </template>
     </div>
 
-    <!-- 底部账户区 -->
+    <!-- 底部账户区：点击进入账户管理页 -->
     <div class="account-section">
       <div class="account-title">账户</div>
-      <button type="button" class="account-card" @click="accountModalOpen = true">
+      <button type="button" class="account-card" @click="openAccounts">
         <div class="account-avatar">
           <AlxIcon name="user" :size="18" />
         </div>
@@ -167,38 +149,5 @@ async function handleOfflineLogin() {
         </div>
       </button>
     </div>
-
-    <!-- 账户管理弹窗 -->
-    <AlxModal :open="accountModalOpen" title="账户管理" @close="accountModalOpen = false">
-      <template v-if="store.session">
-        <p>
-          当前账户：{{ store.session.username }}（{{
-            store.session.type === 'offline' ? '离线' : '正版'
-          }}）
-        </p>
-      </template>
-      <template v-else>
-        <p>尚未登录。离线登录即可完全本地游玩；正版登录需要联网校验。</p>
-      </template>
-      <template #actions>
-        <button v-if="store.session" type="button" class="btn-sub" @click="store.logout()">
-          注销
-        </button>
-        <button v-else type="button" class="btn-sub" @click="handleOfflineLogin">
-          离线登录
-        </button>
-        <button
-          v-if="!store.session"
-          type="button"
-          class="btn-download"
-          @click="handleMicrosoftLogin"
-        >
-          微软账号登录
-        </button>
-        <button v-else type="button" class="btn-download" @click="accountModalOpen = false">
-          完成
-        </button>
-      </template>
-    </AlxModal>
   </aside>
 </template>

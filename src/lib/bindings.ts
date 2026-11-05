@@ -10,6 +10,9 @@ export const commands = {
 	fetchJson: (url: string) => typedError<string, string>(__TAURI_INVOKE("fetch_json", { url })),
 	downloadFile: (url: string, dest: string, sha1: string | null) => typedError<string, string>(__TAURI_INVOKE("download_file", { url, dest, sha1 })),
 	fetchMinecraftManifest: () => typedError<VersionManifest_Serialize, string>(__TAURI_INVOKE("fetch_minecraft_manifest")),
+	authStartDeviceFlow: () => typedError<DeviceCodeSession, string>(__TAURI_INVOKE("auth_start_device_flow")),
+	authPollDeviceFlow: (session: DeviceCodeSession_Deserialize) => typedError<Account_Serialize, string>(__TAURI_INVOKE("auth_poll_device_flow", { session })),
+	authLogout: (msaId: string) => typedError<null, string>(__TAURI_INVOKE("auth_logout", { msaId })),
 	getInstances: () => typedError<GameInstance_Serialize[], string>(__TAURI_INVOKE("get_instances")),
 	createInstance: (name: string, version: string, loader: string | null) => typedError<GameInstance_Serialize, string>(__TAURI_INVOKE("create_instance", { name, version, loader })),
 	deleteInstance: (id: string) => typedError<null, string>(__TAURI_INVOKE("delete_instance", { id })),
@@ -30,6 +33,46 @@ export const commands = {
 };
 
 /* Types */
+/**  已登录的微软 Minecraft 账户。 */
+export type Account = Account_Serialize | Account_Deserialize;
+
+/**  已登录的微软 Minecraft 账户。 */
+export type Account_Deserialize = {
+	msaId: string,
+	username: string,
+	uuid: string,
+	loggedInAt: string,
+};
+
+/**  已登录的微软 Minecraft 账户。 */
+export type Account_Serialize = {
+	msaId: string,
+	username: string,
+	uuid: string,
+	loggedInAt: string,
+};
+
+/**  设备码登录会话（轮询时原样回传）。 */
+export type DeviceCodeSession = DeviceCodeSession_Serialize | DeviceCodeSession_Deserialize;
+
+/**  设备码登录会话（轮询时原样回传）。 */
+export type DeviceCodeSession_Deserialize = {
+	userCode: string,
+	verificationUri: string,
+	interval: number,
+	expiresIn: number,
+	deviceCode: string,
+};
+
+/**  设备码登录会话（轮询时原样回传）。 */
+export type DeviceCodeSession_Serialize = {
+	userCode: string,
+	verificationUri: string,
+	interval: number,
+	expiresIn: number,
+	deviceCode: string,
+};
+
 /**  游戏实例。 */
 export type GameInstance = GameInstance_Serialize | GameInstance_Deserialize;
 

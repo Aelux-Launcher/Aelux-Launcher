@@ -1,14 +1,15 @@
 ﻿<script setup lang="ts">
 /**
- * 版本行悬浮操作组：另存为 / 更新日志 / 下载服务端（+ 已安装标记）。
+ * 版本行悬浮操作组：另存为 / 更新日志 / 下载服务端。
  * 按钮点击 stop 冒泡，避免触发所在行的「进入版本页」点击。
+ * 不区分安装状态：同版本可以反复下载，最多是命名问题。
  */
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import { call } from '../lib/bridge'
 import AlxIcon from './AlxIcon.vue'
 
-const props = defineProps<{ versionId: string; installed: boolean }>()
+const props = defineProps<{ versionId: string }>()
 
 const store = useAppStore()
 
@@ -46,9 +47,6 @@ async function handleServerDownload() {
 
 <template>
   <div class="item-right">
-    <button v-if="props.installed" type="button" class="icon-btn" disabled title="已安装">
-      <AlxIcon name="check" :size="16" />
-    </button>
     <button type="button" class="icon-btn" title="另存为" @click.stop="handleSaveAs">
       <AlxIcon name="folder" :size="16" />
     </button>

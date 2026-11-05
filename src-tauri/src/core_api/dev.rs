@@ -7,7 +7,7 @@ use aelux_core::CoreApi;
 use serde_json::Value;
 use tauri::Emitter;
 
-use crate::dto::{GameInstance, LauncherConfig, OsInfo, VersionManifest};
+use crate::dto::{Account, DeviceCodeSession, GameInstance, LauncherConfig, OsInfo, VersionManifest};
 
 use super::CoreError;
 
@@ -70,6 +70,25 @@ pub async fn fetch_minecraft_manifest() -> Result<VersionManifest, CoreError> {
     let value = serde_json::to_value(core().fetch_minecraft_manifest().await.map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
     serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn auth_start_device_flow() -> Result<DeviceCodeSession, CoreError> {
+    let value = serde_json::to_value(core().start_microsoft_login().await.map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn auth_poll_device_flow(session: DeviceCodeSession) -> Result<Account, CoreError> {
+    let session: aelux_core::auth::DeviceCodeSession =
+        serde_json::from_value(serde_json::to_value(session).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    let value = serde_json::to_value(core().poll_microsoft_login(&session).await.map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn auth_logout(msa_id: String) -> Result<(), CoreError> {
+    core().logout_microsoft(&msa_id).map_err(|e| e.to_string())
 }
 
 pub fn list_instances() -> Result<Vec<GameInstance>, CoreError> {

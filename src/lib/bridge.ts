@@ -62,6 +62,13 @@ const previewInstances: unknown[] = [
 
 /* ================== 资源预览数据（六类社区资源，本地测试用） ================== */
 
+/** 浏览器预览的微软登录轮询计数：前 2 次 pending，之后成功（可测完整流程）。 */
+let msPollCount = 0
+
+function resetMsPollCount() {
+  msPollCount = 0
+}
+
 interface PreviewResource {
   projectId: string
   slug: string
@@ -229,6 +236,26 @@ async function mockCall<T>(command: string, args?: Record<string, unknown>): Pro
         latest: { release: '1.21.4', snapshot: '25w45a' },
         versions: PREVIEW_VERSIONS,
       } as T
+    case 'auth_start_device_flow':
+      resetMsPollCount()
+      return {
+        userCode: 'MOCK-CODE-1234',
+        verificationUri: 'https://microsoft.com/link',
+        interval: 1,
+        expiresIn: 900,
+        deviceCode: 'mock-device-code',
+      } as T
+    case 'auth_poll_device_flow':
+      msPollCount += 1
+      if (msPollCount <= 2) throw new Error('等待用户完成授权')
+      return {
+        msaId: 'preview-msa-id',
+        username: 'PreviewPlayer',
+        uuid: '069a79f444e94726a5befca90e38aaf5',
+        loggedInAt: String(Math.floor(Date.now() / 1000)),
+      } as T
+    case 'auth_logout':
+      return null as T
     case 'fetch_json':
       return mockFetchJson(String(args?.url ?? '')) as T
     case 'download_file':

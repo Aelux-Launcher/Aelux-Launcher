@@ -43,12 +43,6 @@ const store = useAppStore()
 
 /* ------------------------------- 原版游戏 ------------------------------- */
 
-/** 版本号本地过滤关键字（不进 store，仅作用于本列表） */
-const versionKeyword = ref('')
-
-/** 搜索态：非空时分组全部展开 */
-const hasKeyword = computed(() => Boolean(versionKeyword.value.trim()))
-
 /** ISO 时间 → `2026/09/15 19:23` */
 function formatDateTime(iso: string): string {
   const d = new Date(iso)
@@ -98,37 +92,27 @@ const GROUP_DEFS: Array<{ key: string; title: string; match: (v: { id: string; k
   },
 ]
 
-/** 折叠组展开状态（默认全部收起；搜索时强制展开） */
+/** 折叠组展开状态（默认全部收起） */
 const expandedGroups = ref(new Set<string>())
 
 function isGroupOpen(key: string): boolean {
-  return hasKeyword.value || expandedGroups.value.has(key)
+  return expandedGroups.value.has(key)
 }
 
 function toggleGroup(key: string) {
-  if (hasKeyword.value) return
   const s = expandedGroups.value
   if (s.has(key)) s.delete(key)
   else s.add(key)
 }
 
-/** 四个分组 + 关键字过滤后的结果 */
-const versionGroups = computed(() => {
-  const kw = versionKeyword.value.trim().toLowerCase()
-  return GROUP_DEFS.map((g) => ({
+/** 四个分组 */
+const versionGroups = computed(() =>
+  GROUP_DEFS.map((g) => ({
     key: g.key,
     title: g.title,
-    items: store.versions.filter((v) => g.match(v) && (!kw || v.id.toLowerCase().includes(kw))),
-  }))
-})
-
-/** 搜索命中总数（0 时显示空态） */
-const matchCount = computed(() => versionGroups.value.reduce((n, g) => n + g.items.length, 0))
-
-/** 该版本是否已有同名实例（实例的 version 与版本 id 一致即视为已安装） */
-function isInstalled(id: string): boolean {
-  return store.instances.some((i) => i.version === id)
-}
+    items: store.versions.filter((v) => g.match(v)),
+  })),
+)
 
 /** 点击版本行 → 进入版本详情页（加载器选择 + 开始下载）。 */
 function openVersionPage(id: string) {
@@ -198,10 +182,6 @@ function onResourceDownload() {
   <div class="page-view active sub-page">
     <!-- ============ 原版游戏下载 ============ -->
     <template v-if="!isResource">
-      <PageHeader title="原版游戏下载">
-        <AlxSearchBar v-model="versionKeyword" placeholder="搜索版本号..." />
-      </PageHeader>
-
       <!-- 版本清单加载中 -->
       <div v-if="store.versionsLoading" class="loading-hint">
         正在从版本清单源拉取可下载版本…
@@ -231,10 +211,7 @@ function onResourceDownload() {
                   <div class="item-desc">最新正式版，发布于 {{ formatDateTime(latestRelease.releaseTime) }}</div>
                 </div>
               </div>
-              <VersionRowActions
-                :version-id="latestRelease.id"
-                :installed="isInstalled(latestRelease.id)"
-              />
+              <VersionRowActions :version-id="latestRelease.id" />
             </div>
           </template>
           <template v-if="latestSnapshot">
@@ -251,10 +228,7 @@ function onResourceDownload() {
                   <div class="item-desc">最新预览版，发布于 {{ formatDateTime(latestSnapshot.releaseTime) }}</div>
                 </div>
               </div>
-              <VersionRowActions
-                :version-id="latestSnapshot.id"
-                :installed="isInstalled(latestSnapshot.id)"
-              />
+              <VersionRowActions :version-id="latestSnapshot.id" />
             </div>
           </template>
         </div>
@@ -287,19 +261,11 @@ function onResourceDownload() {
                     <div class="item-desc">发布于 {{ formatDateTime(v.releaseTime) }}</div>
                   </div>
                 </div>
-                <VersionRowActions :version-id="v.id" :installed="isInstalled(v.id)" />
+                <VersionRowActions :version-id="v.id" />
               </div>
-              <div v-if="g.items.length === 0" class="version-group-empty">
-                {{ hasKeyword ? `没有匹配「${versionKeyword.trim()}」的版本` : '暂无版本' }}
-              </div>
+              <div v-if="g.items.length === 0" class="version-group-empty">暂无版本</div>
             </div>
           </div>
-        </div>
-
-        <!-- 搜索无任何命中 -->
-        <div v-if="hasKeyword && matchCount === 0" class="empty-state">
-          <AlxIcon name="search" :size="32" />
-          <div>没有匹配「{{ versionKeyword.trim() }}」的版本</div>
         </div>
       </template>
     </template>

@@ -18,6 +18,7 @@ import Instance from '../views/Instance.vue'
 import ResourceDetail from '../views/ResourceDetail.vue'
 import HelpDetail from '../views/HelpDetail.vue'
 import VersionDetail from '../views/VersionDetail.vue'
+import Accounts from '../views/Accounts.vue'
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -47,6 +48,7 @@ export const router = createRouter({
     },
     { path: '/help/:entryId', name: 'help', component: HelpDetail, meta: { sub: 'help' } },
     { path: '/version/:versionId', name: 'version', component: VersionDetail, meta: { sub: 'version' } },
+    { path: '/accounts', name: 'accounts', component: Accounts, meta: { sub: 'accounts' } },
     { path: '/:pathMatch(.*)*', redirect: '/home' },
   ],
 })

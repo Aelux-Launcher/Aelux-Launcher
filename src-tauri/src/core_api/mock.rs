@@ -6,10 +6,14 @@
 //! 数据形状与真实链路一致；kv 用内存表；网络方法返回演示数据或明确错误。
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::sync::OnceLock;
 
-use crate::dto::{GameInstance, LatestVersions, LauncherConfig, OsInfo, VersionEntry, VersionManifest};
+use crate::dto::{
+    Account, DeviceCodeSession, GameInstance, LatestVersions, LauncherConfig, OsInfo, VersionEntry,
+    VersionManifest,
+};
 
 use super::CoreError;
 
@@ -79,6 +83,44 @@ pub async fn fetch_minecraft_manifest() -> Result<VersionManifest, CoreError> {
         })
         .collect(),
     })
+}
+
+/// mock 轮询计数：前 2 次 pending，第 3 次起登录成功（预览可测完整流程）。
+static MS_POLL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+pub async fn auth_start_device_flow() -> Result<DeviceCodeSession, CoreError> {
+    MS_POLL_COUNT.store(0, Ordering::SeqCst);
+    Ok(DeviceCodeSession {
+        user_code: "MOCK-CODE-1234".into(),
+        verification_uri: "https://microsoft.com/link".into(),
+        interval: 1,
+        expires_in: 900,
+        device_code: "mock-device-code".into(),
+    })
+}
+
+pub async fn auth_poll_device_flow(_session: DeviceCodeSession) -> Result<Account, CoreError> {
+    let n = MS_POLL_COUNT.fetch_add(1, Ordering::SeqCst);
+    if n < 2 {
+        Err("等待用户完成授权".into())
+    } else {
+        Ok(Account {
+            msa_id: "mock-msa-id".into(),
+            username: "MockPlayer".into(),
+            uuid: "069a79f444e94726a5befca90e38aaf5".into(),
+            logged_in_at: format!(
+                "{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0)
+            ),
+        })
+    }
+}
+
+pub fn auth_logout(_msa_id: String) -> Result<(), CoreError> {
+    Ok(())
 }
 
 pub fn list_instances() -> Result<Vec<GameInstance>, CoreError> {
