@@ -1,4 +1,4 @@
-name: Release
+name: 发布 Windows 便携包
 
 # 发布 Windows 便携包（免安装，解压即用）。
 #
@@ -23,7 +23,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-windows-portable:
     runs-on: windows-latest
     env:
       CORE_MANIFEST_URL: ${{ secrets.CORE_MANIFEST_URL }}
@@ -69,7 +69,7 @@ jobs:
           $tag = "${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}"
           Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath "Aelux-Launcher-$tag-Beta.zip" -Force
 
-      - name: Release
+      - name: 创建 GitHub Release 并上传便携 ZIP
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}

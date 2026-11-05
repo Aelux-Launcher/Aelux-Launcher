@@ -84,8 +84,9 @@ release-ffi = ["dep:libloading"]      # 发布打包
 内核版本独立走 core 仓库的 tag：core 打 `v0.1.0` → core CI 产出三平台 cdylib + manifest.json
 （`core_version` 取自 tag）→ launcher 打包时 fetch-core 按 manifest 拉取。
 
-CI（`.github/workflows/`）：`ci.yml`（类型检查 / 构建 / 编译 / bindings 漂移），
-`release.yml`（tag 触发：fetch-core → release-ffi 打包 → 便携 ZIP → 公开 Release，当前先支持 Windows）。
+CI（`.github/workflows/`）：
+- `ci.yml` —— 「CI · 检查（不发布产物）」：前端类型检查与构建、Rust 编译检查（Windows / Linux）、bindings 漂移
+- `release.yml` —— 「发布 Windows 便携包」：tag / 手动触发 → fetch-core → 便携 ZIP → GitHub Release
 
 CI 里的内核依赖：`aelux-core` 是 optional path 依赖，Cargo resolve 阶段要求路径存在，因此
 workflow 会先准备它——

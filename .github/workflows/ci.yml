@@ -1,4 +1,4 @@
-name: CI
+name: CI · 检查（不发布产物）
 
 # 公开壳层仓库的持续集成：
 #   1. 前端类型检查 + 构建
@@ -15,6 +15,7 @@ on:
 
 jobs:
   frontend:
+    name: 前端类型检查与构建
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +28,7 @@ jobs:
       - run: npm run build:web
 
   rust:
+    name: Rust 编译检查（Windows / Linux，不产出安装包）
     strategy:
       fail-fast: false
       matrix:
