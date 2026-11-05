@@ -45,23 +45,84 @@ const store = useAppStore()
 /** 版本号本地过滤关键字（不进 store，仅作用于本列表） */
 const versionKeyword = ref('')
 
-const filteredVersions = computed(() => {
-  const kw = versionKeyword.value.trim().toLowerCase()
-  if (!kw) return store.versions
-  return store.versions.filter((v) => v.id.toLowerCase().includes(kw))
-})
+/** 搜索态：非空时分组全部展开 */
+const hasKeyword = computed(() => Boolean(versionKeyword.value.trim()))
 
-/** 版本类型 → 中文（正式版 / 快照） */
-function kindLabel(kind: string): string {
-  return kind === 'release' ? '正式版' : '快照'
-}
-
-/** ISO 时间 → `2026/10/21`（日期部分） */
-function formatDay(iso: string): string {
+/** ISO 时间 → `2026/09/15 19:23` */
+function formatDateTime(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return '未知'
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
+
+/** 愚人节版本 id（小写比对）：Mojang 清单中它们混在 release/snapshot 里，需单独归组 */
+const APRIL_FOOLS = new Set([
+  '2.0',
+  '2.0-red',
+  '2.0-blue',
+  '1.rv-pre1',
+  '15w14a',
+  '3d shareware v1.34',
+  '20w14infinite',
+  '24w14potato',
+  '25w14craftmine',
+])
+
+/** 最新正式版 / 最新预览版（清单按时间倒序，取同类第一个） */
+const latestRelease = computed(() => store.versions.find((v) => v.kind === 'release'))
+const latestSnapshot = computed(() => store.versions.find((v) => v.kind === 'snapshot'))
+
+/** 分类折叠组定义（key → 归组规则） */
+const GROUP_DEFS: Array<{ key: string; title: string; match: (v: { id: string; kind: string }) => boolean }> = [
+  {
+    key: 'release',
+    title: '正式版',
+    match: (v) => v.kind === 'release' && !APRIL_FOOLS.has(v.id.toLowerCase()),
+  },
+  {
+    key: 'snapshot',
+    title: '预览版',
+    match: (v) => v.kind === 'snapshot' && !APRIL_FOOLS.has(v.id.toLowerCase()),
+  },
+  {
+    key: 'legacy',
+    title: '远古版',
+    match: (v) => v.kind === 'old_beta' || v.kind === 'old_alpha',
+  },
+  {
+    key: 'april',
+    title: '愚人节版',
+    match: (v) => APRIL_FOOLS.has(v.id.toLowerCase()),
+  },
+]
+
+/** 折叠组展开状态（默认全部收起；搜索时强制展开） */
+const expandedGroups = ref(new Set<string>())
+
+function isGroupOpen(key: string): boolean {
+  return hasKeyword.value || expandedGroups.value.has(key)
+}
+
+function toggleGroup(key: string) {
+  if (hasKeyword.value) return
+  const s = expandedGroups.value
+  if (s.has(key)) s.delete(key)
+  else s.add(key)
+}
+
+/** 四个分组 + 关键字过滤后的结果 */
+const versionGroups = computed(() => {
+  const kw = versionKeyword.value.trim().toLowerCase()
+  return GROUP_DEFS.map((g) => ({
+    key: g.key,
+    title: g.title,
+    items: store.versions.filter((v) => g.match(v) && (!kw || v.id.toLowerCase().includes(kw))),
+  }))
+})
+
+/** 搜索命中总数（0 时显示空态） */
+const matchCount = computed(() => versionGroups.value.reduce((n, g) => n + g.items.length, 0))
 
 /** 该版本是否已有同名实例（实例的 version 与版本 id 一致即视为已安装） */
 function isInstalled(id: string): boolean {
@@ -155,32 +216,101 @@ function onResourceDownload() {
       </div>
 
       <template v-else>
-        <!-- 版本列表 -->
-        <div v-for="v in filteredVersions" :key="v.id" class="list-item">
-          <div class="item-left">
-            <div class="item-icon">
-              <AlxIcon name="columns" :size="20" />
+        <!-- 最新版本卡片 -->
+        <div v-if="latestRelease || latestSnapshot" class="version-card">
+          <div class="version-card-title">最新版本</div>
+          <template v-if="latestRelease">
+            <div class="list-item version-latest-item">
+              <div class="item-left">
+                <div class="item-icon">
+                  <AlxIcon name="columns" :size="20" />
+                </div>
+                <div class="item-info">
+                  <div class="item-title">{{ latestRelease.id }}</div>
+                  <div class="item-desc">最新正式版，发布于 {{ formatDateTime(latestRelease.releaseTime) }}</div>
+                </div>
+              </div>
+              <div class="item-right">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  :disabled="isInstalled(latestRelease.id) || store.installing !== null"
+                  :title="isInstalled(latestRelease.id) ? '已安装' : '安装'"
+                  @click="handleInstall(latestRelease.id)"
+                >
+                  <AlxIcon :name="isInstalled(latestRelease.id) ? 'check' : 'download'" :size="18" />
+                </button>
+              </div>
             </div>
-            <div class="item-info">
-              <div class="item-title">Minecraft {{ v.id }}</div>
-              <div class="item-desc">{{ kindLabel(v.kind) }} · 发布于 {{ formatDay(v.releaseTime) }}</div>
+          </template>
+          <template v-if="latestSnapshot">
+            <div class="list-item version-latest-item">
+              <div class="item-left">
+                <div class="item-icon">
+                  <AlxIcon name="columns" :size="20" />
+                </div>
+                <div class="item-info">
+                  <div class="item-title">{{ latestSnapshot.id }}</div>
+                  <div class="item-desc">最新预览版，发布于 {{ formatDateTime(latestSnapshot.releaseTime) }}</div>
+                </div>
+              </div>
+              <div class="item-right">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  :disabled="isInstalled(latestSnapshot.id) || store.installing !== null"
+                  :title="isInstalled(latestSnapshot.id) ? '已安装' : '安装'"
+                  @click="handleInstall(latestSnapshot.id)"
+                >
+                  <AlxIcon :name="isInstalled(latestSnapshot.id) ? 'check' : 'download'" :size="18" />
+                </button>
+              </div>
             </div>
-          </div>
-          <div class="item-right">
-            <button
-              type="button"
-              class="btn-download"
-              :class="isInstalled(v.id) ? 'btn-ghost' : ''"
-              :disabled="isInstalled(v.id) || store.installing !== null"
-              @click="handleInstall(v.id)"
-            >
-              {{ store.installing === v.id ? '安装中' : isInstalled(v.id) ? '已安装' : '安装' }}
-            </button>
+          </template>
+        </div>
+
+        <!-- 分类折叠卡片 -->
+        <div
+          v-for="g in versionGroups"
+          :key="g.key"
+          class="version-card version-group"
+          :class="{ open: isGroupOpen(g.key) }"
+        >
+          <button type="button" class="version-group-header" @click="toggleGroup(g.key)">
+            <span>{{ g.title }}</span>
+            <AlxIcon name="chevron-down" :size="18" class="version-group-chevron" />
+          </button>
+          <div v-if="isGroupOpen(g.key)" class="version-group-body">
+            <div v-for="v in g.items" :key="v.id" class="list-item">
+              <div class="item-left">
+                <div class="item-icon">
+                  <AlxIcon name="columns" :size="20" />
+                </div>
+                <div class="item-info">
+                  <div class="item-title">{{ v.id }}</div>
+                  <div class="item-desc">发布于 {{ formatDateTime(v.releaseTime) }}</div>
+                </div>
+              </div>
+              <div class="item-right">
+                <button
+                  type="button"
+                  class="btn-download"
+                  :class="isInstalled(v.id) ? 'btn-ghost' : ''"
+                  :disabled="isInstalled(v.id) || store.installing !== null"
+                  @click="handleInstall(v.id)"
+                >
+                  {{ store.installing === v.id ? '安装中' : isInstalled(v.id) ? '已安装' : '安装' }}
+                </button>
+              </div>
+            </div>
+            <div v-if="g.items.length === 0" class="version-group-empty">
+              {{ hasKeyword ? `没有匹配「${versionKeyword.trim()}」的版本` : '暂无版本' }}
+            </div>
           </div>
         </div>
 
-        <!-- 过滤后无结果 -->
-        <div v-if="filteredVersions.length === 0" class="empty-state">
+        <!-- 搜索无任何命中 -->
+        <div v-if="hasKeyword && matchCount === 0" class="empty-state">
           <AlxIcon name="search" :size="32" />
           <div>没有匹配「{{ versionKeyword.trim() }}」的版本</div>
         </div>

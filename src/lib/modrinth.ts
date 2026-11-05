@@ -15,7 +15,7 @@ const PROJECT_TYPE: Record<ResourceKind, string> = {
 
 export function buildResourceSearchUrl(query: string, kind: ResourceKind): string {
   const facets = JSON.stringify([[`project_type:${PROJECT_TYPE[kind]}`]])
-  return `${API}/search?query=${encodeURIComponent(query)}&limit=20&index=relevance&facets=${encodeURIComponent(facets)}`
+  return `${API}/search?query=${encodeURIComponent(query)}&limit=40&index=relevance&facets=${encodeURIComponent(facets)}`
 }
 
 export function buildResourceDetailUrl(projectId: string): string {

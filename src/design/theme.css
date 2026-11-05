@@ -458,8 +458,8 @@ svg {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--border-light);
+  padding: 16px;
+  border-radius: 8px;
   transition: background 0.15s;
   gap: 16px;
 }
@@ -506,6 +506,74 @@ svg {
 }
 .btn-download.btn-ghost:hover { background-color: var(--hover-bg); opacity: 1; }
 .btn-download.btn-danger { background: var(--danger); color: #fff; }
+
+/* 原版下载：最新版本卡片 + 分类折叠卡片 */
+.version-card {
+  background: var(--bg-color);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.version-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  padding: 16px 16px 4px;
+}
+.version-card .list-item { margin: 0 8px; }
+.version-card .version-latest-item:last-child { margin-bottom: 8px; }
+
+/* 最新版本行：操作按钮 hover 淡入 */
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-sub);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.icon-btn:hover { background: var(--icon-bg); color: var(--text-main); }
+.icon-btn:disabled { opacity: 0.45; cursor: default; }
+.icon-btn:disabled:hover { background: transparent; color: var(--text-sub); }
+.version-latest-item .item-right { opacity: 0; transition: opacity 0.15s; }
+.version-latest-item:hover .item-right,
+.version-latest-item:focus-within .item-right { opacity: 1; }
+
+/* 分类折叠组 */
+.version-group-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+  transition: background 0.15s;
+}
+.version-group-header:hover { background: var(--hover-bg); }
+.version-group-chevron {
+  color: var(--text-sub);
+  transition: transform 0.2s var(--alx-ease-out-fluent);
+}
+.version-group.open .version-group-chevron { transform: rotate(180deg); }
+.version-group-body { padding-bottom: 8px; }
+.version-group-empty {
+  padding: 8px 16px 12px;
+  font-size: 13px;
+  color: var(--text-sub);
+}
 
 /* 设置组 */
 .setting-group {
