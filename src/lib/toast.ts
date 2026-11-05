@@ -23,6 +23,8 @@ function dismiss(id: number) {
 function push(kind: ToastKind, text: string) {
   const id = nextId++
   toasts.items.push({ id, kind, text })
+  // 最多同时显示 3 条：超出移除最旧的
+  if (toasts.items.length > 3) toasts.items.shift()
   window.setTimeout(() => dismiss(id), 3600)
 }
 

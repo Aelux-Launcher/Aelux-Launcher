@@ -2,8 +2,12 @@ name: CI
 
 # 公开壳层仓库的持续集成：
 #   1. 前端类型检查 + 构建
-#   2. Rust 编译（mock 默认链路，无需内核二进制）
+#   2. Rust 编译（mock 默认链路）
 #   3. bindings.ts 漂移检查（Linux 上跑导出测试，diff 非空即失败）
+#
+# 内核依赖说明：aelux-core 是 optional path 依赖，但 Cargo resolve 阶段要求路径存在。
+# 因此这里先准备内核：配置了 secrets（CORE_ACCESS_TOKEN + CORE_REPO）时拉取私有内核
+# （可顺带验证 dev-path 集成），否则生成空 stub crate（mock 链路不会编译它，仅需可解析）。
 on:
   push:
     branches: [main, master]
@@ -32,15 +36,52 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
+      # 准备 aelux-core：真内核（配置 secrets 且拉取成功时）或空 stub
+      # token 过期 / 无权限时自动降级 stub，不阻塞 CI
+      - name: Prepare aelux-core dependency
+        id: core
+        shell: bash
+        env:
+          CORE_TOKEN: ${{ secrets.CORE_ACCESS_TOKEN }}
+          CORE_REPO: ${{ secrets.CORE_REPO }}
+        run: |
+          CORE_DIR="$(pwd)/../Aelux-Core"
+          write_stub() {
+            mkdir -p "$CORE_DIR/src"
+            printf '[package]\nname = "aelux-core"\nversion = "0.0.0"\nedition = "2021"\n' > "$CORE_DIR/Cargo.toml"
+            touch "$CORE_DIR/src/lib.rs"
+            echo "mode=stub" >> "$GITHUB_OUTPUT"
+          }
+          if [ -n "$CORE_TOKEN" ] && [ -n "$CORE_REPO" ]; then
+            if git clone --depth 1 "https://x-access-token:${CORE_TOKEN}@github.com/${CORE_REPO}.git" "$CORE_DIR" 2>/dev/null; then
+              echo "mode=real" >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::拉取私有内核失败（token 缺失/过期/无权限，或 CORE_REPO 不正确），本次退回 stub + mock 链路"
+              rm -rf "$CORE_DIR"
+              write_stub
+            fi
+          else
+            write_stub
+          fi
+
       - name: Install Linux deps (Tauri)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+
       - uses: dtolnay/rust-toolchain@stable
+
       - name: Cargo check (mock 链路)
         working-directory: src-tauri
         run: cargo check --all-targets
+
+      # 真内核就位时顺带验证 dev-path 集成编译
+      - name: Cargo check (dev-path 集成)
+        if: steps.core.outputs.mode == 'real'
+        working-directory: src-tauri
+        run: cargo check --features dev-path
 
       # bindings.ts 必须与 Rust 命令签名同步：重新导出后 git diff 非空即失败
       - name: Bindings drift check

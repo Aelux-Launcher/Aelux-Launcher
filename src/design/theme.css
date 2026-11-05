@@ -705,8 +705,8 @@ svg {
 /* toast */
 .aelux-toasts {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
+  right: 24px;
+  top: 76px; /* 顶栏 60px + 窗口外边距 8px + 间距 8px：nav 下方，不遮挡 */
   z-index: 200;
   display: flex;
   flex-direction: column;

@@ -134,9 +134,14 @@ onBeforeUnmount(() => {
 
 onMounted(() => {
   void store.init()
+  // 浏览器预览提示只停留 3 秒：说明数据是模拟的即可，不常驻遮挡内容
+  window.setTimeout(() => {
+    showPreviewTip.value = false
+  }, 3000)
 })
 
 const announcement = computed(() => store.pendingAnnouncements[0] ?? null)
+const showPreviewTip = ref(true)
 </script>
 
 <template>
@@ -169,7 +174,7 @@ const announcement = computed(() => store.pendingAnnouncements[0] ?? null)
             <div class="aelux-alert__desc">{{ store.initError }}</div>
             <button type="button" class="btn-download btn-ghost" @click="store.init()">重试</button>
           </div>
-          <div v-if="store.browserMode" class="aelux-alert" role="alert">
+          <div v-if="store.browserMode && showPreviewTip" class="aelux-alert" role="alert">
             <div class="aelux-alert__head">
               <span class="aelux-alert__title">浏览器预览模式</span>
             </div>

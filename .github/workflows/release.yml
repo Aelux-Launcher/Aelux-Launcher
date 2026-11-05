@@ -2,6 +2,7 @@ name: Release
 
 # 打 tag（v*）触发：拉取私有内核 cdylib → 打包安装包 → 便携 ZIP → 公开 Release。
 # 内核二进制来源：CORE_MANIFEST_URL（secrets，指向 R2 桶或私有 core 仓库的 manifest.json）。
+# 当前先支持 Windows；扩展平台时在 matrix 中追加即可（mac/linux 打包步骤已在历史中验证过模板）。
 on:
   push:
     tags: ["v*"]
@@ -17,26 +18,26 @@ jobs:
         include:
           - os: windows-latest
             name: windows-x64
-          - os: macos-latest
-            name: macos-arm64
-          - os: ubuntu-22.04
-            name: linux-x64
     runs-on: ${{ matrix.os }}
     env:
       CORE_MANIFEST_URL: ${{ secrets.CORE_MANIFEST_URL }}
     steps:
       - uses: actions/checkout@v4
 
+      # aelux-core 是 optional path 依赖，Cargo resolve 要求路径存在；
+      # release-ffi 只消费 cdylib 二进制（fetch-core 下载），不需要内核源码。
+      - name: Stub aelux-core (resolve only)
+        shell: bash
+        run: |
+          CORE_DIR="$(pwd)/../Aelux-Core"
+          mkdir -p "$CORE_DIR/src"
+          printf '[package]\nname = "aelux-core"\nversion = "0.0.0"\nedition = "2021"\n' > "$CORE_DIR/Cargo.toml"
+          touch "$CORE_DIR/src/lib.rs"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
-      - name: Install Linux deps (Tauri)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -48,8 +49,7 @@ jobs:
       - name: Build (release-ffi)
         run: npm run build:release
 
-      - name: Package portable ZIP (Windows)
-        if: runner.os == 'Windows'
+      - name: Package portable ZIP
         shell: pwsh
         run: |
           $stage = "portable/Aelux-Launcher"
@@ -62,7 +62,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-assets
-          find src-tauri/target/release/bundle -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.app" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) -exec cp {} release-assets/ \; || true
+          find src-tauri/target/release/bundle -type f \( -name "*.exe" -o -name "*.msi" \) -exec cp {} release-assets/ \; || true
           ls release-assets
 
       - name: Release

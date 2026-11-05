@@ -68,8 +68,16 @@ node scripts/fetch-core.mjs               # 打包前就位内核 dll（R2 / 私
 - Linux：deb / rpm / AppImage
 
 CI（`.github/workflows/`）：`ci.yml`（类型检查 / 构建 / 编译 / bindings 漂移），
-`release.yml`（tag 触发：fetch-core → release-ffi 打包 → 便携 ZIP → 公开 Release）。
-内核二进制源通过 secret `CORE_MANIFEST_URL` 配置（R2 桶或私有 core 仓库 Release）。
+`release.yml`（tag 触发：fetch-core → release-ffi 打包 → 便携 ZIP → 公开 Release，当前先支持 Windows）。
+
+CI 里的内核依赖：`aelux-core` 是 optional path 依赖，Cargo resolve 阶段要求路径存在，因此
+workflow 会先准备它——
+
+- **未配置 secrets**（外部贡献者 / fork）：生成空 stub crate 占位，mock 链路照常跑；
+- **配置了 `CORE_ACCESS_TOKEN` + `CORE_REPO` secrets**：拉取私有内核仓库，并顺带执行
+  `cargo check --features dev-path` 验证源码集成。
+
+`release.yml` 的内核二进制源通过 secret `CORE_MANIFEST_URL` 配置（R2 桶或私有 core 仓库 Release）。
 
 ## 目录
 
