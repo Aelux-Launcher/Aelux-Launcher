@@ -14,7 +14,7 @@ import { categoryLabel, formatDownloads, formatRelativeTime, RESOURCE_CATEGORIES
 import { versionRangeSummary } from '../lib/mcVersion'
 import AlxIcon from '../components/AlxIcon.vue'
 import VersionRowActions from '../components/VersionRowActions.vue'
-import { VANILLA_ICON_URL } from '../lib/loaderIcons'
+import { versionIcon, versionRowIcon } from '../lib/versionIcons'
 
 /** 分类 → 页头标题（与侧栏文案一致） */
 const CAT_TITLE: Record<string, string> = {
@@ -102,7 +102,7 @@ const GROUP_DEFS: Array<{ key: string; title: string; match: (v: { id: string; k
   },
   {
     key: 'snapshot',
-    title: '预览版',
+    title: '快照版',
     match: (v) => v.kind === 'snapshot' && !APRIL_FOOLS.has(v.id.toLowerCase()),
   },
   {
@@ -344,7 +344,7 @@ function retrySearch() {
           >
             <div class="item-left">
               <div class="item-icon">
-                <img :src="VANILLA_ICON_URL" width="20" height="20" alt="" />
+                <img :src="versionRowIcon('release')" width="20" height="20" alt="" />
               </div>
               <div class="item-info">
                 <div class="item-title">{{ latestRelease.id }}</div>
@@ -360,11 +360,11 @@ function retrySearch() {
           >
             <div class="item-left">
               <div class="item-icon">
-                <img :src="VANILLA_ICON_URL" width="20" height="20" alt="" />
+                <img :src="versionRowIcon('snapshot')" width="20" height="20" alt="" />
               </div>
               <div class="item-info">
                 <div class="item-title">{{ latestSnapshot.id }}</div>
-                <div class="item-desc">最新预览版，发布于 {{ formatDateTime(latestSnapshot.releaseTime) }}</div>
+                <div class="item-desc">最新快照版，发布于 {{ formatDateTime(latestSnapshot.releaseTime) }}</div>
               </div>
             </div>
             <VersionRowActions :version-id="latestSnapshot.id" />
@@ -380,6 +380,14 @@ function retrySearch() {
         >
           <button type="button" class="version-group-header" @click="toggleGroup(g.key)">
             <span class="version-group-title">
+              <img
+                v-if="versionIcon(g.key)"
+                :src="versionIcon(g.key) ?? undefined"
+                width="18"
+                height="18"
+                alt=""
+                class="version-group-icon"
+              />
               {{ g.title }}
               <span class="version-group-count">{{ g.items.length }}</span>
             </span>
@@ -395,7 +403,7 @@ function retrySearch() {
               >
                 <div class="item-left">
                   <div class="item-icon">
-                    <img :src="VANILLA_ICON_URL" width="20" height="20" alt="" />
+                    <img :src="versionRowIcon(g.key)" width="20" height="20" alt="" />
                   </div>
                   <div class="item-info">
                     <div class="item-title">{{ v.id }}</div>

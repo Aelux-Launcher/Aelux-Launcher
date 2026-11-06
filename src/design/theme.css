@@ -598,10 +598,11 @@ svg {
   flex-shrink: 0;
   overflow: hidden;
 }
-.version-card-title {
+/* 最新版本卡片的标题：与下方折叠组标题（.version-group-header）保持同一尺寸。 */
+.version-card > .version-card-title {
   font-size: 15px;
   font-weight: 700;
-  padding: 6px;
+  padding: 16px;
 }
 .version-card .list-item { margin: 0 8px; }
 .version-card .list-item:last-child { margin-bottom: 8px; }
@@ -1425,6 +1426,7 @@ svg {
  * 下载页：社区资源检索（PCL2 PageResource 的筛选卡 / 列表 / 翻页）
  * ========================================================================== */
 .version-group-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.version-group-icon { width: 18px; height: 18px; object-fit: contain; flex: none; }
 .version-group-count {
   padding: 1px 7px;
   border-radius: 9px;
