@@ -24,7 +24,7 @@ interface NavEntry {
 
 const store = useAppStore()
 
-/** 账户卡 → 账户管理页（多账户列表，参考 HMCL）。 */
+/** 账户卡 → 账户管理页（多账户列表）。 */
 function openAccounts() {
   store.openSubPage({ kind: 'accounts' })
 }
@@ -126,9 +126,13 @@ function onNav(key: string) {
 /** 正在刷新的分类 key：null = 空闲（同时防止重复点击）。 */
 const refreshingKey = ref<string | null>(null)
 
+/** 刷新图标至少旋转这么久，避免瞬时完成时动画一闪而过。 */
+const MIN_REFRESH_SPIN_MS = 700
+
 async function refreshCategory(key: string) {
   if (refreshingKey.value) return
   refreshingKey.value = key
+  const started = performance.now()
   try {
     if (key === 'original') {
       await store.loadVersions()
@@ -141,6 +145,9 @@ async function refreshCategory(key: string) {
       else toast.success('资源列表已刷新')
     }
   } finally {
+    // 缓存命中时请求会瞬间返回；补足最短旋转时长，让刷新有可感知的回馈。
+    const remain = MIN_REFRESH_SPIN_MS - (performance.now() - started)
+    if (remain > 0) await new Promise((resolve) => setTimeout(resolve, remain))
     refreshingKey.value = null
   }
 }
@@ -241,7 +248,7 @@ async function addOffline() {
   }
 }
 
-/** 添加外置登录认证服务器（两步弹窗，参考 HMCL）。 */
+/** 添加外置登录认证服务器（两步弹窗）。 */
 function addAuthServer() {
   authServerModalOpen.value = true
 }
@@ -430,7 +437,7 @@ function selectFolder(f: StoredFolder) {
               <AlxIcon :name="item.icon" :size="16" />
               {{ item.label }}
               <button
-                v-if="sideModule === 'download' && activeKey === item.key && item.key !== 'world'"
+                v-if="sideModule === 'download' && activeKey === item.key"
                 type="button"
                 class="nav-item-action"
                 :title="`刷新${item.label}`"
@@ -463,8 +470,8 @@ function selectFolder(f: StoredFolder) {
       </button>
     </div>
 
-    <!-- 底部账户区：点击进入账户管理页（账户管理页内不显示，避免与列表重复） -->
-    <div v-else class="account-section">
+    <!-- 底部账户区：只在启动页显示；其它页面的侧栏不占这块高度。 -->
+    <div v-else-if="sideModule === 'home'" class="account-section">
       <div class="account-title">账户</div>
       <button type="button" class="account-card" @click="openAccounts">
         <div class="account-avatar">

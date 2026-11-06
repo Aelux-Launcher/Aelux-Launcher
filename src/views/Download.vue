@@ -8,12 +8,13 @@
  *   名称 / 来源 / 游戏版本 / 加载器 / 类型 → 检索 → 结果列表 → 翻页。
  */
 import { computed, ref, watch } from 'vue'
-import type { ResourceKind, ResourceProject } from '../lib/types'
+import type { ResourceKind, ResourceProject, ResourceSource } from '../lib/types'
 import { useAppStore } from '../stores/app'
 import { categoryLabel, formatDownloads, formatRelativeTime, RESOURCE_CATEGORIES } from '../lib/modrinth'
 import { versionRangeSummary } from '../lib/mcVersion'
 import AlxIcon from '../components/AlxIcon.vue'
 import VersionRowActions from '../components/VersionRowActions.vue'
+import { VANILLA_ICON_URL } from '../lib/loaderIcons'
 
 /** 分类 → 页头标题（与侧栏文案一致） */
 const CAT_TITLE: Record<string, string> = {
@@ -46,6 +47,19 @@ const LOADER_LABELS: Record<string, string> = {
   forge: 'Forge',
   neoforge: 'NeoForge',
   quilt: 'Quilt',
+}
+
+/** 下载源选项：全部 / Modrinth / CurseForge。 */
+const SOURCE_OPTIONS: Array<{ value: ResourceSource; label: string }> = [
+  { value: 'all', label: '全部' },
+  { value: 'modrinth', label: 'Modrinth' },
+  { value: 'curseforge', label: 'CurseForge' },
+]
+
+const SOURCE_LABELS: Record<string, string> = {
+  all: '全部',
+  modrinth: 'Modrinth',
+  curseforge: 'CurseForge',
 }
 
 const props = defineProps<{ cat: string }>()
@@ -162,6 +176,19 @@ const category = computed({
   set: (v) => store.setResourceQuery({ category: v }),
 })
 
+/** 当前下载源（全部 / Modrinth / CurseForge）。 */
+const source = computed(() => store.resourceQuery.source)
+
+function setSource(event: Event) {
+  const value = (event.target as HTMLSelectElement).value as ResourceSource
+  store.setResourceQuery({ source: value })
+}
+
+/** 列表项来源标签。 */
+function sourceLabel(p: ResourceProject): string {
+  return SOURCE_LABELS[p.source ?? 'modrinth'] ?? 'Modrinth'
+}
+
 /** 当前类型可用的加载器选项 */
 const loaderOptions = computed(() => LOADER_OPTIONS[currentKind.value] ?? [])
 
@@ -192,7 +219,8 @@ const hasActiveFilters = computed(
     Boolean(store.resourceQuery.name.trim()) ||
     Boolean(store.resourceQuery.gameVersion.trim()) ||
     Boolean(store.resourceQuery.loader) ||
-    Boolean(store.resourceQuery.category),
+    Boolean(store.resourceQuery.category) ||
+    store.resourceQuery.source !== 'all',
 )
 
 /** 执行检索（点击「搜索」或名称框回车，PCL 不随输入自动检索） */
@@ -316,7 +344,7 @@ function retrySearch() {
           >
             <div class="item-left">
               <div class="item-icon">
-                <AlxIcon name="columns" :size="20" />
+                <img :src="VANILLA_ICON_URL" width="20" height="20" alt="" />
               </div>
               <div class="item-info">
                 <div class="item-title">{{ latestRelease.id }}</div>
@@ -332,7 +360,7 @@ function retrySearch() {
           >
             <div class="item-left">
               <div class="item-icon">
-                <AlxIcon name="columns" :size="20" />
+                <img :src="VANILLA_ICON_URL" width="20" height="20" alt="" />
               </div>
               <div class="item-info">
                 <div class="item-title">{{ latestSnapshot.id }}</div>
@@ -367,7 +395,7 @@ function retrySearch() {
               >
                 <div class="item-left">
                   <div class="item-icon">
-                    <AlxIcon name="columns" :size="20" />
+                    <img :src="VANILLA_ICON_URL" width="20" height="20" alt="" />
                   </div>
                   <div class="item-info">
                     <div class="item-title">{{ v.id }}</div>
@@ -390,14 +418,14 @@ function retrySearch() {
 
     <!-- ============ 社区资源（整合包 / 模组 / 世界 / 资源包 / 数据包 / 光影包） ============ -->
     <template v-else>
-      <!-- 世界：Modrinth 没有 world 项目类型（PCL2 也没有世界下载页） -->
-      <div v-if="isWorld" class="resource-state-card">
+      <!-- 世界：当前源没有 world 类型时（正式链路）展示说明；预览数据可用时正常走列表 -->
+      <div
+        v-if="isWorld && !store.resourceLoading && store.resourceProjects.length === 0"
+        class="resource-state-card"
+      >
         <AlxIcon name="globe" :size="28" />
-        <div class="resource-state-title">Modrinth 暂未提供「世界」类项目</div>
-        <div class="resource-state-desc">
-          Modrinth 的项目类型只有 Mod、整合包、资源包、光影包和数据包，PCL2 也没有世界下载分类。
-          该页面保留给后续接入其他下载源，目前不会返回内容。
-        </div>
+        <div class="resource-state-title">当前下载源暂未提供「世界」类项目</div>
+        <div class="resource-state-desc">该分类等待接入支持世界资源的数据源。</div>
       </div>
 
       <template v-else>
@@ -418,7 +446,9 @@ function retrySearch() {
             </div>
             <div class="filter-field filter-field-source">
               <span class="filter-label">来源</span>
-              <div class="filter-static">Modrinth</div>
+              <select class="filter-control" :value="source" @change="setSource">
+                <option v-for="s in SOURCE_OPTIONS" :key="s.value" :value="s.value">{{ s.label }}</option>
+              </select>
             </div>
           </div>
 
@@ -549,7 +579,7 @@ function retrySearch() {
                   </span>
                   <span class="resource-meta-item">
                     <AlxIcon name="globe" :size="12" />
-                    Modrinth
+                    {{ sourceLabel(p) }}
                   </span>
                 </div>
               </div>

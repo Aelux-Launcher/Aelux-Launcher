@@ -952,8 +952,8 @@ export const useAppStore = defineStore('app', () => {
     if (resetPage) resourcePage.value = 0
     const token = ++resourceSearchToken
     resourceError.value = null
-    // Modrinth 没有 world 类型（PCL2 也没有世界下载页），页面保留但结果恒为空
-    if (resourceKind.value === 'world') {
+    // Modrinth 没有 world 项目类型：正式链路先返回空结果；预览链路用本地数据验证分页。
+    if (resourceKind.value === 'world' && isTauri) {
       resourceProjects.value = []
       resourceTotal.value = 0
       resourceLoading.value = false

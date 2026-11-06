@@ -11,13 +11,13 @@ import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import { call } from '../lib/bridge'
 import AlxIcon from '../components/AlxIcon.vue'
-import { loaderIconUrl } from '../lib/loaderIcons'
+import { loaderIconUrl, VANILLA_ICON_URL } from '../lib/loaderIcons'
 
 const props = defineProps<{ versionId: string }>()
 
 const store = useAppStore()
 
-/** 可叠加的加载器（ICL/PCL 素材用于品牌图标，缺素材时回退内置矢量图标）。 */
+/** 可叠加的加载器（有品牌图标则用位图，缺素材回退内置矢量图标）。 */
 const LOADERS = [
   { key: 'forge', name: 'Forge', icon: 'forge', img: loaderIconUrl('forge') },
   { key: 'neoforge', name: 'NeoForge', icon: 'neoforge', img: loaderIconUrl('neoforge') },
@@ -241,7 +241,7 @@ async function startDownload() {
           <AlxIcon name="arrow-left" :size="18" />
         </button>
         <div class="item-icon">
-          <AlxIcon name="minecraft" :size="24" />
+          <img :src="VANILLA_ICON_URL" width="24" height="24" alt="" />
         </div>
         <div class="version-hero-name">{{ packageName }}</div>
       </div>

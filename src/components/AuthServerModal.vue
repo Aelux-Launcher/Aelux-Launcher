@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 添加认证服务器（两步，参考 HMCL）：
+ * 添加认证服务器（两步）：
  *   第一步输入服务器地址 → 第二步确认地址 / 名称（名称自动取 authlib-injector 元数据）。
  */
 import { computed, nextTick, ref, watch } from 'vue'

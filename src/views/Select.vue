@@ -63,10 +63,9 @@ function instanceDesc(instance: GameInstance): string {
   return [`${kind} ${instance.version}`, loaderText(instance), verifyLabel()].filter(Boolean).join('，')
 }
 
-/** 实例图标跟随加载器：有品牌素材用位图，原版 / 缺素材回退矢量图标。 */
+/** 实例图标跟随加载器：原版用草方块，其余用品牌图标；缺素材回退矢量图标。 */
 function loaderIconSrc(instance: GameInstance): string | null {
-  const key = instance.loader || 'vanilla'
-  return key === 'vanilla' ? null : loaderIconUrl(key)
+  return loaderIconUrl(instance.loader || 'vanilla')
 }
 
 function loaderIcon(instance: GameInstance): string {

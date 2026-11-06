@@ -539,7 +539,7 @@ svg {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
+  padding: 8px;
   border-radius: 8px;
   transition: background 0.15s;
   gap: 16px;
@@ -550,9 +550,8 @@ svg {
 
 .item-left { display: flex; align-items: center; gap: 16px; min-width: 0; }
 .item-icon {
-  width: 40px;
-  height: 40px;
-  background-color: var(--icon-bg);
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
   display: flex;
   justify-content: center;
@@ -765,20 +764,23 @@ svg {
 .mod-api-group .loader-item { background: var(--bg-color); }
 .mod-api-group .loader-item:hover { background: var(--hover-bg); }
 .loader-group .loader-brand-icon { object-fit: contain; }
+/* 内容区自己滚动，但内边距放在滚动容器内部：
+   滚动条因此贴住页面外沿，和其它页面保持一致。 */
 .version-detail-page {
+  padding: 0;
   overflow: hidden;
-  padding-bottom: 0;
 }
 .version-detail-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
-  padding: 0 2px 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 32px 40px 20px;
 }
 .version-actions {
   display: flex;
   justify-content: center;
-  padding: 16px 0 24px;
+  padding: 16px 40px 24px;
   flex-shrink: 0;
   border-top: 1px solid var(--border-light);
   background: var(--bg-color);
@@ -1483,17 +1485,6 @@ svg {
   font-size: 13px;
 }
 .filter-input-wrap input::placeholder { color: var(--text-sub); }
-.filter-static {
-  display: flex;
-  align-items: center;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border-light);
-  border-radius: 6px;
-  background: var(--hover-bg);
-  font-size: 13px;
-  color: var(--text-sub);
-}
 .filter-control {
   height: 34px;
   padding: 0 10px;

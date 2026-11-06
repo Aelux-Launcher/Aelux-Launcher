@@ -127,7 +127,10 @@ interface PreviewResource {
   loaders?: string[]
 }
 
-const PREVIEW_RESOURCES: Record<string, PreviewResource[]> = {
+/** 预览数据每个分类补足到 50 条，便于验证「40 条/页 + 翻页」。 */
+const PREVIEW_TARGET = 50
+
+const PREVIEW_RESOURCES: Record<string, PreviewResource[]> = fillPreviewResources({
   modpack: [
     { projectId: 'fabulously-optimized', slug: 'fabulously-optimized', title: 'Fabulously Optimized', description: 'A pack that optimizes Minecraft while keeping vanilla gameplay.', categories: ['optimization', 'utility'], downloads: 8_620_000, author: 'README_bot', dateModified: '2026-10-28T10:00:00Z' },
     { projectId: 'additive', slug: 'additive', title: 'Additive', description: 'Vanilla+ performance and enhancement pack.', categories: ['optimization', 'vanilla-like'], downloads: 2_140_000, author: 'Starmute', dateModified: '2026-10-20T08:30:00Z' },
@@ -171,6 +174,28 @@ const PREVIEW_RESOURCES: Record<string, PreviewResource[]> = {
     { projectId: 'rethinking-voxels', slug: 'rethinking-voxels', title: 'Rethinking Voxels', description: 'Cutout voxel lighting with colored blocklight.', categories: ['realistic', 'heavy'], loaders: ['iris'], downloads: 1_280_000, author: 'gri573', dateModified: '2026-10-09T16:00:00Z' },
     { projectId: 'photon', slug: 'photon', title: "Photon's Shader", description: 'A lightweight shader focused on clouds and water.', categories: ['vanilla-like', 'potato-friendly'], loaders: ['vanilla'], downloads: 970_000, author: 'sixthsurge', dateModified: '2026-10-01T11:00:00Z' },
   ],
+})
+
+function fillPreviewResources(
+  base: Record<string, PreviewResource[]>,
+): Record<string, PreviewResource[]> {
+  const out: Record<string, PreviewResource[]> = {}
+  for (const [kind, list] of Object.entries(base)) {
+    const filled = list.slice()
+    while (filled.length < PREVIEW_TARGET) {
+      const i = filled.length
+      const template = list[i % list.length]
+      filled.push({
+        ...template,
+        projectId: `${template.projectId}-${i + 1}`,
+        slug: `${template.slug}-${i + 1}`,
+        title: `${template.title} #${i + 1}`,
+        downloads: Math.max(1, Math.round(template.downloads / (Math.floor(i / list.length) + 1))),
+      })
+    }
+    out[kind] = filled
+  }
+  return out
 }
 
 /** 按 id/slug 跨分类查找预览资源。 */
@@ -322,7 +347,11 @@ function mockFetchJson(url: string): string {
         author: r.author,
         versions: ['1.21.4', '1.21.1', '1.20.4', '1.20.1', '1.16.5'],
       }))
-    return JSON.stringify({ total_hits: hits.length, hits })
+    // 与正式接口一致：按 offset/limit 切片，预览里也能看到 40 条/页的翻页效果。
+    const offset = Number(u.searchParams.get('offset') ?? 0)
+    const limit = Number(u.searchParams.get('limit') ?? 40)
+    const page = hits.slice(offset, offset + limit)
+    return JSON.stringify({ total_hits: hits.length, hits: page })
   }
 
   // 批量项目详情：/projects?ids=["id"]

@@ -110,8 +110,8 @@ impl Default for LauncherConfig {
 pub struct DeviceCodeSession {
     pub user_code: String,
     pub verification_uri: String,
-    pub interval: u64,
-    pub expires_in: u64,
+    pub interval: u32,
+    pub expires_in: u32,
     pub device_code: String,
 }
 
