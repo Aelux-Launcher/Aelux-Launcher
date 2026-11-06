@@ -13,7 +13,9 @@ import { computed, ref, watch } from 'vue'
 import type { SettingsSection } from '../lib/types'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
+import AlxSelect from '../components/AlxSelect.vue'
 import AlxToggle from '../components/AlxToggle.vue'
+import SettingGroup from '../components/SettingGroup.vue'
 import AlxIcon from '../components/AlxIcon.vue'
 import {
   DOWNLOAD_SOURCE_OPTIONS,
@@ -85,10 +87,23 @@ type ChoiceKey =
   | 'presetName'
 
 /** 下拉提交：写入对应偏好并落盘。 */
-function onChoice(key: ChoiceKey, e: Event) {
-  const value = (e.target as HTMLSelectElement).value
+function setChoice(key: ChoiceKey, value: string) {
   extras.value = { ...extras.value, [key]: value } as SettingsExtras
   persistExtras()
+}
+
+/** 并行下载数（数值型偏好，下拉值为字符串）。 */
+const parallelChoices = PARALLEL_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))
+
+/** 当前可选的游戏设置预设（预设管理接入后由设置数据填充）。 */
+const presetOptions = [{ value: '预设1', label: '预设1' }]
+
+function onParallelValue(value: string) {
+  setExtra('maxParallel', Number(value) as 4 | 8 | 16)
+}
+
+function onDownloadSourceValue(value: string) {
+  setExtra('downloadSource', value as SettingsExtras['downloadSource'])
 }
 
 /** 当前隔离策略的说明文案。 */
@@ -140,27 +155,9 @@ function onMemoryChange(e: Event) {
   memoryMb.value = Number((e.target as HTMLInputElement).value)
 }
 
-/** 游戏语言下拉提交（仅接受已知值）。 */
-function onGameLanguage(e: Event) {
-  const v = (e.target as HTMLSelectElement).value
-  setExtra('gameLanguage', v === 'en-US' ? 'en-US' : 'zh-CN')
-}
-
 /** 不透明度滑块提交（松手时夹取到合法区间再落盘）。 */
 function onOpacityChange(e: Event) {
   setExtra('opacity', clampOpacity(Number((e.target as HTMLInputElement).value)))
-}
-
-/** 最大并行下载数下拉提交（仅接受 4 / 8 / 16）。 */
-function onParallelChange(e: Event) {
-  const v = Number((e.target as HTMLSelectElement).value)
-  setExtra('maxParallel', v === 4 ? 4 : v === 16 ? 16 : 8)
-}
-
-/** 下载源下拉提交（仅接受已知值）。 */
-function onDownloadSourceChange(e: Event) {
-  const v = (e.target as HTMLSelectElement).value
-  setExtra('downloadSource', v === 'official-first' ? 'official-first' : 'mirror-first')
 }
 
 /* ------------------------------- 核心字段 ------------------------------- */
@@ -194,9 +191,8 @@ function pickJavaManually() {
 /* ------------------------------- 主题模式 ------------------------------- */
 
 /** 主题模式下拉提交（store.setTheme 同步 data-theme 并落盘）。 */
-function onThemeChange(e: Event) {
-  const v = (e.target as HTMLSelectElement).value
-  store.setTheme(v === 'dark' ? 'dark' : 'light')
+function onThemeValue(value: string) {
+  store.setTheme(value === 'dark' ? 'dark' : 'light')
 }
 </script>
 
@@ -205,23 +201,18 @@ function onThemeChange(e: Event) {
     <!-- ==================== 全局设置 ==================== -->
     <template v-if="section === 'global'">
       <!-- 启动选项 -->
-      <div class="setting-group">
-        <div class="setting-group-title">启动选项</div>
+      <SettingGroup title="启动选项">
 
         <div class="setting-row">
           <div class="setting-label">
             默认版本隔离
             <div class="setting-desc">{{ isolationDesc }}</div>
           </div>
-          <select
-            class="setting-select"
-            :value="extras.versionIsolation"
-            @change="onChoice('versionIsolation', $event)"
-          >
-            <option v-for="o in VERSION_ISOLATION_OPTIONS" :key="o.value" :value="o.value">
-              {{ o.label }}
-            </option>
-          </select>
+          <AlxSelect
+            :model-value="extras.versionIsolation"
+            :options="VERSION_ISOLATION_OPTIONS"
+            @update:model-value="(v: string) => setChoice('versionIsolation', v)"
+          />
         </div>
 
         <div class="setting-row">
@@ -263,15 +254,11 @@ function onThemeChange(e: Event) {
             启动器可见性
             <div class="setting-desc">游戏启动后启动器的行为</div>
           </div>
-          <select
-            class="setting-select"
-            :value="extras.launcherVisibility"
-            @change="onChoice('launcherVisibility', $event)"
-          >
-            <option v-for="o in LAUNCHER_VISIBILITY_OPTIONS" :key="o.value" :value="o.value">
-              {{ o.label }}
-            </option>
-          </select>
+          <AlxSelect
+            :model-value="extras.launcherVisibility"
+            :options="LAUNCHER_VISIBILITY_OPTIONS"
+            @update:model-value="(v: string) => setChoice('launcherVisibility', v)"
+          />
         </div>
 
         <div class="setting-row">
@@ -279,15 +266,11 @@ function onThemeChange(e: Event) {
             进程优先级
             <div class="setting-desc">越高游戏越流畅，但可能影响其他程序</div>
           </div>
-          <select
-            class="setting-select"
-            :value="extras.processPriority"
-            @change="onChoice('processPriority', $event)"
-          >
-            <option v-for="o in PROCESS_PRIORITY_OPTIONS" :key="o.value" :value="o.value">
-              {{ o.label }}
-            </option>
-          </select>
+          <AlxSelect
+            :model-value="extras.processPriority"
+            :options="PROCESS_PRIORITY_OPTIONS"
+            @update:model-value="(v: string) => setChoice('processPriority', v)"
+          />
         </div>
 
         <div class="setting-row">
@@ -295,15 +278,11 @@ function onThemeChange(e: Event) {
             窗口大小
             <div class="setting-desc">游戏窗口的初始尺寸</div>
           </div>
-          <select
-            class="setting-select"
-            :value="extras.windowSize"
-            @change="onChoice('windowSize', $event)"
-          >
-            <option v-for="o in WINDOW_SIZE_OPTIONS" :key="o.value" :value="o.value">
-              {{ o.label }}
-            </option>
-          </select>
+          <AlxSelect
+            :model-value="extras.windowSize"
+            :options="WINDOW_SIZE_OPTIONS"
+            @update:model-value="(v: string) => setChoice('windowSize', v)"
+          />
         </div>
 
         <div class="setting-row">
@@ -311,15 +290,11 @@ function onThemeChange(e: Event) {
             快速游玩
             <div class="setting-desc">启动游戏后直接进入指定服务器或世界</div>
           </div>
-          <select
-            class="setting-select"
-            :value="extras.quickPlay"
-            @change="onChoice('quickPlay', $event)"
-          >
-            <option v-for="o in QUICK_PLAY_OPTIONS" :key="o.value" :value="o.value">
-              {{ o.label }}
-            </option>
-          </select>
+          <AlxSelect
+            :model-value="extras.quickPlay"
+            :options="QUICK_PLAY_OPTIONS"
+            @update:model-value="(v: string) => setChoice('quickPlay', v)"
+          />
         </div>
 
         <div class="setting-row">
@@ -334,11 +309,10 @@ function onThemeChange(e: Event) {
             @change="onTextInput('preLaunchCommand', $event)"
           />
         </div>
-      </div>
+      </SettingGroup>
 
       <!-- 预设 -->
-      <div class="setting-group">
-        <div class="setting-group-title">预设</div>
+      <SettingGroup title="预设">
         <p class="setting-note">
           游戏设置预设管理着一组游戏设置，你可以在下方调整这些设置。所有实例默认继承当前预设中的游戏设置，
           也可以在实例的游戏设置页面中覆盖特定项。
@@ -349,13 +323,11 @@ function onThemeChange(e: Event) {
             <div class="setting-desc">实例默认继承该预设的游戏设置</div>
           </div>
           <div class="setting-controls">
-            <select
-              class="setting-select"
-              :value="extras.presetName"
-              @change="onChoice('presetName', $event)"
-            >
-              <option value="预设1">预设1</option>
-            </select>
+            <AlxSelect
+              :model-value="extras.presetName"
+              :options="presetOptions"
+              @update:model-value="(v: string) => setChoice('presetName', v)"
+            />
             <button type="button" class="btn-download btn-ghost" @click="addPreset">新建预设</button>
           </div>
         </div>
@@ -364,21 +336,16 @@ function onThemeChange(e: Event) {
             继承策略
             <div class="setting-desc">已自带游戏设置文件的整合包不继承预设</div>
           </div>
-          <select
-            class="setting-select"
-            :value="extras.presetInherit"
-            @change="onChoice('presetInherit', $event)"
-          >
-            <option v-for="o in PRESET_INHERIT_OPTIONS" :key="o.value" :value="o.value">
-              {{ o.label }}
-            </option>
-          </select>
+          <AlxSelect
+            :model-value="extras.presetInherit"
+            :options="PRESET_INHERIT_OPTIONS"
+            @update:model-value="(v: string) => setChoice('presetInherit', v)"
+          />
         </div>
-      </div>
+      </SettingGroup>
 
       <!-- 内存分配 -->
-      <div class="setting-group">
-        <div class="setting-group-title">内存分配</div>
+      <SettingGroup title="内存分配">
 
         <div class="setting-row">
           <div class="setting-label">
@@ -433,11 +400,10 @@ function onThemeChange(e: Event) {
             <div class="memory-bar-fill" :style="{ width: `${memoryPercent}%` }"></div>
           </div>
         </div>
-      </div>
+      </SettingGroup>
 
       <!-- 高级选项 -->
-      <div class="setting-group">
-        <div class="setting-group-title">高级选项</div>
+      <SettingGroup title="高级选项">
 
         <div class="setting-row">
           <div class="setting-label">
@@ -507,14 +473,13 @@ function onThemeChange(e: Event) {
             @update:model-value="(v: boolean) => setExtra('preferHighPerfGpu', v)"
           />
         </div>
-      </div>
+      </SettingGroup>
     </template>
 
     <!-- ==================== Java 运行环境管理 ==================== -->
     <template v-else-if="section === 'java'">
 
-      <div class="setting-group">
-        <div class="setting-group-title">已安装的 Java</div>
+      <SettingGroup title="已安装的 Java">
         <!-- 探测列表：内核探测命令接入后展示（icon coffee / 标题 Java {major} / 描述路径） -->
         <template v-if="javas.length > 0">
           <div v-for="j in javas" :key="j.path" class="list-item">
@@ -536,22 +501,23 @@ function onThemeChange(e: Event) {
           <span>未发现已安装的 Java</span>
           <button type="button" class="btn-download btn-ghost" @click="pickJavaManually">手动指定路径</button>
         </div>
-      </div>
+      </SettingGroup>
     </template>
 
     <!-- ==================== 启动器通用设置 ==================== -->
     <template v-else-if="section === 'general'">
 
-      <div class="setting-group">
-        <div class="setting-group-title">基础</div>
+      <SettingGroup title="基础">
         <div class="setting-row">
           <div class="setting-label">
             游戏语言
             <div class="setting-desc">以启动参数传入游戏进程</div>
           </div>
-          <select class="setting-select" :value="extras.gameLanguage" @change="onGameLanguage">
-            <option v-for="o in LANGUAGE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
+          <AlxSelect
+            :model-value="extras.gameLanguage"
+            :options="LANGUAGE_OPTIONS"
+            @update:model-value="(v: string) => setExtra('gameLanguage', v as SettingsExtras['gameLanguage'])"
+          />
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -560,14 +526,13 @@ function onThemeChange(e: Event) {
           </div>
           <AlxToggle v-model="autoUpdate" />
         </div>
-      </div>
+      </SettingGroup>
     </template>
 
     <!-- ==================== 启动器外观设置 ==================== -->
     <template v-else-if="section === 'appearance'">
 
-      <div class="setting-group">
-        <div class="setting-group-title">主题</div>
+      <SettingGroup title="主题">
         <div class="setting-row">
           <div class="setting-label">
             不透明度
@@ -593,46 +558,50 @@ function onThemeChange(e: Event) {
             @update:model-value="(v: boolean) => setExtra('showLauncherIcon', v)"
           />
         </div>
-      </div>
+      </SettingGroup>
 
-      <div class="setting-group">
-        <div class="setting-group-title">主题模式</div>
+      <SettingGroup title="主题模式">
         <div class="setting-row">
           <div class="setting-label">
             模式
             <div class="setting-desc">浅色 / 深色，立即生效并记住</div>
           </div>
-          <select class="setting-select" :value="store.theme" @change="onThemeChange">
-            <option v-for="o in THEME_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
+          <AlxSelect
+            :model-value="store.theme"
+            :options="THEME_OPTIONS"
+            @update:model-value="onThemeValue"
+          />
         </div>
-      </div>
+      </SettingGroup>
     </template>
 
     <!-- ==================== 下载设置 ==================== -->
     <template v-else-if="section === 'download'">
 
-      <div class="setting-group">
-        <div class="setting-group-title">网络与并发</div>
+      <SettingGroup title="网络与并发">
         <div class="setting-row">
           <div class="setting-label">
             最大并行下载数
             <div class="setting-desc">同时下载的文件数上限</div>
           </div>
-          <select class="setting-select" :value="extras.maxParallel" @change="onParallelChange">
-            <option v-for="n in PARALLEL_OPTIONS" :key="n" :value="n">{{ n }}</option>
-          </select>
+          <AlxSelect
+            :model-value="String(extras.maxParallel)"
+            :options="parallelChoices"
+            @update:model-value="onParallelValue"
+          />
         </div>
         <div class="setting-row">
           <div class="setting-label">
             下载源
             <div class="setting-desc">版本清单与资源文件的优先来源</div>
           </div>
-          <select class="setting-select" :value="extras.downloadSource" @change="onDownloadSourceChange">
-            <option v-for="o in DOWNLOAD_SOURCE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
+          <AlxSelect
+            :model-value="extras.downloadSource"
+            :options="DOWNLOAD_SOURCE_OPTIONS"
+            @update:model-value="onDownloadSourceValue"
+          />
         </div>
-      </div>
+      </SettingGroup>
     </template>
   </div>
 </template>

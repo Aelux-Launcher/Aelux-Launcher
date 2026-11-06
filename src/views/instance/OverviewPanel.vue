@@ -12,6 +12,7 @@ import { call } from '../../lib/bridge'
 import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxModal from '../../components/AlxModal.vue'
+import AlxSelect from '../../components/AlxSelect.vue'
 import {
   openFolderInExplorer,
   resolveInstanceDir,
@@ -158,23 +159,19 @@ function confirmDesc() {
     <div class="setting-group-title">个性化</div>
     <div class="setting-row">
       <div class="setting-label">图标</div>
-      <select
-        class="setting-select"
-        :value="ui.icon ?? 'auto'"
-        @change="setUi({ icon: ($event.target as HTMLSelectElement).value })"
-      >
-        <option v-for="o in ICON_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-      </select>
+      <AlxSelect
+        :model-value="ui.icon ?? 'auto'"
+        :options="ICON_OPTIONS"
+        @update:model-value="(v: string) => setUi({ icon: v })"
+      />
     </div>
     <div class="setting-row">
       <div class="setting-label">分类</div>
-      <select
-        class="setting-select"
-        :value="ui.category ?? 'auto'"
-        @change="setUi({ category: ($event.target as HTMLSelectElement).value })"
-      >
-        <option v-for="o in CATEGORY_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-      </select>
+      <AlxSelect
+        :model-value="ui.category ?? 'auto'"
+        :options="CATEGORY_OPTIONS"
+        @update:model-value="(v: string) => setUi({ category: v })"
+      />
     </div>
     <div class="setting-row">
       <div class="setting-label">名称与描述<span class="setting-desc">展示在主页与版本选择页</span></div>

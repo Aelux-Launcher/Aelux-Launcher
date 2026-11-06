@@ -10,6 +10,7 @@ import { toast } from '../../lib/toast'
 import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxToggle from '../../components/AlxToggle.vue'
+import AlxSelect from '../../components/AlxSelect.vue'
 import ExportTree from './ExportTree.vue'
 import {
   EXPORT_TREE,
@@ -29,6 +30,12 @@ const format = ref<'mcpack' | 'mrpack'>('mcpack')
 const includeResources = ref(true)
 const modrinthOnly = ref(false)
 const advanceOpen = ref(false)
+
+/** 整合包格式下拉选项。 */
+const FORMAT_OPTIONS = [
+  { value: 'mcpack', label: 'mcpack（Minecraft 本地格式）' },
+  { value: 'mrpack', label: 'mrpack（Modrinth 格式）' },
+]
 
 /** 勾选 / 取消勾选某个导出项。 */
 function onToggle(id: string, checked: boolean) {
@@ -92,14 +99,11 @@ function startExport() {
     <div class="accordion-content" style="color: var(--text-main)" @click.stop>
       <div class="setting-row" style="padding-left: 0; padding-right: 0">
         <div class="setting-label">整合包格式</div>
-        <select
-          class="setting-select"
-          :value="format"
-          @change="format = ($event.target as HTMLSelectElement).value as 'mcpack' | 'mrpack'"
-        >
-          <option value="mcpack">mcpack（Minecraft 本地格式）</option>
-          <option value="mrpack">mrpack（Modrinth 格式）</option>
-        </select>
+        <AlxSelect
+          :model-value="format"
+          :options="FORMAT_OPTIONS"
+          @update:model-value="(v: string) => (format = v as 'mcpack' | 'mrpack')"
+        />
       </div>
       <div style="display: flex; flex-direction: column; gap: 12px; padding-top: 12px">
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px">

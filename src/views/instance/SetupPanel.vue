@@ -12,6 +12,7 @@ import { toast } from '../../lib/toast'
 import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxToggle from '../../components/AlxToggle.vue'
+import AlxSelect from '../../components/AlxSelect.vue'
 import {
   JavaManager,
   type InstanceSettings,
@@ -163,13 +164,11 @@ watch(
     <div class="setting-group-title">启动选项</div>
     <div class="setting-row">
       <div class="setting-label">版本隔离</div>
-      <select
-        class="setting-select"
-        :value="settings.indie"
-        @change="patch({ indie: ($event.target as HTMLSelectElement).value as InstanceSettings['indie'] })"
-      >
-        <option v-for="o in ISOLATION_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-      </select>
+      <AlxSelect
+        :model-value="settings.indie"
+        :options="ISOLATION_OPTIONS"
+        @update:model-value="(v: string) => patch({ indie: v as InstanceSettings['indie'] })"
+      />
     </div>
     <div class="setting-row">
       <div class="setting-label">游戏窗口标题</div>
@@ -195,13 +194,11 @@ watch(
         <div class="setting-desc">{{ javaText }}</div>
       </div>
       <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-end">
-        <select
-          class="setting-select"
-          :value="javaModeValue"
-          @change="patch({ javaMode: ($event.target as HTMLSelectElement).value as InstanceSettings['javaMode'] })"
-        >
-          <option v-for="o in JAVA_MODE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-        </select>
+        <AlxSelect
+          :model-value="javaModeValue"
+          :options="JAVA_MODE_OPTIONS"
+          @update:model-value="(v: string) => patch({ javaMode: v as InstanceSettings['javaMode'] })"
+        />
         <input
           v-if="settings.javaMode === 'custom' || settings.javaMode === 'folder'"
           class="setting-input"
@@ -275,13 +272,11 @@ watch(
     <div class="setting-group-title">服务器</div>
     <div class="setting-row">
       <div class="setting-label">登录方式</div>
-      <select
-        class="setting-select"
-        :value="settings.serverLogin"
-        @change="patch({ serverLogin: ($event.target as HTMLSelectElement).value as InstanceSettings['serverLogin'] })"
-      >
-        <option v-for="o in LOGIN_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-      </select>
+      <AlxSelect
+        :model-value="settings.serverLogin"
+        :options="LOGIN_OPTIONS"
+        @update:model-value="(v: string) => patch({ serverLogin: v as InstanceSettings['serverLogin'] })"
+      />
     </div>
     <div class="setting-row">
       <div class="setting-label">认证服务器（必填）</div>
@@ -363,23 +358,19 @@ watch(
       </div>
       <div class="setting-row" style="padding-left: 0; padding-right: 0">
         <div class="setting-label">Java 列表</div>
-        <select
-          class="setting-select"
-          :value="settings.javaPath"
-          @change="pickJava(($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="o in javaListOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
-        </select>
+        <AlxSelect
+          :model-value="settings.javaPath"
+          :options="javaListOptions"
+          @update:model-value="pickJava"
+        />
       </div>
       <div class="setting-row" style="padding-left: 0; padding-right: 0">
         <div class="setting-label">内存管理</div>
-        <select
-          class="setting-select"
-          :value="settings.advanceGc"
-          @change="patch({ advanceGc: ($event.target as HTMLSelectElement).value as InstanceSettings['advanceGc'] })"
-        >
-          <option v-for="o in GC_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-        </select>
+        <AlxSelect
+          :model-value="settings.advanceGc"
+          :options="GC_OPTIONS"
+          @update:model-value="(v: string) => patch({ advanceGc: v as InstanceSettings['advanceGc'] })"
+        />
       </div>
       <div style="display: flex; flex-direction: column; gap: 12px; padding-top: 12px">
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px">

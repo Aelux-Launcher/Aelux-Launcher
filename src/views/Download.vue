@@ -17,6 +17,7 @@ import { toast } from '../lib/toast'
 import { ensureMcmod, mcmodInfo } from '../lib/mcmod'
 import type { McmodInfo } from '../lib/mcmod'
 import AlxIcon from '../components/AlxIcon.vue'
+import AlxSelect from '../components/AlxSelect.vue'
 import VersionRowActions from '../components/VersionRowActions.vue'
 import { versionRowIcon } from '../lib/versionIcons'
 
@@ -184,10 +185,21 @@ const category = computed({
 /** 当前下载源（全部 / Modrinth / CurseForge）。 */
 const source = computed(() => store.resourceQuery.source)
 
-function setSource(event: Event) {
-  const value = (event.target as HTMLSelectElement).value as ResourceSource
-  store.setResourceQuery({ source: value })
-}
+/** 下拉选项（首项为「不过滤」的空值）。 */
+const versionChoices = computed(() => [
+  { value: '', label: '全部版本' },
+  ...versionOptions.value.map((id) => ({ value: id, label: id })),
+])
+
+const loaderChoices = computed(() => [
+  { value: '', label: '任意 Mod 加载器' },
+  ...loaderOptions.value.map((l) => ({ value: l, label: LOADER_LABELS[l] ?? l })),
+])
+
+const categoryChoices = computed(() => [
+  { value: '', label: '全部类型' },
+  ...categoryOptions.value.map((c) => ({ value: c.slug, label: c.label })),
+])
 
 /** 列表项来源标签。 */
 function sourceLabel(p: ResourceProject): string {
@@ -473,33 +485,38 @@ function retrySearch() {
             </div>
             <div class="filter-field filter-field-source">
               <span class="filter-label">来源</span>
-              <select class="filter-control" :value="source" @change="setSource">
-                <option v-for="s in SOURCE_OPTIONS" :key="s.value" :value="s.value">{{ s.label }}</option>
-              </select>
+              <AlxSelect
+                :model-value="source"
+                :options="SOURCE_OPTIONS"
+                @update:model-value="(v: string) => store.setResourceQuery({ source: v as ResourceSource })"
+              />
             </div>
           </div>
 
           <div class="resource-filter-row">
             <div class="filter-field filter-field-version">
               <span class="filter-label">游戏版本</span>
-              <select v-model="gameVersion" class="filter-control">
-                <option value="">全部版本</option>
-                <option v-for="id in versionOptions" :key="id" :value="id">{{ id }}</option>
-              </select>
+              <AlxSelect
+                :model-value="gameVersion"
+                :options="versionChoices"
+                @update:model-value="(v: string) => (gameVersion = v)"
+              />
             </div>
             <div v-if="showLoaderFilter" class="filter-field">
               <span class="filter-label">加载器</span>
-              <select v-model="loader" class="filter-control">
-                <option value="">任意 Mod 加载器</option>
-                <option v-for="l in loaderOptions" :key="l" :value="l">{{ LOADER_LABELS[l] ?? l }}</option>
-              </select>
+              <AlxSelect
+                :model-value="loader"
+                :options="loaderChoices"
+                @update:model-value="(v: string) => (loader = v)"
+              />
             </div>
             <div v-if="categoryOptions.length" class="filter-field">
               <span class="filter-label">类型</span>
-              <select v-model="category" class="filter-control">
-                <option value="">全部类型</option>
-                <option v-for="c in categoryOptions" :key="c.slug" :value="c.slug">{{ c.label }}</option>
-              </select>
+              <AlxSelect
+                :model-value="category"
+                :options="categoryChoices"
+                @update:model-value="(v: string) => (category = v)"
+              />
             </div>
           </div>
 

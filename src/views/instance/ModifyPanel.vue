@@ -10,6 +10,7 @@ import { useAppStore } from '../../stores/app'
 import { toast } from '../../lib/toast'
 import type { GameInstance } from '../../lib/types'
 import { saveInstanceUi } from '../instanceMeta'
+import AlxSelect from '../../components/AlxSelect.vue'
 
 const props = defineProps<{ instance: GameInstance }>()
 
@@ -58,6 +59,14 @@ const slots = computed<LoaderSlot[]>(() => [
 
 const changed = computed(() => Object.entries(picked.value).filter(([, v]) => v))
 
+/** 加载器版本下拉选项（首项「不修改」）。 */
+function slotChoices(slot: LoaderSlot) {
+  return [
+    { value: '', label: '（不修改）' },
+    ...slot.choices.map((c) => ({ value: c, label: c })),
+  ]
+}
+
 /** 开始修改：把选择落到实例外观偏好上，产物安装由下载流程接手。 */
 function startModify() {
   if (changed.value.length === 0) {
@@ -96,14 +105,11 @@ function startModify() {
     </div>
     <div class="setting-row">
       <div class="setting-label">改为</div>
-      <select
-        class="setting-select"
-        :value="picked[slot.key] ?? ''"
-        @change="picked = { ...picked, [slot.key]: ($event.target as HTMLSelectElement).value }"
-      >
-        <option value="">（不修改）</option>
-        <option v-for="c in slot.choices" :key="c" :value="c">{{ c }}</option>
-      </select>
+      <AlxSelect
+        :model-value="picked[slot.key] ?? ''"
+        :options="slotChoices(slot)"
+        @update:model-value="(v: string) => (picked = { ...picked, [slot.key]: v })"
+      />
     </div>
   </div>
 

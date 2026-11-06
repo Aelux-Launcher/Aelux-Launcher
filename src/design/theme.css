@@ -509,6 +509,9 @@ svg {
  * 二级页面通用构件
  * ========================================================================== */
 .sub-page { padding: 32px 40px; }
+/* 子页面：父容器是 flex 列时卡片会被压缩，配合卡片的 overflow:hidden 会裁掉内容；
+   禁止直接子元素收缩即可完整展示（保留 flex 布局，避免影响依赖填充高度的子页面）。 */
+.page-view.active.sub-page > * { flex-shrink: 0; }
 
 .page-header {
   font-size: 22px;
@@ -830,11 +833,27 @@ svg {
   background: var(--bg-color);
   overflow: hidden;
 }
-.setting-group-title {
+.setting-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
   padding: 16px;
+  border: 0;
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.setting-group-head.static { cursor: default; }
+.setting-group-title {
+  padding: 0;
   font-size: 15px;
   font-weight: 700;
 }
+.setting-chevron { flex: none; color: var(--text-sub); transition: transform 0.18s; }
+.setting-chevron.open { transform: rotate(180deg); }
 .setting-note {
   margin: 0;
   padding: 0 16px 14px;
@@ -937,6 +956,63 @@ svg {
 /* 滑块（延展：外观设置用） */
 .setting-range { width: 200px; accent-color: var(--text-main); }
 .setting-input.wide { width: 320px; }
+
+/* ------------------------------ 自绘下拉 ------------------------------ */
+/* 原生 select 的弹出面板由系统绘制，选项多时会溢出窗口；这里改为固定高度 + 内部滚动。 */
+.alx-select { position: relative; display: inline-flex; flex: none; width: 200px; }
+.setting-row .alx-select { width: 200px; }
+.filter-field .alx-select { width: 100%; }
+.alx-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--hover-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.alx-select-trigger:focus-visible { border-color: var(--text-main); background: var(--bg-color); }
+.alx-select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alx-select-value.placeholder { color: var(--text-sub); }
+.alx-select-chevron { flex: none; color: var(--text-sub); transition: transform 0.15s; }
+.alx-select-trigger.open .alx-select-chevron { transform: rotate(180deg); }
+.alx-select-panel {
+  position: fixed;
+  z-index: 3000;
+  padding: 4px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-color);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.alx-select-option {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.alx-select-option:hover { background: var(--hover-bg); }
+.alx-select-option.active { background: var(--hover-bg); font-weight: 600; }
 
 /* 折叠面板 */
 .accordion-item { padding: 16px; border-radius: 8px; cursor: pointer; }
