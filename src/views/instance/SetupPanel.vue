@@ -15,6 +15,7 @@ import AlxToggle from '../../components/AlxToggle.vue'
 import AlxSelect from '../../components/AlxSelect.vue'
 import SettingGroup from '../../components/SettingGroup.vue'
 import {
+  DEFAULT_INSTANCE_SETTINGS,
   JavaManager,
   type InstanceSettings,
   type InstanceUi,
@@ -52,8 +53,9 @@ const JAVA_MODE_OPTIONS = [
   { value: 'autoRange', label: '跟随全局设置' },
   { value: 'custom', label: '自定义' },
 ]
-/** 登录方式。 */
+/** 登录方式（默认跟随全局设置）。 */
 const LOGIN_OPTIONS = [
+  { value: 'follow', label: '跟随全局设置' },
   { value: 'official', label: '正版' },
   { value: 'authlib', label: '第三方登录：Authlib Injector' },
   { value: 'offline', label: '离线' },
@@ -61,11 +63,18 @@ const LOGIN_OPTIONS = [
   { value: 'nide', label: 'Nide 验证' },
 ]
 
-/** 内存分配方式（界面上横排的单选组）。 */
+/** 内存分配方式（单选下拉）。 */
 const RAM_TYPE_OPTIONS: { value: InstanceSettings['ramType']; label: string }[] = [
   { value: 'follow', label: '跟随全局设置' },
   { value: 'auto', label: '自动配置' },
   { value: 'custom', label: '自定义' },
+]
+
+/** 启动前内存优化（默认跟随全局设置）。 */
+const RAM_OPTIMIZE_OPTIONS: { value: InstanceSettings['ramOptimize']; label: string }[] = [
+  { value: 'follow', label: '跟随全局设置' },
+  { value: 'on', label: '开启' },
+  { value: 'off', label: '关闭' },
 ]
 
 /** 内存管理（GC）。 */
@@ -105,16 +114,16 @@ function pickJava(path: string) {
   props.patch({ javaPath: path, javaMode: 'custom' })
 }
 
-/** 设置为 LittleSkin 认证服务器。 */
-function applyLittleSkin() {
-  props.setUi({
-    authServer: 'https://littleskin.cn/api/yggdrasil',
-    registerUrl: 'https://littleskin.cn/register',
-    serverName: props.ui.serverName || 'LittleSkin',
-  })
-  props.patch({ serverLogin: 'authlib' })
-  toast.success('已设置为 LittleSkin 认证服务器')
-}
+// 侧栏「刷新」（游戏设置）= 初始化：把该版本的设置恢复为默认值。
+watch(
+  () => store.instanceReloads.setup ?? 0,
+  (tick) => {
+    if (!tick) return
+    props.patch({ ...DEFAULT_INSTANCE_SETTINGS })
+    showHint.value = true
+    toast.success('已初始化当前版本设置')
+  },
+)
 
 // 解析该版本实际会使用的 Java，用于提示块与 Java 列表。
 watch(
@@ -213,19 +222,11 @@ watch(
   <!-- ---------------------- 内存分配 ---------------------- -->
   <SettingGroup title="内存分配" :collapsible="false">
     <div class="setting-row">
-      <div class="setting-label">分配方式</div>
-      <div class="item-right">
-        <button
-          v-for="m in RAM_TYPE_OPTIONS"
-          :key="m.value"
-          type="button"
-          :class="settings.ramType === m.value ? 'btn-sub active' : 'btn-sub'"
-          :style="settings.ramType === m.value ? { borderColor: 'var(--text-main)', fontWeight: 600 } : undefined"
-          @click="patch({ ramType: m.value })"
-        >
-          {{ m.label }}
-        </button>
-      </div>
+      <AlxSelect
+        :model-value="settings.ramType"
+        :options="RAM_TYPE_OPTIONS"
+        @update:model-value="(v: string) => patch({ ramType: v as InstanceSettings['ramType'] })"
+      />
     </div>
     <div v-if="settings.ramType === 'custom'" class="setting-row">
       <div class="setting-label">
@@ -244,9 +245,10 @@ watch(
     </div>
     <div class="setting-row">
       <div class="setting-label">启动游戏前进行内存优化</div>
-      <AlxToggle
-        :model-value="settings.ramOptimize === 'on'"
-        @update:model-value="patch({ ramOptimize: $event ? 'on' : 'off' })"
+      <AlxSelect
+        :model-value="settings.ramOptimize"
+        :options="RAM_OPTIMIZE_OPTIONS"
+        @update:model-value="(v: string) => patch({ ramOptimize: v as InstanceSettings['ramOptimize'] })"
       />
     </div>
     <!-- 内存概览（演示数据）：进度条 + 数值 -->
@@ -310,12 +312,6 @@ watch(
         placeholder="例如：127.0.0.1:25565"
         @input="patch({ serverAutoEnter: ($event.target as HTMLInputElement).value })"
       />
-    </div>
-    <div class="setting-row">
-      <div class="setting-label">快捷填写<span class="setting-desc">一键填入 LittleSkin 的认证地址与注册链接</span></div>
-      <div class="item-right">
-        <button type="button" class="btn-sub" @click="applyLittleSkin">设置为 LittleSkin</button>
-      </div>
     </div>
   </SettingGroup>
 

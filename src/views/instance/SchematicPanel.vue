@@ -5,7 +5,8 @@
  *
  * 本地清单尚未接入内核目录列举（同 ModPanel，读不到时用演示数据撑起界面）。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useAppStore } from '../../stores/app'
 import { toast } from '../../lib/toast'
 import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
@@ -16,6 +17,8 @@ import { openFolderInExplorer, resolveInstanceDir } from '../instanceMeta'
 
 const props = defineProps<{ instance: GameInstance }>()
 
+const store = useAppStore()
+
 interface SchematicEntry {
   id: string
   name: string
@@ -23,17 +26,32 @@ interface SchematicEntry {
   format: string
 }
 
-/** 演示原理图（本地清单为空时撑起界面）。 */
-const schematics = ref<SchematicEntry[]>([
-  { id: 's0', name: '小型农舍', desc: '12×9×10 · 1,204 方块', format: '.litematic' },
-  { id: 's1', name: '刷怪塔', desc: '9×9×24 · 1,860 方块', format: '.schematic' },
-  { id: 's2', name: '红石电梯', desc: '5×5×18 · 412 方块', format: '.litematic' },
-  { id: 's3', name: '城堡主塔', desc: '24×24×48 · 15,320 方块', format: '.schematic' },
-])
+/** 演示原理图（本地清单为空时撑起界面；刷新时重新取一份）。 */
+function demoSchematics(): SchematicEntry[] {
+  return [
+    { id: 's0', name: '小型农舍', desc: '12×9×10 · 1,204 方块', format: '.litematic' },
+    { id: 's1', name: '刷怪塔', desc: '9×9×24 · 1,860 方块', format: '.schematic' },
+    { id: 's2', name: '红石电梯', desc: '5×5×18 · 412 方块', format: '.litematic' },
+    { id: 's3', name: '城堡主塔', desc: '24×24×48 · 15,320 方块', format: '.schematic' },
+  ]
+}
+
+const schematics = ref<SchematicEntry[]>(demoSchematics())
 
 const query = ref('')
 /** 待移除原理图（移除走弹窗确认）。 */
 const removeTarget = ref<SchematicEntry | null>(null)
+
+// 侧栏「刷新」：重新载入原理图清单并清空搜索。
+watch(
+  () => store.instanceReloads.schematic ?? 0,
+  (tick) => {
+    if (!tick) return
+    schematics.value = demoSchematics()
+    query.value = ''
+    toast.success('原理图列表已重新加载')
+  },
+)
 
 /** 过滤后的原理图列表。 */
 const rows = computed(() => {

@@ -38,13 +38,23 @@ const query = ref('')
 const mods = ref<LocalMod[]>([])
 const selected = ref<Record<string, boolean>>({})
 
-// 本地 Mod 清单（读不到 / 为空时用演示数据兜底）。
+/** 读取该实例的本地 Mod 清单（读不到 / 为空时用演示数据兜底）。 */
+async function loadMods() {
+  mods.value = await localModsRepo.list(props.instance.id)
+}
+
+watch(() => props.instance.id, loadMods, { immediate: true })
+
+// 侧栏「刷新」：重新读取本地 Mod 清单，并清空筛选与勾选。
 watch(
-  () => props.instance.id,
-  async (id) => {
-    mods.value = await localModsRepo.list(id)
+  () => store.instanceReloads.mod ?? 0,
+  async (tick) => {
+    if (!tick) return
+    query.value = ''
+    selected.value = {}
+    await loadMods()
+    toast.success('Mod 列表已重新加载')
   },
-  { immediate: true },
 )
 
 const rows = computed(() => {
@@ -94,6 +104,17 @@ function toggle(id: string) {
   selected.value = { ...selected.value, [id]: !selected.value[id] }
 }
 
+/** 加载器 → 列表图标（按实例的版本加载器显示，未知回落到原版方块）。 */
+const LOADER_ICON: Record<string, string> = {
+  vanilla: 'minecraft',
+  fabric: 'fabric',
+  forge: 'forge',
+  neoforge: 'neoforge',
+  quilt: 'quilt',
+  optifine: 'optifine',
+}
+const loaderIcon = computed(() => LOADER_ICON[props.instance.loader] ?? 'minecraft')
+
 /** 全选当前过滤结果。 */
 function selectAll() {
   const next: Record<string, boolean> = {}
@@ -110,7 +131,9 @@ function selectAll() {
     <div class="panel-actions">
       <button type="button" class="btn-sub" @click="openModsFolder">打开文件夹</button>
       <button type="button" class="btn-sub" @click="installFromFile">从文件安装</button>
-      <button type="button" class="btn-sub" @click="store.setView('download')">下载新 Mod</button>
+      <button type="button" class="btn-sub" @click="store.routerPush('/download/mod')">
+        下载新 Mod
+      </button>
       <button type="button" class="btn-sub" @click="selectAll">全选</button>
     </div>
   </div>
@@ -124,7 +147,7 @@ function selectAll() {
     <template v-else>
       <div v-for="m in rows" :key="m.id" class="list-item">
         <div class="item-left">
-          <div class="item-icon"><AlxIcon name="package" :size="20" /></div>
+          <div class="item-icon"><AlxIcon :name="loaderIcon" :size="20" /></div>
           <div class="item-info">
             <div class="item-title">{{ m.name }}</div>
             <div class="item-desc">{{ m.desc }}</div>

@@ -67,6 +67,20 @@ const LOADER_ICON: Record<string, string> = {
 /** 当前实例的图标：按加载器区分，未知加载器回落到原版。 */
 const loaderIcon = computed(() => LOADER_ICON[props.instance.loader] ?? 'minecraft')
 
+/** 全局登录方式 → 实例登录方式取值（登录方式为「跟随全局设置」时使用）。 */
+const GLOBAL_LOGIN: Record<string, InstanceSettings['serverLogin']> = {
+  official: 'official',
+  third: 'authlib',
+  offline: 'offline',
+}
+
+/** 副文本里实际生效的登录方式：跟随全局时取全局设置。 */
+const effectiveLogin = computed(() =>
+  props.settings.serverLogin === 'follow'
+    ? (GLOBAL_LOGIN[store.loginMode] ?? 'official')
+    : props.settings.serverLogin,
+)
+
 const editName = ref(false)
 const editDesc = ref(false)
 const nameDraft = ref(props.ui.alias ?? props.instance.name)
@@ -162,7 +176,7 @@ function confirmDesc() {
         <div class="item-icon"><AlxIcon :name="loaderIcon" :size="20" /></div>
         <div class="item-info">
           <div class="item-title">{{ displayName }}</div>
-          <div class="item-desc">{{ summarizeInstance(instance, settings.serverLogin) }}</div>
+          <div class="item-desc">{{ summarizeInstance(instance, effectiveLogin) }}</div>
         </div>
       </div>
     </div>
@@ -187,7 +201,6 @@ function confirmDesc() {
       />
     </div>
     <div class="setting-row actions">
-      <div class="setting-label">名称与描述<span class="setting-desc">展示在主页与版本选择页</span></div>
       <button type="button" class="btn-sub" @click="editName = true">修改版本名</button>
       <button type="button" class="btn-sub" @click="editDesc = true">修改版本描述</button>
       <button type="button" class="btn-sub" @click="setUi({ favorite: !ui.favorite })">
@@ -199,7 +212,6 @@ function confirmDesc() {
   <!-- ---------------------- 快捷方式 ---------------------- -->
   <SettingGroup title="快捷方式" :collapsible="false">
     <div class="setting-row actions">
-      <div class="setting-label">打开文件夹</div>
       <button type="button" class="btn-sub" @click="openSubFolder('', '版本文件夹')">版本文件夹</button>
       <button type="button" class="btn-sub" @click="openSubFolder('saves', '存档文件夹')">存档文件夹</button>
       <button type="button" class="btn-sub" @click="openSubFolder('mods', 'Mod 文件夹')">Mod 文件夹</button>
@@ -210,7 +222,6 @@ function confirmDesc() {
   <!-- ---------------------- 高级管理 ---------------------- -->
   <SettingGroup title="高级管理" :collapsible="false">
     <div class="setting-row actions">
-      <div class="setting-label">维护<span class="setting-desc">删除操作不可撤销，请谨慎执行</span></div>
       <button type="button" class="btn-sub" @click="exportLaunchScript">导出启动脚本</button>
       <button type="button" class="btn-sub" @click="completeFiles">补全文件</button>
       <button type="button" class="btn-download btn-danger" @click="confirmDelete = true">删除版本</button>

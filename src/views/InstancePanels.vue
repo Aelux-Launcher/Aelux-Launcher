@@ -1,9 +1,8 @@
 <script setup lang="ts">
 /**
  * 「版本设置」子页的面板分发：
- * 按当前标签渲染 版本概览 / 游戏设置 / 模组管理 / 资源包管理 / 世界管理 / 原理图，
- * 各面板本体拆在本目录的 instance/ 下的 SFC 里。
- * 加载器更换（原独立「修改」标签）并入「游戏设置」面板底部。
+ * 按当前标签渲染 版本概览 / 游戏设置 / 自动安装 / 模组管理 / 资源包管理 /
+ * 世界管理 / 原理图，各面板本体拆在本目录的 instance/ 下的 SFC 里。
  *
  * 数据归属：
  *   - 实例设置（Java、内存、服务器、高级选项）一律走 store 的
@@ -13,7 +12,7 @@
 import type { GameInstance } from '../lib/types'
 import OverviewPanel from './instance/OverviewPanel.vue'
 import SetupPanel from './instance/SetupPanel.vue'
-import ModifyPanel from './instance/ModifyPanel.vue'
+import InstallPanel from './instance/InstallPanel.vue'
 import ModPanel from './instance/ModPanel.vue'
 import ResourcePackPanel from './instance/ResourcePackPanel.vue'
 import WorldPanel from './instance/WorldPanel.vue'
@@ -42,17 +41,15 @@ defineProps<{
     :ui="ui"
     :set-ui="setUi"
   />
-  <template v-else-if="tab === 'setup'">
-    <SetupPanel
-      :instance="instance"
-      :settings="settings"
-      :patch="patch"
-      :ui="ui"
-      :set-ui="setUi"
-    />
-    <!-- 加载器更换（原「修改」标签的内容） -->
-    <ModifyPanel :instance="instance" />
-  </template>
+  <SetupPanel
+    v-else-if="tab === 'setup'"
+    :instance="instance"
+    :settings="settings"
+    :patch="patch"
+    :ui="ui"
+    :set-ui="setUi"
+  />
+  <InstallPanel v-else-if="tab === 'install'" :instance="instance" />
   <ModPanel v-else-if="tab === 'mod'" :instance="instance" />
   <ResourcePackPanel v-else-if="tab === 'resourcepack'" :instance="instance" />
   <WorldPanel v-else-if="tab === 'world'" :instance="instance" />

@@ -184,6 +184,14 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  /** 版本设置页某个面板的刷新（不跳转，只让面板重新加载数据）。 */
+  function reloadInstanceTab(tab: string) {
+    instanceReloads.value = {
+      ...instanceReloads.value,
+      [tab]: (instanceReloads.value[tab] ?? 0) + 1,
+    }
+  }
+
   /* ------------------------------- 全局数据 ------------------------------- */
   const ready = ref(false)
   const initError = ref<string | null>(null)
@@ -259,6 +267,9 @@ export const useAppStore = defineStore('app', () => {
 
   /* ------------------------------- 实例设置 ------------------------------- */
   const instanceSettings = ref<Record<string, Record<string, unknown>>>({})
+
+  /** 版本设置页的刷新计数：侧栏「刷新」按钮累加，对应面板 watch 后重新加载数据。 */
+  const instanceReloads = ref<Record<string, number>>({})
 
   /* --------------------------------- 动作 --------------------------------- */
 
@@ -1333,6 +1344,7 @@ export const useAppStore = defineStore('app', () => {
     resourceDetailData,
     resourceDetailLoading,
     instanceSettings,
+    instanceReloads,
     navState,
     pageStack,
     launchLogs,
@@ -1353,6 +1365,7 @@ export const useAppStore = defineStore('app', () => {
     closeSubPage,
     pageBack,
     setInstanceTab,
+    reloadInstanceTab,
     setTheme,
     pushLaunchLog,
     clearLaunchLogs,

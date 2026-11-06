@@ -129,6 +129,21 @@ const refreshingKey = ref<string | null>(null)
 /** 刷新图标至少旋转这么久，避免瞬时完成时动画一闪而过。 */
 const MIN_REFRESH_SPIN_MS = 700
 
+/** 版本设置页的「刷新」：游戏设置是初始化，其余面板重新加载数据。 */
+async function refreshInstanceTab(key: string) {
+  if (refreshingKey.value) return
+  refreshingKey.value = key
+  const started = performance.now()
+  try {
+    store.reloadInstanceTab(key)
+    // 面板自己的 toast 会立即给出结果，这里只保证旋转动画有可感知的时长。
+    const remain = MIN_REFRESH_SPIN_MS - (performance.now() - started)
+    if (remain > 0) await new Promise((resolve) => setTimeout(resolve, remain))
+  } finally {
+    refreshingKey.value = null
+  }
+}
+
 async function refreshCategory(key: string) {
   if (refreshingKey.value) return
   refreshingKey.value = key
@@ -160,15 +175,16 @@ const sidePanelKind = computed(() => {
   return kind === 'select' || kind === 'accounts' || kind === 'instance' ? kind : null
 })
 
-/* ----- 版本设置页：左栏切换 版本概览 / 游戏设置 / 模组管理 / 资源包管理 / 世界管理 / 原理图 ----- */
+/* ----- 版本设置页：左栏切换 版本概览 / 游戏设置 / 自动安装 / 模组 / 资源包 / 世界 / 原理图管理 ----- */
 
 const INSTANCE_TABS = [
   { key: 'overall', label: '版本概览', icon: 'layout' },
   { key: 'setup', label: '游戏设置', icon: 'settings' },
+  { key: 'install', label: '自动安装', icon: 'package' },
   { key: 'mod', label: '模组管理', icon: 'puzzle' },
   { key: 'resourcepack', label: '资源包管理', icon: 'shirt' },
   { key: 'world', label: '世界管理', icon: 'globe' },
-  { key: 'schematic', label: '原理图', icon: 'grid' },
+  { key: 'schematic', label: '原理图管理', icon: 'grid' },
 ] as const
 
 /** 当前版本设置标签（非该子页时回落「概览」）。 */
@@ -452,6 +468,23 @@ function selectFolder(f: StoredFolder) {
           >
             <AlxIcon :name="item.icon" :size="20" class="nav-icon" />
             {{ item.label }}
+            <!-- 游戏设置 = 初始化；其余管理页 = 重新加载数据（只在当前页显示） -->
+            <button
+              v-if="
+                instanceTab === item.key && item.key !== 'overall' && item.key !== 'install'
+              "
+              type="button"
+              class="nav-item-action"
+              :title="item.key === 'setup' ? '初始化版本设置' : `重新加载${item.label}`"
+              :disabled="refreshingKey !== null"
+              @click.stop="refreshInstanceTab(item.key)"
+            >
+              <AlxIcon
+                name="refresh"
+                :size="15"
+                :class="{ spinning: refreshingKey === item.key }"
+              />
+            </button>
           </div>
         </div>
       </div>

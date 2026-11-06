@@ -28,10 +28,10 @@ export interface InstanceSettings {
   ramType: 'follow' | 'auto' | 'custom'
   /** 自定义内存（MB） */
   ramCustomMb: number
-  /** 启动游戏前进行内存优化：on / off */
-  ramOptimize: 'on' | 'off'
-  /** 登录方式 */
-  serverLogin: 'official' | 'authlib' | 'offline' | 'both' | 'nide'
+  /** 启动游戏前进行内存优化：跟随全局 / 开启 / 关闭 */
+  ramOptimize: 'follow' | 'on' | 'off'
+  /** 登录方式（follow = 跟随全局设置） */
+  serverLogin: 'follow' | 'official' | 'authlib' | 'offline' | 'both' | 'nide'
   /** 自动进入的服务器地址（如 127.0.0.1:25565） */
   serverAutoEnter: string
   /** Java 虚拟机参数（空 = 跟随全局设置） */
@@ -59,8 +59,8 @@ export const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
   javaPath: '',
   ramType: 'follow',
   ramCustomMb: 2048,
-  ramOptimize: 'off',
-  serverLogin: 'both',
+  ramOptimize: 'follow',
+  serverLogin: 'follow',
   serverAutoEnter: '',
   advanceJvm: '',
   advanceGame: '',
@@ -170,6 +170,8 @@ export function versionTypeLabel(version: string): string {
 /** 登录方式 → 中文说明（实例副文本用）。 */
 export function authLabel(serverLogin: string): string {
   switch (serverLogin) {
+    case 'follow':
+      return '跟随全局登录'
     case 'official':
       return '正版验证'
     case 'authlib':

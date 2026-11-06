@@ -6,11 +6,12 @@
  * 本地清单尚未接入内核目录列举（同 ModPanel，读不到时用演示数据撑起界面）。
  * 启用状态写入本地 KV 之外的部分暂只在前端生效。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { toast } from '../../lib/toast'
 import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
+import AlxModal from '../../components/AlxModal.vue'
 import AlxSearchBar from '../../components/AlxSearchBar.vue'
 import AlxToggle from '../../components/AlxToggle.vue'
 import SettingGroup from '../../components/SettingGroup.vue'
@@ -20,29 +21,58 @@ const props = defineProps<{ instance: GameInstance }>()
 
 const store = useAppStore()
 
-/** 演示资源包（本地清单为空时撑起界面）。 */
-const DEMO_PACKS: { id: string; name: string; desc: string; size: string }[] = [
-  { id: 'demo-0', name: '原版高清材质', desc: '在保留原版风格的前提下提升分辨率', size: '128x · 42 MB' },
-  { id: 'demo-1', name: '简约界面', desc: '重制背包、容器与 HUD，界面更干净', size: '64x · 18 MB' },
-  { id: 'demo-2', name: '写实自然', desc: '重绘方块与生物材质，偏写实风格', size: '256x · 96 MB' },
-  { id: 'demo-3', name: '中世纪建筑', desc: '建筑与装饰方块的中世纪风格材质', size: '128x · 36 MB' },
-  { id: 'demo-4', name: '清透水体', desc: '更清澈的水面与水下视觉效果', size: '64x · 6 MB' },
-  { id: 'demo-5', name: '字体优化', desc: '替换默认字体，改善中文显示效果', size: '32x · 2 MB' },
-]
+/** 演示资源包（本地清单为空时撑起界面；刷新时重新取一份）。 */
+function demoPacks(): { id: string; name: string; desc: string; size: string }[] {
+  return [
+    { id: 'demo-0', name: '原版高清材质', desc: '在保留原版风格的前提下提升分辨率', size: '128x · 42 MB' },
+    { id: 'demo-1', name: '简约界面', desc: '重制背包、容器与 HUD，界面更干净', size: '64x · 18 MB' },
+    { id: 'demo-2', name: '写实自然', desc: '重绘方块与生物材质，偏写实风格', size: '256x · 96 MB' },
+    { id: 'demo-3', name: '中世纪建筑', desc: '建筑与装饰方块的中世纪风格材质', size: '128x · 36 MB' },
+    { id: 'demo-4', name: '清透水体', desc: '更清澈的水面与水下视觉效果', size: '64x · 6 MB' },
+    { id: 'demo-5', name: '字体优化', desc: '替换默认字体，改善中文显示效果', size: '32x · 2 MB' },
+  ]
+}
 
+const packs = ref(demoPacks())
 const query = ref('')
 const enabled = ref<Record<string, boolean>>({ 'demo-0': true, 'demo-1': true })
+/** 待删除资源包（删除走弹窗确认）。 */
+const removeTarget = ref<{ id: string; name: string } | null>(null)
+
+// 侧栏「刷新」：重新加载资源包清单（当前为演示数据，清空搜索后重绘）。
+watch(
+  () => store.instanceReloads.resourcepack ?? 0,
+  (tick) => {
+    if (!tick) return
+    packs.value = demoPacks()
+    query.value = ''
+    removeTarget.value = null
+    toast.success('资源包列表已重新加载')
+  },
+)
 
 /** 过滤后的资源包列表。 */
 const rows = computed(() => {
   const keyword = query.value.trim().toLowerCase()
-  return DEMO_PACKS.filter(
+  return packs.value.filter(
     (p) => !keyword || p.name.toLowerCase().includes(keyword) || p.desc.toLowerCase().includes(keyword),
   )
 })
 
 /** 已启用数量。 */
-const enabledCount = computed(() => DEMO_PACKS.filter((p) => enabled.value[p.id]).length)
+const enabledCount = computed(() => packs.value.filter((p) => enabled.value[p.id]).length)
+
+/** 确认删除资源包（仅移出列表的占位实现，不删除磁盘文件）。 */
+function confirmRemove() {
+  const target = removeTarget.value
+  if (!target) return
+  packs.value = packs.value.filter((p) => p.id !== target.id)
+  const next = { ...enabled.value }
+  delete next[target.id]
+  enabled.value = next
+  removeTarget.value = null
+  toast.success(`已删除资源包「${target.name}」（未删除本地文件）`)
+}
 
 /** 打开实例的 resourcepacks 目录。 */
 async function openPackFolder() {
@@ -78,7 +108,9 @@ async function importPack() {
     <div class="panel-actions">
       <button type="button" class="btn-sub" @click="openPackFolder">打开文件夹</button>
       <button type="button" class="btn-sub" @click="importPack">从文件导入</button>
-      <button type="button" class="btn-sub" @click="store.setView('download')">下载新资源包</button>
+      <button type="button" class="btn-sub" @click="store.routerPush('/download/resourcepack')">
+        下载新资源包
+      </button>
     </div>
   </div>
 
@@ -86,7 +118,7 @@ async function importPack() {
   <SettingGroup
     title="资源包列表"
     :collapsible="false"
-    :extra="`已启用 ${enabledCount} / ${DEMO_PACKS.length}`"
+    :extra="`已启用 ${enabledCount} / ${packs.length}`"
   >
     <div v-if="rows.length === 0" class="empty-state">
       <AlxIcon name="shirt" :size="32" />
@@ -107,8 +139,20 @@ async function importPack() {
             :model-value="!!enabled[p.id]"
             @update:model-value="enabled = { ...enabled, [p.id]: !enabled[p.id] }"
           />
+          <button type="button" class="icon-btn" title="删除资源包" @click="removeTarget = p">
+            <AlxIcon name="trash" :size="16" />
+          </button>
         </div>
       </div>
     </template>
   </SettingGroup>
+
+  <!-- 删除确认 -->
+  <AlxModal :open="removeTarget !== null" title="删除资源包" @close="removeTarget = null">
+    确定删除资源包「{{ removeTarget?.name }}」？资源包文件将一并移除，此操作不可撤销。
+    <template #actions>
+      <button type="button" class="btn-download btn-danger" @click="confirmRemove">删除</button>
+      <button type="button" class="btn-sub" @click="removeTarget = null">取消</button>
+    </template>
+  </AlxModal>
 </template>

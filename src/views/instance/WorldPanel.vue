@@ -5,7 +5,8 @@
  *
  * 本地存档清单尚未接入内核目录列举（同 ModPanel，读不到时用演示数据撑起界面）。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useAppStore } from '../../stores/app'
 import { toast } from '../../lib/toast'
 import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
@@ -16,6 +17,8 @@ import { openFolderInExplorer, resolveInstanceDir } from '../instanceMeta'
 
 const props = defineProps<{ instance: GameInstance }>()
 
+const store = useAppStore()
+
 interface WorldEntry {
   id: string
   name: string
@@ -25,17 +28,32 @@ interface WorldEntry {
   size: string
 }
 
-/** 演示存档（本地清单为空时撑起界面）。 */
-const worlds = ref<WorldEntry[]>([
-  { id: 'w0', name: '新的世界', mode: '生存模式', version: '1.21.4', lastPlayed: '2026/1/3 21:40', size: '86 MB' },
-  { id: 'w1', name: '空岛生存', mode: '生存模式 · 困难', version: '1.21.4', lastPlayed: '2026/1/2 19:12', size: '42 MB' },
-  { id: 'w2', name: '创造测试场', mode: '创造模式', version: '1.21.4', lastPlayed: '2025/12/28 16:03', size: '128 MB' },
-  { id: 'w3', name: '建筑存档', mode: '创造模式 · 和平', version: '1.21.1', lastPlayed: '2025/12/20 11:35', size: '310 MB' },
-])
+/** 演示存档（本地清单为空时撑起界面；刷新时重新取一份）。 */
+function demoWorlds(): WorldEntry[] {
+  return [
+    { id: 'w0', name: '新的世界', mode: '生存模式', version: '1.21.4', lastPlayed: '2026/1/3 21:40', size: '86 MB' },
+    { id: 'w1', name: '空岛生存', mode: '生存模式 · 困难', version: '1.21.4', lastPlayed: '2026/1/2 19:12', size: '42 MB' },
+    { id: 'w2', name: '创造测试场', mode: '创造模式', version: '1.21.4', lastPlayed: '2025/12/28 16:03', size: '128 MB' },
+    { id: 'w3', name: '建筑存档', mode: '创造模式 · 和平', version: '1.21.1', lastPlayed: '2025/12/20 11:35', size: '310 MB' },
+  ]
+}
+
+const worlds = ref<WorldEntry[]>(demoWorlds())
 
 const query = ref('')
 /** 待删除存档（删除走弹窗确认）。 */
 const removeTarget = ref<WorldEntry | null>(null)
+
+// 侧栏「刷新」：重新载入存档清单并清空搜索。
+watch(
+  () => store.instanceReloads.world ?? 0,
+  (tick) => {
+    if (!tick) return
+    worlds.value = demoWorlds()
+    query.value = ''
+    toast.success('存档列表已重新加载')
+  },
+)
 
 /** 过滤后的存档列表。 */
 const rows = computed(() => {
@@ -92,6 +110,9 @@ function confirmRemove() {
     <div class="panel-actions">
       <button type="button" class="btn-sub" @click="openSavesFolder">打开文件夹</button>
       <button type="button" class="btn-sub" @click="importWorld">导入存档</button>
+      <button type="button" class="btn-sub" @click="store.routerPush('/download/world')">
+        下载世界
+      </button>
     </div>
   </div>
 
