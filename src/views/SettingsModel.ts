@@ -15,10 +15,8 @@ import type { Settings } from '../lib/types'
 
 /** 游戏语言 */
 type GameLanguage = 'zh-CN' | 'en-US'
-/** 下载源偏好 */
-type DownloadSourcePref = 'official-first' | 'mirror-first'
-/** 最大并行下载数 */
-type MaxParallel = 4 | 8 | 16
+/** 下载源偏好（镜像优先 / 自动回落 / 官方优先） */
+type DownloadSourcePref = 'mirror' | 'auto' | 'official'
 /** 版本隔离策略 */
 export type VersionIsolation =
   | 'all'
@@ -54,10 +52,14 @@ export interface SettingsExtras {
   opacity: number
   /** 启动页是否显示启动器图标 */
   showLauncherIcon: boolean
-  /** 最大并行下载数 */
-  maxParallel: MaxParallel
-  /** 下载源偏好 */
-  downloadSource: DownloadSourcePref
+  /** 最大并行下载线程数（1–256，默认 64） */
+  maxParallel: number
+  /** 文件下载源（游戏文件、资源等） */
+  fileSource: DownloadSourcePref
+  /** 版本下载源（版本清单与版本 JSON） */
+  versionSource: DownloadSourcePref
+  /** 速度限制（MB/s，0 表示无限制） */
+  speedLimit: number
 
   /* -------------------------- 全局设置：启动选项 -------------------------- */
   /** 默认版本隔离策略 */
@@ -106,8 +108,10 @@ const DEFAULT_EXTRAS: SettingsExtras = {
   gameLanguage: 'zh-CN',
   opacity: 100,
   showLauncherIcon: true,
-  maxParallel: 8,
-  downloadSource: 'mirror-first',
+  maxParallel: 64,
+  fileSource: 'auto',
+  versionSource: 'auto',
+  speedLimit: 0,
   versionIsolation: 'all',
   iconPath: '',
   customInfo: '',
@@ -245,6 +249,35 @@ export function clampOpacity(v: number): number {
   return Math.round(clamp(Number.isFinite(n) ? n : DEFAULT_EXTRAS.opacity, OPACITY_RANGE[0], OPACITY_RANGE[1]))
 }
 
+/** 最大并行线程数合法区间 */
+export const PARALLEL_RANGE: readonly [number, number] = [1, 256]
+
+/** 速度限制合法区间（0 = 无限制） */
+export const SPEED_LIMIT_RANGE: readonly [number, number] = [0, 128]
+
+/** 线程数超过该值会明显加剧下载期间的卡顿，需要提示用户。 */
+export const PARALLEL_WARN_THRESHOLD = 128
+
+/** 线程数夹取到合法区间。 */
+export function clampParallel(v: number): number {
+  const n = Number(v)
+  return Math.round(clamp(Number.isFinite(n) ? n : DEFAULT_EXTRAS.maxParallel, PARALLEL_RANGE[0], PARALLEL_RANGE[1]))
+}
+
+/** 速度限制夹取到合法区间（0 = 无限制）。 */
+export function clampSpeedLimit(v: number): number {
+  const n = Number(v)
+  return Math.round(clamp(Number.isFinite(n) ? n : DEFAULT_EXTRAS.speedLimit, SPEED_LIMIT_RANGE[0], SPEED_LIMIT_RANGE[1]))
+}
+
+/** 下载源合法性校验（含旧版 official-first / mirror-first 迁移）。 */
+function readDownloadSource(value: unknown, fallback: DownloadSourcePref): DownloadSourcePref {
+  if (value === 'mirror' || value === 'auto' || value === 'official') return value
+  if (value === 'mirror-first') return 'mirror'
+  if (value === 'official-first') return 'official'
+  return fallback
+}
+
 /**
  * 从落盘设置里恢复界面层偏好：
  *   类型不符 / 非法值的字段一律回落默认值，避免脏数据进入界面。
@@ -260,9 +293,11 @@ export function readExtras(raw: unknown): SettingsExtras {
   if (obj.gameLanguage === 'zh-CN' || obj.gameLanguage === 'en-US') out.gameLanguage = obj.gameLanguage
   if (typeof obj.opacity === 'number') out.opacity = clampOpacity(obj.opacity)
   if (typeof obj.showLauncherIcon === 'boolean') out.showLauncherIcon = obj.showLauncherIcon
-  if (obj.maxParallel === 4 || obj.maxParallel === 8 || obj.maxParallel === 16) out.maxParallel = obj.maxParallel
-  if (obj.downloadSource === 'official-first' || obj.downloadSource === 'mirror-first')
-    out.downloadSource = obj.downloadSource
+  if (typeof obj.maxParallel === 'number') out.maxParallel = clampParallel(obj.maxParallel)
+  if (typeof obj.speedLimit === 'number') out.speedLimit = clampSpeedLimit(obj.speedLimit)
+  // 兼容旧版单一下载源字段（official-first / mirror-first）
+  out.fileSource = readDownloadSource(obj.fileSource ?? obj.downloadSource, out.fileSource)
+  out.versionSource = readDownloadSource(obj.versionSource ?? obj.downloadSource, out.versionSource)
 
   const pick = <T extends string>(value: unknown, options: readonly T[], fallback: T): T =>
     typeof value === 'string' && (options as readonly string[]).includes(value) ? (value as T) : fallback
@@ -303,14 +338,30 @@ export const LANGUAGE_OPTIONS: Array<{ value: GameLanguage; label: string }> = [
   { value: 'en-US', label: 'English' },
 ]
 
-/** 最大并行下载数候选 */
-export const PARALLEL_OPTIONS = [4, 8, 16] as const
-
 /** 下载源偏好选项 */
 export const DOWNLOAD_SOURCE_OPTIONS: Array<{ value: DownloadSourcePref; label: string }> = [
-  { value: 'official-first', label: '优先官方源' },
-  { value: 'mirror-first', label: '优先镜像源' },
+  { value: 'mirror', label: '尽量使用镜像源' },
+  { value: 'auto', label: '优先使用官方源，加载缓慢时换用镜像源' },
+  { value: 'official', label: '尽量使用官方源' },
 ]
+
+/** Java 在线下载：可选发行版 */
+export const JAVA_DISTRIBUTION_OPTIONS = [
+  'Eclipse Temurin',
+  'BellSoft Liberica',
+  'Azul Zulu',
+  'Oracle GraalVM',
+  'IBM Semeru (OpenJ9)',
+  'Amazon Corretto',
+  'Microsoft Build of OpenJDK',
+  'Tencent Kona',
+].map((name) => ({ value: name, label: name }))
+
+/** Java 在线下载：自动获取到的 Java 大版本 */
+export const JAVA_MAJOR_OPTIONS = ['8', '11', '16', '17', '21', '25', '26'].map((v) => ({
+  value: v,
+  label: `Java ${v}`,
+}))
 
 /** 主题模式选项（值与 store.theme 一致） */
 export const THEME_OPTIONS: Array<{ value: 'light' | 'dark'; label: string }> = [

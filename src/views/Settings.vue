@@ -17,23 +17,30 @@ import { call } from '../lib/bridge'
 import AlxSelect from '../components/AlxSelect.vue'
 import AlxToggle from '../components/AlxToggle.vue'
 import AlxInfoTip from '../components/AlxInfoTip.vue'
+import AlxModal from '../components/AlxModal.vue'
 import SettingGroup from '../components/SettingGroup.vue'
 import AlxIcon from '../components/AlxIcon.vue'
 import { JavaManager } from './instanceMeta'
 import {
   DOWNLOAD_SOURCE_OPTIONS,
   GC_MODE_OPTIONS,
+  JAVA_DISTRIBUTION_OPTIONS,
+  JAVA_MAJOR_OPTIONS,
   LANGUAGE_OPTIONS,
   LAUNCHER_VISIBILITY_OPTIONS,
   OPACITY_RANGE,
-  PARALLEL_OPTIONS,
+  PARALLEL_RANGE,
+  PARALLEL_WARN_THRESHOLD,
   PRESET_INHERIT_OPTIONS,
   PROCESS_PRIORITY_OPTIONS,
   QUICK_PLAY_OPTIONS,
+  SPEED_LIMIT_RANGE,
   THEME_OPTIONS,
   VERSION_ISOLATION_OPTIONS,
   WINDOW_SIZE_OPTIONS,
   clampOpacity,
+  clampParallel,
+  clampSpeedLimit,
   extrasPatch,
   readExtras,
   type JavaEntry,
@@ -96,19 +103,8 @@ function setChoice(key: ChoiceKey, value: string) {
   persistExtras()
 }
 
-/** 并行下载数（数值型偏好，下拉值为字符串）。 */
-const parallelChoices = PARALLEL_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))
-
 /** 当前可选的游戏设置预设（预设管理接入后由设置数据填充）。 */
 const presetOptions = [{ value: '预设1', label: '预设1' }]
-
-function onParallelValue(value: string) {
-  setExtra('maxParallel', Number(value) as 4 | 8 | 16)
-}
-
-function onDownloadSourceValue(value: string) {
-  setExtra('downloadSource', value as SettingsExtras['downloadSource'])
-}
 
 /** 当前隔离策略的说明文案（放在标题后的感叹号气泡里，避免行内文字过长）。 */
 const isolationDesc = computed(
@@ -121,6 +117,54 @@ const JAVA_LIST_TIP = [
   '点击选项右侧的箭头可以调整排序，以控制优先选择哪个 Java。',
   '若想无视兼容性强制使用某个 Java，请在版本独立设置中修改。',
 ].join('\n')
+
+/* ----------------------------- 下载设置 ----------------------------- */
+
+/** 文件下载源提交。 */
+function onFileSourceValue(value: string) {
+  setExtra('fileSource', value as SettingsExtras['fileSource'])
+}
+
+/** 版本下载源提交。 */
+function onVersionSourceValue(value: string) {
+  setExtra('versionSource', value as SettingsExtras['versionSource'])
+}
+
+/** 最大线程数滑块提交。 */
+function onParallelChange(e: Event) {
+  setExtra('maxParallel', clampParallel(Number((e.target as HTMLInputElement).value)))
+}
+
+/** 速度限制滑块提交（0 表示无限制）。 */
+function onSpeedChange(e: Event) {
+  setExtra('speedLimit', clampSpeedLimit(Number((e.target as HTMLInputElement).value)))
+}
+
+/** 速度限制显示文案。 */
+const speedLimitLabel = computed(() =>
+  extras.value.speedLimit === 0 ? '无限制' : `${extras.value.speedLimit} MB/s`,
+)
+
+/** 线程数过高提示（超过阈值时展示）。 */
+const parallelWarning = computed(() => extras.value.maxParallel > PARALLEL_WARN_THRESHOLD)
+
+/* --------------------------- Java 在线下载 --------------------------- */
+
+/** 下载 Java 弹窗开关。 */
+const javaDownloadOpen = ref(false)
+/** 选中的发行版。 */
+const javaDistribution = ref(JAVA_DISTRIBUTION_OPTIONS[0].value)
+/** 选中的 Java 大版本。 */
+const javaMajor = ref('21')
+
+function openJavaDownload() {
+  javaDownloadOpen.value = true
+}
+
+function downloadJava() {
+  toast.info(`已开始下载 ${javaDistribution.value} JDK ${javaMajor.value}，等待内核下载能力接入。`)
+  javaDownloadOpen.value = false
+}
 
 /** 自定义图标选择（内核文件选择命令未接入，先提示）。 */
 function pickIcon() {
@@ -200,6 +244,13 @@ const DEMO_JAVAS: JavaEntry[] = [
     path: 'C:\\Program Files\\Java\\jdk-11.0.25\\bin\\java.exe',
   },
   {
+    major: 16,
+    version: 'JDK 16.0.2',
+    vendor: 'Oracle',
+    arch: 'x86-64',
+    path: 'C:\\Program Files\\Java\\jdk-16.0.2\\bin\\java.exe',
+  },
+  {
     major: 17,
     version: 'JDK 17.0.10',
     vendor: 'Oracle',
@@ -212,6 +263,20 @@ const DEMO_JAVAS: JavaEntry[] = [
     vendor: 'Eclipse Adoptium',
     arch: 'x86-64',
     path: 'C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.2\\bin\\java.exe',
+  },
+  {
+    major: 25,
+    version: 'JDK 25.0.1',
+    vendor: 'Eclipse Temurin',
+    arch: 'x86-64',
+    path: 'C:\\Program Files\\Eclipse Adoptium\\jdk-25.0.1\\bin\\java.exe',
+  },
+  {
+    major: 26,
+    version: 'JDK 26-ea',
+    vendor: 'Oracle',
+    arch: 'x86-64',
+    path: 'C:\\Program Files\\Java\\jdk-26\\bin\\java.exe',
   },
 ]
 
@@ -591,6 +656,13 @@ function onThemeValue(value: string) {
     <template v-else-if="section === 'java'">
 
       <SettingGroup title="已安装的 Java">
+        <!-- 工具栏：在线下载 Java -->
+        <div class="java-toolbar">
+          <button type="button" class="btn-download btn-ghost" @click="openJavaDownload">
+            <AlxIcon name="download" :size="14" />下载 Java
+          </button>
+        </div>
+
         <!-- Java 列表：版本徽标 + 版本名 / 架构 / 供应商 + 路径，右侧打开文件夹与移除 -->
         <template v-if="javas.length > 0">
           <div v-for="j in javas" :key="j.path" class="list-item java-row">
@@ -644,6 +716,27 @@ function onThemeValue(value: string) {
           手动指定路径
         </button>
       </div>
+
+      <!-- 在线下载 Java：发行版 + 自动获取的大版本（统一 JDK） -->
+      <AlxModal :open="javaDownloadOpen" title="下载 Java" @close="javaDownloadOpen = false">
+        <div class="modal-field">
+          <span class="modal-field-label">发行版</span>
+          <AlxSelect v-model="javaDistribution" :options="JAVA_DISTRIBUTION_OPTIONS" />
+        </div>
+        <div class="modal-field">
+          <span class="modal-field-label">版本</span>
+          <AlxSelect v-model="javaMajor" :options="JAVA_MAJOR_OPTIONS" />
+        </div>
+        <div class="modal-field">
+          <span class="modal-field-label">包类型</span>
+          <span class="modal-field-value">JDK（内含完整 JRE，可直接运行 Minecraft）</span>
+        </div>
+        <p class="modal-note">大版本列表会自动获取当前可下载的 Java 版本。</p>
+        <template #actions>
+          <button type="button" class="btn-sub" @click="javaDownloadOpen = false">取消</button>
+          <button type="button" class="btn-download" @click="downloadJava">下载 Java</button>
+        </template>
+      </AlxModal>
     </template>
 
     <!-- ==================== 启动器通用设置 ==================== -->
@@ -720,28 +813,73 @@ function onThemeValue(value: string) {
     <!-- ==================== 下载设置 ==================== -->
     <template v-else-if="section === 'download'">
 
-      <SettingGroup title="网络与并发">
+      <SettingGroup title="下载源">
         <div class="setting-row">
           <div class="setting-label">
-            最大并行下载数
-            <div class="setting-desc">同时下载的文件数上限</div>
+            文件下载源
+            <div class="setting-desc">游戏文件、资源包等文件的下载来源</div>
           </div>
           <AlxSelect
-            :model-value="String(extras.maxParallel)"
-            :options="parallelChoices"
-            @update:model-value="onParallelValue"
+            :model-value="extras.fileSource"
+            :options="DOWNLOAD_SOURCE_OPTIONS"
+            @update:model-value="onFileSourceValue"
           />
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            下载源
-            <div class="setting-desc">版本清单与资源文件的优先来源</div>
+            版本下载源
+            <div class="setting-desc">版本清单与版本 JSON 的下载来源</div>
           </div>
           <AlxSelect
-            :model-value="extras.downloadSource"
+            :model-value="extras.versionSource"
             :options="DOWNLOAD_SOURCE_OPTIONS"
-            @update:model-value="onDownloadSourceValue"
+            @update:model-value="onVersionSourceValue"
           />
+        </div>
+      </SettingGroup>
+
+      <SettingGroup title="下载性能">
+        <div class="setting-row">
+          <div class="setting-label">
+            最大线程数
+            <div class="setting-desc">
+              当前 {{ extras.maxParallel }} 线程；64 线程已足够，线程数越多下载越快，但过高会造成下载期间明显卡顿
+            </div>
+            <div v-if="parallelWarning" class="setting-warning">
+              超过 {{ PARALLEL_WARN_THRESHOLD }} 线程可能明显加剧下载时的卡顿，建议保持 64
+            </div>
+          </div>
+          <input
+            type="range"
+            class="setting-range"
+            :min="PARALLEL_RANGE[0]"
+            :max="PARALLEL_RANGE[1]"
+            step="1"
+            :value="extras.maxParallel"
+            @change="onParallelChange"
+          />
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            速度限制
+            <div class="setting-desc">{{ speedLimitLabel }}</div>
+          </div>
+          <input
+            type="range"
+            class="setting-range"
+            :min="SPEED_LIMIT_RANGE[0]"
+            :max="SPEED_LIMIT_RANGE[1]"
+            step="1"
+            :value="extras.speedLimit"
+            @change="onSpeedChange"
+          />
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            下载缓存文件夹
+            <div class="setting-desc">位于启动器根目录生成的 .minecraft 内，用于存放下载中的临时文件</div>
+          </div>
+          <span class="setting-path">.minecraft</span>
         </div>
       </SettingGroup>
     </template>
