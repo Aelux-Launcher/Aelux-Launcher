@@ -58,12 +58,12 @@ const KIND_TITLE: Record<string, string> = {
 
 /** 资源类型 → 占位图标（见 icons.ts）。 */
 const KIND_ICON: Record<string, string> = {
-  mod: 'grid',
-  modpack: 'folder',
-  datapack: 'code',
-  resourcepack: 'layout',
-  shader: 'star',
-  world: 'play',
+  mod: 'puzzle',
+  modpack: 'package',
+  datapack: 'grid',
+  resourcepack: 'shirt',
+  shader: 'sun',
+  world: 'globe',
 }
 
 /** 加载器 → 展示名（与 PCL 的加载器文案一致）。 */

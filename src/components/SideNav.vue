@@ -35,17 +35,17 @@ const GROUPS: Record<string, Array<{ title: string; items: NavEntry[] }>> = {
     {
       title: '游戏',
       items: [
-        { key: 'original', label: '原版', icon: 'columns' },
+        { key: 'original', label: '原版', icon: 'minecraft' },
         { key: 'modpack', label: '整合包', icon: 'package' },
       ],
     },
     {
       title: '资源',
       items: [
-        { key: 'mod', label: '模组', icon: 'tool' },
+        { key: 'mod', label: '模组', icon: 'puzzle' },
         { key: 'world', label: '世界', icon: 'globe' },
-        { key: 'resourcepack', label: '资源包', icon: 'image' },
-        { key: 'datapack', label: '数据包', icon: 'package' },
+        { key: 'resourcepack', label: '资源包', icon: 'shirt' },
+        { key: 'datapack', label: '数据包', icon: 'grid' },
         { key: 'shader', label: '光影包', icon: 'sun' },
       ],
     },

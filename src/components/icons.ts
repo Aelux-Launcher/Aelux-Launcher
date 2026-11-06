@@ -55,7 +55,10 @@ export const ICONS = {
   external: { vb: V, body: `<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>` },
   code: { vb: V, body: `<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>` },
   layout: { vb: V, body: `<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>` },
-  grid: { vb: V, body: `<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>` },
+  grid: { vb: V, body: `<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>` },
+  /* 资源分类：模组=拼图，资源包=衣物（对齐 PCL2 侧栏图形）。 */
+  puzzle: { vb: V, body: `<path d="M6 4h4a2 2 0 0 1 4 0h4a2 2 0 0 1 2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 1-2 2h-4a2 2 0 0 0-4 0h-4a2 2 0 0 1-2-2v-4a2 2 0 0 0 0-4v-4a2 2 0 0 1 2-2z"/>` },
+  shirt: { vb: V, body: `<path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 .55.45 1 1 1h10a1 1 0 0 0 1-1V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/>` },
   clock: { vb: V, body: `<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>` },
   'bar-chart': { vb: V, body: `<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>` },
   zap: { vb: V, body: `<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>` },

@@ -33,11 +33,12 @@ const CAT_TITLE: Record<string, string> = {
 
 /** 社区资源分类 → 列表图标（与侧栏一致，见 icons.ts） */
 const CAT_ICON: Record<string, string> = {
+  original: 'minecraft',
   modpack: 'package',
-  mod: 'tool',
+  mod: 'puzzle',
   world: 'globe',
-  resourcepack: 'image',
-  datapack: 'package',
+  resourcepack: 'shirt',
+  datapack: 'grid',
   shader: 'sun',
 }
 
