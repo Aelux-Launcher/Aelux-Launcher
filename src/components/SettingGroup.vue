@@ -38,8 +38,10 @@ const open = ref(props.defaultOpen)
       <AlxIcon name="chevron-down" :size="16" :class="['setting-chevron', open ? 'open' : '']" />
     </button>
     <div v-else class="setting-group-head static">
-      <span class="setting-group-title">{{ title }}</span>
-      <span v-if="extra" class="setting-group-extra">{{ extra }}</span>
+      <slot name="head">
+        <span class="setting-group-title">{{ title }}</span>
+        <span v-if="extra" class="setting-group-extra">{{ extra }}</span>
+      </slot>
     </div>
     <div v-show="open" class="setting-group-body">
       <slot />

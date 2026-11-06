@@ -2153,6 +2153,8 @@ select.filter-control { cursor: pointer; }
 
 /* ---------------- 模组管理：多选 / 行内操作 / 更新与删除确认 ----------------
    行布局复用下载页 resource-item；行末操作按钮默认隐藏，hover / 聚焦时淡入。 */
+/* 列表卡片内容留白：与标题、行内 padding 叠加后正好对齐卡片边缘。 */
+.mod-list-group .setting-group-body { padding: 0 8px 8px; }
 .mod-row { position: relative; }
 .mod-row.mod-selected {
   background: var(--icon-bg);
@@ -2164,7 +2166,7 @@ select.filter-control { cursor: pointer; }
   left: 0;
   top: 6px;
   bottom: 6px;
-  width: 3px;
+  width: 4px;
   border-radius: 2px;
   background: var(--text-main);
   pointer-events: none;

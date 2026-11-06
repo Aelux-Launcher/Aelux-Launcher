@@ -209,11 +209,16 @@ async function loadMods() {
   mods.value = await localModsRepo.list(props.instance.id)
 }
 
+/** 当前分类筛选：全部 / 可更新 / 已禁用 / 已启用。 */
+type ModFilter = 'all' | 'update' | 'disabled' | 'enabled'
+const filter = ref<ModFilter>('all')
+
 function resetLocalState() {
   selected.value = {}
   enabledState.value = {}
   upgraded.value = {}
   removed.value = {}
+  filter.value = 'all'
 }
 
 watch(
@@ -267,8 +272,8 @@ const allRows = computed<ModRow[]>(() => {
     }))
 })
 
-/** 当前搜索过滤结果。 */
-const rows = computed(() => {
+/** 当前搜索过滤结果（分类筛选在其上叠加）。 */
+const searchedRows = computed(() => {
   const keyword = query.value.trim().toLowerCase()
   if (!keyword) return allRows.value
   return allRows.value.filter(
@@ -278,6 +283,33 @@ const rows = computed(() => {
       m.desc.toLowerCase().includes(keyword) ||
       m.tags.some((t) => t.toLowerCase().includes(keyword)),
   )
+})
+
+/** 只有存在被禁用的 Mod 时，才提供「已禁用 / 已启用」分类。 */
+const hasDisabled = computed(() => allRows.value.some((m) => !m.enabled))
+
+/** 各分类数量（跟随搜索框结果变化）。 */
+const filterCounts = computed(() => ({
+  all: searchedRows.value.length,
+  update: searchedRows.value.filter((m) => !!m.newVersion).length,
+  disabled: searchedRows.value.filter((m) => !m.enabled).length,
+  enabled: searchedRows.value.filter((m) => m.enabled).length,
+}))
+
+/** 列表最终展示行：搜索 + 分类过滤。 */
+const rows = computed(() => {
+  const base = searchedRows.value
+  if (filter.value === 'update') return base.filter((m) => !!m.newVersion)
+  if (filter.value === 'disabled') return base.filter((m) => !m.enabled)
+  if (filter.value === 'enabled') return base.filter((m) => m.enabled)
+  return base
+})
+
+// 禁用 Mod 全部恢复启用后，隐藏的分类自动退回「全部」，避免停留在空列表。
+watch(hasDisabled, (visible) => {
+  if (!visible && (filter.value === 'disabled' || filter.value === 'enabled')) {
+    filter.value = 'all'
+  }
 })
 
 const selectedCount = computed(() => Object.values(selected.value).filter(Boolean).length)
@@ -307,6 +339,7 @@ function clearSelection() {
   selected.value = {}
 }
 
+/** 全选：只选中当前分类（含搜索过滤）里可见的行。 */
 function selectAll() {
   const next: Record<string, boolean> = {}
   for (const row of rows.value) next[row.id] = true
@@ -450,7 +483,45 @@ async function installFromFile() {
   </div>
 
   <!-- Mod 列表 -->
-  <SettingGroup title="模组列表" :collapsible="false" :extra="`已选 ${selectedCount}`">
+  <SettingGroup class="mod-list-group" title="" :collapsible="false">
+    <template #head>
+      <div class="filter-chip-row">
+        <button
+          type="button"
+          class="filter-chip"
+          :class="{ active: filter === 'all' }"
+          @click="filter = 'all'"
+        >
+          全部 ({{ filterCounts.all }})
+        </button>
+        <button
+          type="button"
+          class="filter-chip"
+          :class="{ active: filter === 'update' }"
+          @click="filter = 'update'"
+        >
+          可更新 ({{ filterCounts.update }})
+        </button>
+        <template v-if="hasDisabled">
+          <button
+            type="button"
+            class="filter-chip"
+            :class="{ active: filter === 'disabled' }"
+            @click="filter = 'disabled'"
+          >
+            已禁用 ({{ filterCounts.disabled }})
+          </button>
+          <button
+            type="button"
+            class="filter-chip"
+            :class="{ active: filter === 'enabled' }"
+            @click="filter = 'enabled'"
+          >
+            已启用 ({{ filterCounts.enabled }})
+          </button>
+        </template>
+      </div>
+    </template>
     <div v-if="rows.length === 0" class="empty-state">
       <AlxIcon name="package" :size="32" />
       <span>没有符合条件的 Mod</span>
