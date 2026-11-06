@@ -246,26 +246,31 @@ export function resourceKindForProjectType(type: string, categories: string[] = 
   return 'mod'
 }
 
-/** 下载量 → `1.2 万` / `8,214`。 */
+/** 下载量 → `10` / `1.3k` / `3.3M` / `1B`。 */
 export function formatDownloads(n: number): string {
-  if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)} 亿`
-  if (n >= 10_000) return `${(n / 10_000).toFixed(1)} 万`
-  return n.toLocaleString('zh-CN')
+  const compact = (value: number) => {
+    const rounded = value >= 10 ? Math.round(value) : Math.round(value * 10) / 10
+    return String(rounded)
+  }
+  if (n >= 1_000_000_000) return `${compact(n / 1_000_000_000)}B`
+  if (n >= 1_000_000) return `${compact(n / 1_000_000)}M`
+  if (n >= 1_000) return `${compact(n / 1_000)}k`
+  return String(Math.round(n))
 }
 
-/** ISO 时间 → PCL 风格的相对时间（刚刚 / N 分钟前 / N 天前 / N 个月前 …）。 */
+/** ISO 时间 → 相对时间（刚刚 / 1分钟前 / 10小时前 / 45天前 / 1个月前 / 1年前）。 */
 export function formatRelativeTime(iso: string): string {
   const time = new Date(iso).getTime()
   if (Number.isNaN(time)) return '未知'
   const diff = Date.now() - time
   if (diff < 60_000) return '刚刚'
   const minutes = Math.floor(diff / 60_000)
-  if (minutes < 60) return `${minutes} 分钟前`
+  if (minutes < 60) return `${minutes}分钟前`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} 小时前`
+  if (hours < 24) return `${hours}小时前`
   const days = Math.floor(hours / 24)
-  if (days < 30) return `${days} 天前`
+  if (days < 30) return `${days}天前`
   const months = Math.floor(days / 30)
-  if (months < 12) return `${months} 个月前`
-  return `${Math.floor(months / 12)} 年前`
+  if (months < 12) return `${months}个月前`
+  return `${Math.floor(months / 12)}年前`
 }

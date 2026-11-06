@@ -1521,21 +1521,22 @@ select.filter-control { cursor: pointer; }
   border: 1px solid var(--border-light);
   border-radius: 10px;
   background: var(--bg-color);
+  padding: 16px;
   overflow: hidden;
   flex-shrink: 0;
 }
 .resource-item {
   display: flex;
   align-items: center;
+  border-radius: 8px;
   gap: 14px;
-  padding: 12px 16px;
+  padding: 8px;
   cursor: pointer;
-  border-bottom: 1px solid var(--border-light);
   transition: background 0.15s;
 }
 .resource-item:last-child { border-bottom: none; }
 .resource-item:hover { background: var(--hover-bg); }
-.resource-item:active { background: var(--icon-bg); }
+.resource-item:active { background: var(--icon-bg); border-radius: 8px;}
 .resource-item-icon {
   width: 46px;
   height: 46px;
@@ -1550,17 +1551,32 @@ select.filter-control { cursor: pointer; }
 .resource-item-icon svg { color: var(--text-sub); }
 .resource-item-icon img { width: 100%; height: 100%; object-fit: cover; }
 .resource-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.resource-item-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* 第一行：名称 —— 有中文时「中文 | 英文」，英文（或缩写）用次要色。 */
 .resource-item-title {
-  flex: 0 1 auto;
-  max-width: 60%;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   min-width: 0;
   font-size: 14px;
   font-weight: 700;
+}
+.resource-title-primary {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.resource-title-sep { flex: none; color: var(--text-sub); font-weight: 400; }
+.resource-title-secondary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-sub);
+  font-weight: 400;
+}
+/* 第二行：标签 + 描述（描述过长省略号收尾）。 */
+.resource-item-sub { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .resource-item-tags { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; flex: none; }
 .resource-tag {
   padding: 1px 6px;
@@ -1576,13 +1592,16 @@ select.filter-control { cursor: pointer; }
   white-space: nowrap;
 }
 .resource-tag:hover { background: var(--border-light); color: var(--text-main); }
-.resource-item-desc,
-.resource-item-meta {
+.resource-item-desc {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-sub);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.resource-item-desc { flex: 1 1 0; min-width: 0; font-size: 12px; color: var(--text-sub); }
+/* 第三行：运行环境 / 下载量 / 更新时间 / 来源。 */
 .resource-item-meta {
   display: flex;
   align-items: center;
@@ -1591,8 +1610,25 @@ select.filter-control { cursor: pointer; }
   font-size: 11px;
   color: var(--text-sub);
   margin-top: 1px;
+  min-width: 0;
 }
 .resource-meta-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.resource-meta-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-sub);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: inherit;
+  cursor: pointer;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+.resource-meta-link:hover { color: var(--text-main); }
 .resource-item-chevron {
   color: var(--text-sub);
   opacity: 0;

@@ -129,6 +129,12 @@ export function latestMcVersion(ids: string[]): string {
   return [...ids].sort(compareMcVersions).at(-1) ?? ''
 }
 
+/** 取一组游戏版本里最旧的标准版本（如 `1.13`），用于「1.13+」这类摘要。 */
+export function oldestMcVersion(ids: string[]): string {
+  const standard = ids.filter((id) => standardParts(id))
+  return [...standard].sort(compareMcVersions)[0] ?? ''
+}
+
 /**
  * PCL 风格的版本范围摘要：
  *   - 连续段贴近全局最新版本 → `1.21+`

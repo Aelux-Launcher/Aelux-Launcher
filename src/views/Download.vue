@@ -11,7 +11,11 @@ import { computed, ref, watch } from 'vue'
 import type { ResourceKind, ResourceProject, ResourceSource } from '../lib/types'
 import { useAppStore } from '../stores/app'
 import { categoryLabel, formatDownloads, formatRelativeTime, RESOURCE_CATEGORIES } from '../lib/modrinth'
-import { versionRangeSummary } from '../lib/mcVersion'
+import { oldestMcVersion } from '../lib/mcVersion'
+import { call } from '../lib/bridge'
+import { toast } from '../lib/toast'
+import { ensureMcmod, mcmodInfo } from '../lib/mcmod'
+import type { McmodInfo } from '../lib/mcmod'
 import AlxIcon from '../components/AlxIcon.vue'
 import VersionRowActions from '../components/VersionRowActions.vue'
 import { versionIcon, versionRowIcon } from '../lib/versionIcons'
@@ -208,11 +212,6 @@ const versionOptions = computed(() =>
 /** 世界分类：Modrinth 没有 world 类型，仅展示说明 */
 const isWorld = computed(() => currentKind.value === 'world')
 
-/** 最新正式版 id（版本范围摘要的「+」判定） */
-const latestReleaseId = computed(
-  () => store.versions.find((v) => v.kind === 'release')?.id ?? '',
-)
-
 /** 是否有筛选条件（用于重置按钮与空状态） */
 const hasActiveFilters = computed(
   () =>
@@ -258,11 +257,38 @@ watch(
   },
 )
 
-/** 条目副文本：支持的游戏版本范围（PCL 的「1.21+, 1.12-」摘要） */
-function projectVersionSummary(p: ResourceProject): string {
-  const list = p.versions ?? []
-  if (list.length === 0) return ''
-  return versionRangeSummary(list, latestReleaseId.value)
+/** 进入分类 / 换页后，为列表项按需补齐 MC百科中文名（不阻塞检索）。 */
+watch(
+  () => store.resourceProjects,
+  (list) => {
+    for (const p of list) ensureMcmod(p.title)
+  },
+  { immediate: true },
+)
+
+/** 加载器顺序：运行环境摘要取第一个命中的加载器。 */
+const LOADER_ORDER = ['forge', 'neoforge', 'fabric', 'quilt'] as const
+
+/** 运行环境摘要：加载器 + 支持的最低游戏版本（如 `Fabric 1.13+`）。 */
+function projectRuntime(p: ResourceProject): string {
+  const loader = LOADER_ORDER.find((key) => p.categories.includes(key))
+  const oldest = oldestMcVersion(p.versions ?? [])
+  return [loader ? (LOADER_LABELS[loader] ?? loader) : '', oldest ? `${oldest}+` : '']
+    .filter(Boolean)
+    .join(' ')
+}
+
+/** 列表显示名：MC百科有中文时「中文 | 英文」，否则保持原名。 */
+function projectName(p: ResourceProject): Pick<McmodInfo, 'primary' | 'secondary'> {
+  const info = mcmodInfo(p.title)
+  return info ?? { primary: p.title }
+}
+
+/** 「转到 MC百科」：仅在该项目被 MC百科收录时出现。 */
+function openMcmod(p: ResourceProject) {
+  const info = mcmodInfo(p.title)
+  if (!info?.url) return
+  void call('open_external', { url: info.url }).catch(() => toast.error('无法打开 MC百科'))
 }
 
 /** 条目标签：取分类 slug 的前三个（中文文案） */
@@ -380,6 +406,14 @@ function retrySearch() {
         >
           <button type="button" class="version-group-header" @click="toggleGroup(g.key)">
             <span class="version-group-title">
+              <img
+                v-if="versionIcon(g.key)"
+                :src="versionIcon(g.key) ?? undefined"
+                width="18"
+                height="18"
+                alt=""
+                class="version-group-icon"
+              />
               {{ g.title }}
               <span class="version-group-count">{{ g.items.length }}</span>
             </span>
@@ -548,8 +582,14 @@ function retrySearch() {
               </div>
 
               <div class="resource-item-main">
-                <div class="resource-item-head">
-                  <span class="resource-item-title">{{ p.title }}</span>
+                <span class="resource-item-title">
+                  <span class="resource-title-primary">{{ projectName(p).primary }}</span>
+                  <template v-if="projectName(p).secondary">
+                    <span class="resource-title-sep">|</span>
+                    <span class="resource-title-secondary">{{ projectName(p).secondary }}</span>
+                  </template>
+                </span>
+                <div class="resource-item-sub">
                   <span v-if="projectTags(p).length" class="resource-item-tags">
                     <button
                       v-for="c in projectTags(p)"
@@ -565,9 +605,9 @@ function retrySearch() {
                   <span class="resource-item-desc">{{ p.description }}</span>
                 </div>
                 <div class="resource-item-meta">
-                  <span v-if="projectVersionSummary(p)" class="resource-meta-item">
-                    <AlxIcon name="columns" :size="12" />
-                    {{ projectVersionSummary(p) }}
+                  <span v-if="projectRuntime(p)" class="resource-meta-item">
+                    <AlxIcon name="settings" :size="12" />
+                    {{ projectRuntime(p) }}
                   </span>
                   <span class="resource-meta-item">
                     <AlxIcon name="download" :size="12" />
@@ -581,6 +621,16 @@ function retrySearch() {
                     <AlxIcon name="globe" :size="12" />
                     {{ sourceLabel(p) }}
                   </span>
+                  <button
+                    v-if="mcmodInfo(p.title)?.url"
+                    type="button"
+                    class="resource-meta-link"
+                    title="转到 MC百科"
+                    @click.stop="openMcmod(p)"
+                  >
+                    <AlxIcon name="external" :size="12" />
+                    MC百科
+                  </button>
                 </div>
               </div>
 

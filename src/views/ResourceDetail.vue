@@ -17,6 +17,7 @@ import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../stores/app'
 import { call } from '../lib/bridge'
 import { toast } from '../lib/toast'
+import { ensureMcmod, mcmodInfo } from '../lib/mcmod'
 import type { ResourceProject, ResourceVersion } from '../lib/types'
 import {
   categoryLabel,
@@ -113,6 +114,25 @@ const dependencies = computed(() => store.resourceDetailData?.dependencies ?? []
 
 /** 页头标题：优先取详情里的项目名，路由参数兜底。 */
 const pageTitle = computed(() => project.value?.title || props.title || '资源详情')
+
+/** MC百科信息（中文名 + 条目地址）；未收录为 undefined。 */
+const mcInfo = computed(() => (project.value ? mcmodInfo(project.value.title) : undefined))
+
+/** 展示名：MC百科有中文时「中文 | 英文」，否则退回「标题 | slug」。 */
+const displayName = computed(() => {
+  const info = mcInfo.value
+  if (info) return { primary: info.primary, secondary: info.secondary }
+  return { primary: project.value?.title || props.title || '', secondary: project.value?.slug }
+})
+
+/** 项目就绪 / 切换时补齐 MC百科信息（后台请求，不阻塞详情加载）。 */
+watch(
+  () => project.value?.title,
+  (title) => {
+    if (title) ensureMcmod(title)
+  },
+  { immediate: true },
+)
 
 /** 版本按发布时间倒序（分组与筛选都基于该顺序，最新在前）。 */
 const sortedVersions = computed(() =>
@@ -488,6 +508,17 @@ async function openWebsite() {
   }
 }
 
+/** 打开 MC百科条目页（仅项目被收录时可用）。 */
+async function openMcmodPage() {
+  const url = mcInfo.value?.url
+  if (!url) return
+  try {
+    await call('open_external', { url })
+  } catch (e) {
+    toast.error(`无法打开网页：${(e as Error).message}`)
+  }
+}
+
 /** 复制项目名（剪贴板不可用时回退到 execCommand）。 */
 async function copyName() {
   const text = pageTitle.value
@@ -591,9 +622,11 @@ watch(
 
           <div class="resource-intro-info">
             <div class="resource-intro-head">
-              <span class="resource-intro-title">{{ project.title }}</span>
-              <span class="resource-intro-divider">|</span>
-              <span class="resource-intro-slug">{{ project.slug }}</span>
+              <span class="resource-intro-title">{{ displayName.primary }}</span>
+              <template v-if="displayName.secondary">
+                <span class="resource-intro-divider">|</span>
+                <span class="resource-intro-slug">{{ displayName.secondary }}</span>
+              </template>
             </div>
 
             <div class="resource-intro-line">
@@ -625,6 +658,15 @@ watch(
         </div>
 
         <div class="resource-intro-actions">
+          <button
+            v-if="mcInfo?.url"
+            type="button"
+            class="btn-download btn-ghost with-icon"
+            @click="openMcmodPage"
+          >
+            <AlxIcon name="external" :size="14" />
+            <span>转到 MC百科</span>
+          </button>
           <button type="button" class="btn-download search-submit" @click="openWebsite">
             转到 Modrinth
           </button>
