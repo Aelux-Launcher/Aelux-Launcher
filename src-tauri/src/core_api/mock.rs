@@ -14,8 +14,8 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::dto::{
-    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, LatestVersions, LauncherConfig,
-    OsInfo, StoredAccount, VersionEntry, VersionManifest,
+    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, JavaRuntime, LatestVersions,
+    LauncherConfig, LocalContentItem, OsInfo, StoredAccount, VersionEntry, VersionManifest,
 };
 
 use super::CoreError;
@@ -169,6 +169,69 @@ pub fn create_instance(name: String, version: String, loader: Option<String>) ->
 
 pub fn delete_instance(_id: String) -> Result<(), CoreError> {
     Ok(())
+}
+
+/* --------------------------- Java / 本地内容 --------------------------- */
+
+pub fn scan_java() -> Result<Vec<JavaRuntime>, CoreError> {
+    // mock 不扫描本机；返回空列表让界面进入「未检测到 Java」分支
+    Ok(Vec::new())
+}
+
+pub fn required_java(mc_version: String) -> u32 {
+    // 与内核同一套 MC 版本 → Java 主版本规则（mock 仅保留判定所需的最小子集）
+    let mut parts = mc_version.split('.').filter_map(|p| p.parse::<u32>().ok());
+    if parts.next() != Some(1) {
+        return 21;
+    }
+    match (parts.next().unwrap_or(0), parts.next().unwrap_or(0)) {
+        (18..=19, _) => 17,
+        (20, 0..=4) => 17,
+        (17, _) => 16,
+        (1..=16, _) => 8,
+        _ => 21,
+    }
+}
+
+pub fn get_instance_dir(id: String) -> Result<String, CoreError> {
+    Ok(format!("{}/instances/{id}", get_data_dir()))
+}
+
+pub fn list_content(_instance_id: String, _kind: String) -> Result<Vec<LocalContentItem>, CoreError> {
+    Ok(Vec::new())
+}
+
+pub fn set_content_enabled(
+    _instance_id: String,
+    _kind: String,
+    _file_name: String,
+    _enabled: bool,
+) -> Result<(), CoreError> {
+    Ok(())
+}
+
+pub fn delete_content(_instance_id: String, _kind: String, _file_name: String) -> Result<(), CoreError> {
+    Ok(())
+}
+
+pub fn import_content(_instance_id: String, _kind: String, _source: String) -> Result<LocalContentItem, CoreError> {
+    Err("mock 链路不提供文件系统能力".into())
+}
+
+pub fn read_text(_path: String) -> Result<Option<String>, CoreError> {
+    Ok(None)
+}
+
+pub fn write_text(_path: String, _content: String) -> Result<(), CoreError> {
+    Ok(())
+}
+
+pub fn delete_path(_path: String) -> Result<(), CoreError> {
+    Ok(())
+}
+
+pub fn rename_path(_from: String, _to: String) -> Result<(), CoreError> {
+    Err("mock 链路不提供文件系统能力".into())
 }
 
 /* -------------------------- 加载器 / 前置 API -------------------------- */

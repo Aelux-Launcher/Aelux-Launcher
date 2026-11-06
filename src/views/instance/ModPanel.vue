@@ -2,8 +2,8 @@
 /**
  * Mod 面板：搜索 + 工具行 + Mod 列表（多选 / 行内操作 / 更新与删除二级确认）。
  *
- * 本地 Mod 清单由 localModsRepo 提供（lib 移除后暂返回空列表），
- * 读不到时用演示数据兜底撑起界面。
+ * 清单来自内核 `list_content`（mods 目录扫描 + jar 元数据解析），
+ * 启用/禁用、删除、导入都会真实修改磁盘。
  */
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
@@ -13,7 +13,17 @@ import AlxIcon from '../../components/AlxIcon.vue'
 import AlxModal from '../../components/AlxModal.vue'
 import AlxSearchBar from '../../components/AlxSearchBar.vue'
 import SettingGroup from '../../components/SettingGroup.vue'
-import { localModsRepo, openFolderInExplorer, resolveInstanceDir, type LocalMod } from '../instanceMeta'
+import {
+  deleteLocalContent,
+  formatContentSize,
+  formatModifiedAgo,
+  importLocalContent,
+  localModsRepo,
+  openFolderInExplorer,
+  resolveInstanceDir,
+  setContentEnabled,
+  type LocalMod,
+} from '../instanceMeta'
 
 const props = defineProps<{ instance: GameInstance }>()
 
@@ -35,178 +45,19 @@ interface ModRow {
   enabled: boolean
 }
 
-/** 演示用 Mod 清单（本地没有安装 Mod 时用于撑起界面）。 */
-const DEMO_MODS: ModRow[] = [
-  {
-    id: 'demo-0',
-    name: '钠 渲染优化',
-    enName: 'Sodium',
-    desc: '现代化渲染引擎，大幅提升帧率并降低显存占用',
-    tags: ['fabric', 'quilt'],
-    version: '0.5.11',
-    newVersion: '0.6.0',
-    size: '1.2 M',
-    updated: '3 天前',
-    source: 'Modrinth',
-    fileName: 'sodium-fabric-0.5.11.jar',
-    enabled: true,
-  },
-  {
-    id: 'demo-1',
-    name: '锂 性能优化',
-    enName: 'Lithium',
-    desc: '优化游戏物理与 AI 逻辑，减少卡顿',
-    tags: ['fabric'],
-    version: '0.14.1',
-    newVersion: '',
-    size: '612 K',
-    updated: '12 天前',
-    source: 'Modrinth',
-    fileName: 'lithium-fabric-0.14.1.jar',
-    enabled: true,
-  },
-  {
-    id: 'demo-2',
-    name: '鸢尾花 光影',
-    enName: 'Iris',
-    desc: '为 Sodium 提供光影支持的可选加载器',
-    tags: ['fabric'],
-    version: '1.9.2',
-    newVersion: '1.10.0',
-    size: '2.4 M',
-    updated: '6 天前',
-    source: 'Modrinth',
-    fileName: 'iris-fabric-1.9.2.jar',
-    enabled: true,
-  },
-  {
-    id: 'demo-3',
-    name: 'Mod 菜单',
-    enName: 'Mod Menu',
-    desc: '统一的模组配置界面，可在游戏内直接调整设置',
-    tags: ['fabric', 'quilt'],
-    version: '11.0.3',
-    newVersion: '',
-    size: '498 K',
-    updated: '20 天前',
-    source: 'Modrinth',
-    fileName: 'modmenu-11.0.3.jar',
-    enabled: true,
-  },
-  {
-    id: 'demo-4',
-    name: 'JEI 物品管理器',
-    enName: 'Just Enough Items',
-    desc: 'Item and recipe viewing mod for Minecraft.',
-    tags: ['forge', 'fabric', 'neoforge'],
-    version: '15.2.0',
-    newVersion: '',
-    size: '329 K',
-    updated: '12 天前',
-    source: 'Modrinth',
-    fileName: 'jei-1.20.1-forge-15.2.0.jar',
-    enabled: true,
-  },
-  {
-    id: 'demo-5',
-    name: '传送石',
-    enName: 'Waystones',
-    desc: '新增传送石与传送门，方便快速移动',
-    tags: ['forge', 'fabric'],
-    version: '14.0.0',
-    newVersion: '',
-    size: '1.8 M',
-    updated: '1 个月前',
-    source: 'CurseForge',
-    fileName: 'waystones-14.0.0.jar',
-    enabled: true,
-  },
-  {
-    id: 'demo-6',
-    name: '家具与装饰',
-    enName: 'Furniture & Decor',
-    desc: '上百种家具与装饰方块',
-    tags: ['forge'],
-    version: '6.9.2',
-    newVersion: '7.0.0',
-    size: '5.6 M',
-    updated: '8 天前',
-    source: 'CurseForge',
-    fileName: 'furniture-6.9.2.jar',
-    enabled: false,
-  },
-  {
-    id: 'demo-7',
-    name: '实体动画',
-    enName: 'Not Enough Animations',
-    desc: '扩展实体模型与动画表现',
-    tags: ['fabric'],
-    version: '1.8.3',
-    newVersion: '',
-    size: '734 K',
-    updated: '25 天前',
-    source: 'Modrinth',
-    fileName: 'notenoughanimations-1.8.3.jar',
-    enabled: true,
-  },
-  {
-    id: 'demo-8',
-    name: '环境音效',
-    enName: 'AmbientSounds',
-    desc: '为不同环境加入沉浸式环境音效',
-    tags: ['fabric', 'forge'],
-    version: '0.6.0',
-    newVersion: '',
-    size: '3.1 M',
-    updated: '2 个月前',
-    source: 'CurseForge',
-    fileName: 'ambientsounds-0.6.0.jar',
-    enabled: true,
-  },
-  {
-    id: 'demo-9',
-    name: '自动备份',
-    enName: 'Auto Backup',
-    desc: '定时备份存档，避免误删进度',
-    tags: ['forge'],
-    version: '1.4.2',
-    newVersion: '',
-    size: '96 K',
-    updated: '5 个月前',
-    source: 'CurseForge',
-    fileName: 'autobackup-1.4.2.jar',
-    enabled: false,
-  },
-  {
-    id: 'demo-10',
-    name: '示例整合包',
-    enName: 'Example Pack',
-    desc: '包含全部模组配置的整合包',
-    tags: ['fabric'],
-    version: '1.0',
-    newVersion: '',
-    size: '—',
-    updated: '—',
-    source: '本地',
-    fileName: 'example-pack.zip',
-    enabled: true,
-  },
-]
-
 const query = ref('')
 const mods = ref<LocalMod[]>([])
 /** 多选：id → 是否选中。 */
 const selected = ref<Record<string, boolean>>({})
-/** 启用状态覆盖（演示数据用，刷新后重置）。 */
-const enabledState = ref<Record<string, boolean>>({})
-/** 已更新到的版本覆盖（更新成功后隐藏「可更新」标记）。 */
-const upgraded = ref<Record<string, string>>({})
-/** 已删除的演示条目（刷新后重置）。 */
-const removed = ref<Record<string, boolean>>({})
 
-/** 读取该实例的本地 Mod 清单（读不到 / 为空时用演示数据兜底）。 */
+/** 读取该实例的本地 Mod 清单。 */
 async function loadMods() {
-  mods.value = await localModsRepo.list(props.instance.id)
+  try {
+    mods.value = await localModsRepo.list(props.instance.id)
+  } catch (e) {
+    mods.value = []
+    toast.warning(`读取 Mod 列表失败：${(e as Error).message}`)
+  }
 }
 
 /** 当前分类筛选：全部 / 可更新 / 已禁用 / 已启用。 */
@@ -215,9 +66,6 @@ const filter = ref<ModFilter>('all')
 
 function resetLocalState() {
   selected.value = {}
-  enabledState.value = {}
-  upgraded.value = {}
-  removed.value = {}
   filter.value = 'all'
 }
 
@@ -243,34 +91,22 @@ watch(
 )
 
 /** 全量行（含筛选外的条目，多选操作基于它）。 */
-const allRows = computed<ModRow[]>(() => {
-  const base: ModRow[] =
-    mods.value.length > 0
-      ? mods.value.map((m) => ({
-          id: m.id,
-          name: m.name,
-          enName: '',
-          desc: m.description || m.fileName,
-          tags: [props.instance.loader],
-          version: '—',
-          newVersion: '',
-          size: '—',
-          updated: '本地文件',
-          source: '本地',
-          fileName: m.fileName,
-          enabled: true,
-        }))
-      : DEMO_MODS.map((m) => ({ ...m }))
-
-  return base
-    .filter((m) => !removed.value[m.id])
-    .map((m) => ({
-      ...m,
-      enabled: enabledState.value[m.id] ?? m.enabled,
-      version: upgraded.value[m.id] ?? m.version,
-      newVersion: upgraded.value[m.id] ? '' : m.newVersion,
-    }))
-})
+const allRows = computed<ModRow[]>(() =>
+  mods.value.map((m) => ({
+    id: m.id,
+    name: m.name,
+    enName: '',
+    desc: m.description || m.fileName,
+    tags: [m.loader ?? props.instance.loader].filter(Boolean),
+    version: m.version || '—',
+    newVersion: '',
+    size: formatContentSize(m.sizeBytes),
+    updated: formatModifiedAgo(m.modifiedSecs),
+    source: '本地',
+    fileName: m.fileName,
+    enabled: m.enabled,
+  })),
+)
 
 /** 当前搜索过滤结果（分类筛选在其上叠加）。 */
 const searchedRows = computed(() => {
@@ -349,12 +185,22 @@ function selectAll() {
 
 /* ------------------------- 启用 / 禁用 ------------------------- */
 
-function setEnabled(ids: string[], enabled: boolean) {
+/** 批量启用 / 禁用：直接改磁盘文件名（`.disabled` 后缀），失败时回滚界面。 */
+async function setEnabled(ids: string[], enabled: boolean) {
   if (ids.length === 0) return
-  const next = { ...enabledState.value }
-  for (const id of ids) next[id] = enabled
-  enabledState.value = next
-  toast.success(`已${enabled ? '启用' : '禁用'} ${ids.length} 个 Mod`)
+  const targets = mods.value.filter((m) => ids.includes(m.id))
+  if (targets.length === 0) return
+  try {
+    for (const item of targets) {
+      await setContentEnabled(props.instance.id, 'mods', item.fileName, enabled)
+    }
+    mods.value = mods.value.map((m) =>
+      targets.some((t) => t.id === m.id) ? { ...m, enabled } : m,
+    )
+    toast.success(`已${enabled ? '启用' : '禁用'} ${targets.length} 个 Mod`)
+  } catch (e) {
+    toast.warning(`操作失败：${(e as Error).message}`)
+  }
 }
 
 function toggleEnabled(row: ModRow) {
@@ -408,10 +254,7 @@ function viewChangelog() {
 }
 
 function confirmUpdate() {
-  const next = { ...upgraded.value }
-  for (const m of updateTargets.value) if (m.newVersion) next[m.id] = m.newVersion
-  upgraded.value = next
-  toast.success(`已更新 ${updateTargets.value.length} 个 Mod`)
+  toast.info('Mod 更新需要资源市场（Modrinth）接口接入，当前版本暂未支持自动更新')
   closeUpdate()
 }
 
@@ -436,17 +279,23 @@ function closeDelete() {
   deleteTargets.value = []
 }
 
-function confirmDelete() {
-  const ids = deleteTargets.value.map((m) => m.id)
-  const nextRemoved = { ...removed.value }
-  const nextSelected = { ...selected.value }
-  for (const id of ids) {
-    nextRemoved[id] = true
-    delete nextSelected[id]
+/** 删除：逐个移除磁盘文件后重新读取列表。 */
+async function confirmDelete() {
+  const targets = deleteTargets.value
+  if (targets.length === 0) return
+  try {
+    for (const item of targets) {
+      await deleteLocalContent(props.instance.id, 'mods', item.fileName)
+    }
+    const removedIds = new Set(targets.map((t) => t.id))
+    selected.value = Object.fromEntries(
+      Object.entries(selected.value).filter(([id]) => !removedIds.has(id)),
+    )
+    await loadMods()
+    toast.success(`已删除 ${targets.length} 个 Mod`)
+  } catch (e) {
+    toast.warning(`删除失败：${(e as Error).message}`)
   }
-  removed.value = nextRemoved
-  selected.value = nextSelected
-  toast.success(`已删除 ${ids.length} 个 Mod`)
   closeDelete()
 }
 
@@ -461,9 +310,13 @@ async function installFromFile() {
     })
     const files = Array.isArray(picked) ? picked : picked ? [picked] : []
     if (files.length === 0) return
-    toast.info(`已选择 ${files.length} 个文件，请放入 Mod 文件夹后重启游戏`)
+    for (const file of files) {
+      await importLocalContent(props.instance.id, 'mods', file)
+    }
+    await loadMods()
+    toast.success(`已导入 ${files.length} 个 Mod`)
   } catch (e) {
-    toast.warning(`选择文件失败：${(e as Error).message}`)
+    toast.warning(`导入失败：${(e as Error).message}`)
   }
 }
 </script>

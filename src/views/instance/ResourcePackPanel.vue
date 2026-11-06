@@ -1,10 +1,9 @@
 <script setup lang="ts">
 /**
- * 资源包管理（参考 PCL 的资源包页）：
- * 搜索 + 工具行 + 启用开关的资源包列表。
+ * 资源包管理：搜索 + 工具行 + 启用开关的资源包列表。
  *
- * 本地清单尚未接入内核目录列举（同 ModPanel，读不到时用演示数据撑起界面）。
- * 启用状态写入本地 KV 之外的部分暂只在前端生效。
+ * 清单来自内核 `list_content`（resourcepacks 目录 + pack.mcmeta 解析），
+ * 启用状态通过 `.disabled` 后缀落到磁盘，删除与导入都会真实操作文件。
  */
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
@@ -15,38 +14,48 @@ import AlxModal from '../../components/AlxModal.vue'
 import AlxSearchBar from '../../components/AlxSearchBar.vue'
 import AlxToggle from '../../components/AlxToggle.vue'
 import SettingGroup from '../../components/SettingGroup.vue'
-import { openFolderInExplorer, resolveInstanceDir } from '../instanceMeta'
+import {
+  deleteLocalContent,
+  formatContentSize,
+  formatModifiedAgo,
+  importLocalContent,
+  loadLocalContent,
+  openFolderInExplorer,
+  resolveInstanceDir,
+  setContentEnabled,
+  type LocalContent,
+} from '../instanceMeta'
 
 const props = defineProps<{ instance: GameInstance }>()
 
 const store = useAppStore()
 
-/** 演示资源包（本地清单为空时撑起界面；刷新时重新取一份）。 */
-function demoPacks(): { id: string; name: string; desc: string; size: string }[] {
-  return [
-    { id: 'demo-0', name: '原版高清材质', desc: '在保留原版风格的前提下提升分辨率', size: '128x · 42 MB' },
-    { id: 'demo-1', name: '简约界面', desc: '重制背包、容器与 HUD，界面更干净', size: '64x · 18 MB' },
-    { id: 'demo-2', name: '写实自然', desc: '重绘方块与生物材质，偏写实风格', size: '256x · 96 MB' },
-    { id: 'demo-3', name: '中世纪建筑', desc: '建筑与装饰方块的中世纪风格材质', size: '128x · 36 MB' },
-    { id: 'demo-4', name: '清透水体', desc: '更清澈的水面与水下视觉效果', size: '64x · 6 MB' },
-    { id: 'demo-5', name: '字体优化', desc: '替换默认字体，改善中文显示效果', size: '32x · 2 MB' },
-  ]
+const packs = ref<LocalContent[]>([])
+const query = ref('')
+/** 待删除资源包（删除走弹窗确认）。 */
+const removeTarget = ref<LocalContent | null>(null)
+
+/** 读取实例的 resourcepacks 目录。 */
+async function loadPacks() {
+  packs.value = await loadLocalContent(props.instance.id, 'resourcepacks')
 }
 
-const packs = ref(demoPacks())
-const query = ref('')
-const enabled = ref<Record<string, boolean>>({ 'demo-0': true, 'demo-1': true })
-/** 待删除资源包（删除走弹窗确认）。 */
-const removeTarget = ref<{ id: string; name: string } | null>(null)
+watch(
+  () => props.instance.id,
+  async () => {
+    await loadPacks()
+  },
+  { immediate: true },
+)
 
-// 侧栏「刷新」：重新加载资源包清单（当前为演示数据，清空搜索后重绘）。
+// 侧栏「刷新」：重新读取资源包清单。
 watch(
   () => store.instanceReloads.resourcepack ?? 0,
-  (tick) => {
+  async (tick) => {
     if (!tick) return
-    packs.value = demoPacks()
     query.value = ''
     removeTarget.value = null
+    await loadPacks()
     toast.success('资源包列表已重新加载')
   },
 )
@@ -55,23 +64,40 @@ watch(
 const rows = computed(() => {
   const keyword = query.value.trim().toLowerCase()
   return packs.value.filter(
-    (p) => !keyword || p.name.toLowerCase().includes(keyword) || p.desc.toLowerCase().includes(keyword),
+    (p) =>
+      !keyword ||
+      p.name.toLowerCase().includes(keyword) ||
+      p.fileName.toLowerCase().includes(keyword) ||
+      (p.description ?? '').toLowerCase().includes(keyword),
   )
 })
 
 /** 已启用数量。 */
-const enabledCount = computed(() => packs.value.filter((p) => enabled.value[p.id]).length)
+const enabledCount = computed(() => packs.value.filter((p) => p.enabled).length)
 
-/** 确认删除资源包（仅移出列表的占位实现，不删除磁盘文件）。 */
-function confirmRemove() {
+/** 启用 / 禁用（`.disabled` 重命名）。 */
+async function togglePack(pack: LocalContent) {
+  const next = !pack.enabled
+  try {
+    await setContentEnabled(props.instance.id, 'resourcepacks', pack.fileName, next)
+    pack.enabled = next
+  } catch (e) {
+    toast.warning(`操作失败：${(e as Error).message}`)
+  }
+}
+
+/** 删除资源包文件。 */
+async function confirmRemove() {
   const target = removeTarget.value
   if (!target) return
-  packs.value = packs.value.filter((p) => p.id !== target.id)
-  const next = { ...enabled.value }
-  delete next[target.id]
-  enabled.value = next
+  try {
+    await deleteLocalContent(props.instance.id, 'resourcepacks', target.fileName)
+    await loadPacks()
+    toast.success(`已删除资源包「${target.name}」`)
+  } catch (e) {
+    toast.warning(`删除失败：${(e as Error).message}`)
+  }
   removeTarget.value = null
-  toast.success(`已删除资源包「${target.name}」（未删除本地文件）`)
 }
 
 /** 打开实例的 resourcepacks 目录。 */
@@ -94,9 +120,13 @@ async function importPack() {
     })
     const files = Array.isArray(picked) ? picked : picked ? [picked] : []
     if (files.length === 0) return
-    toast.info(`已选择 ${files.length} 个资源包，请放入 resourcepacks 文件夹后重启游戏`)
+    for (const file of files) {
+      await importLocalContent(props.instance.id, 'resourcepacks', file)
+    }
+    await loadPacks()
+    toast.success(`已导入 ${files.length} 个资源包`)
   } catch (e) {
-    toast.warning(`选择文件失败：${(e as Error).message}`)
+    toast.warning(`导入失败：${(e as Error).message}`)
   }
 }
 </script>
@@ -130,15 +160,13 @@ async function importPack() {
           <div class="item-icon"><AlxIcon name="shirt" :size="20" /></div>
           <div class="item-info">
             <div class="item-title">{{ p.name }}</div>
-            <div class="item-desc">{{ p.desc }}</div>
+            <div class="item-desc">{{ p.description || p.fileName }}</div>
           </div>
         </div>
         <div class="item-right">
-          <span class="item-meta">{{ p.size }}</span>
-          <AlxToggle
-            :model-value="!!enabled[p.id]"
-            @update:model-value="enabled = { ...enabled, [p.id]: !enabled[p.id] }"
-          />
+          <span class="item-meta">{{ formatContentSize(p.sizeBytes) }}</span>
+          <span class="item-meta">{{ formatModifiedAgo(p.modifiedSecs) }}</span>
+          <AlxToggle :model-value="p.enabled" @update:model-value="togglePack(p)" />
           <button type="button" class="icon-btn" title="删除资源包" @click="removeTarget = p">
             <AlxIcon name="trash" :size="16" />
           </button>

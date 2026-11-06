@@ -32,6 +32,16 @@ export const commands = {
 	kvRemove: (key: string) => typedError<null, string>(__TAURI_INVOKE("kv_remove", { key })),
 	getConfig: () => typedError<LauncherConfig_Serialize, string>(__TAURI_INVOKE("get_config")),
 	saveConfig: (config: LauncherConfig_Deserialize) => typedError<null, string>(__TAURI_INVOKE("save_config", { config })),
+	scanJava: () => typedError<JavaRuntime[], string>(__TAURI_INVOKE("scan_java")),
+	requiredJava: (mcVersion: string) => __TAURI_INVOKE<number>("required_java", { mcVersion }),
+	getInstanceDir: (id: string) => typedError<string, string>(__TAURI_INVOKE("get_instance_dir", { id })),
+	listContent: (instanceId: string, kind: string) => typedError<LocalContentItem[], string>(__TAURI_INVOKE("list_content", { instanceId, kind })),
+	setContentEnabled: (instanceId: string, kind: string, fileName: string, enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_content_enabled", { instanceId, kind, fileName, enabled })),
+	deleteContent: (instanceId: string, kind: string, fileName: string) => typedError<null, string>(__TAURI_INVOKE("delete_content", { instanceId, kind, fileName })),
+	importContent: (instanceId: string, kind: string, source: string) => typedError<LocalContentItem, string>(__TAURI_INVOKE("import_content", { instanceId, kind, source })),
+	readText: (path: string) => typedError<string | null, string>(__TAURI_INVOKE("read_text", { path })),
+	deletePath: (path: string) => typedError<null, string>(__TAURI_INVOKE("delete_path", { path })),
+	renamePath: (from: string, to: string) => typedError<null, string>(__TAURI_INVOKE("rename_path", { from, to })),
 	minimizeWindow: () => __TAURI_INVOKE<void>("minimize_window"),
 	closeWindow: () => __TAURI_INVOKE<void>("close_window"),
 	openExternal: (url: string) => typedError<null, string>(__TAURI_INVOKE("open_external", { url })),
@@ -109,6 +119,15 @@ export type GameInstance_Serialize = {
 	playtimeSecs: number,
 };
 
+/**  本机 Java 运行时。 */
+export type JavaRuntime = {
+	path: string,
+	version: string,
+	major: number,
+	vendor: string,
+	arch: string,
+};
+
 /**  各渠道最新版本。 */
 export type LatestVersions = LatestVersions_Serialize | LatestVersions_Deserialize;
 
@@ -155,6 +174,20 @@ export type LauncherConfig_Serialize = {
 	gameHeight: number,
 	downloadConcurrency: number,
 	hideOnLaunch: boolean,
+};
+
+/**  实例内的一件本地内容（Mod / 资源包 / 光影包 / 存档 / 原理图）。 */
+export type LocalContentItem = {
+	fileName: string,
+	path: string,
+	kind: string,
+	name: string,
+	enabled: boolean,
+	sizeBytes: number,
+	modifiedSecs: number,
+	version?: string,
+	description?: string,
+	loader?: string,
 };
 
 /**  运行环境信息。 */

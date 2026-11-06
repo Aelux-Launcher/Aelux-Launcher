@@ -160,3 +160,33 @@ pub struct AuthServer {
     pub name: String,
     pub url: String,
 }
+
+/// 本机 Java 运行时。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct JavaRuntime {
+    pub path: String,
+    pub version: String,
+    pub major: u32,
+    pub vendor: String,
+    pub arch: String,
+}
+
+/// 实例内的一件本地内容（Mod / 资源包 / 光影包 / 存档 / 原理图）。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalContentItem {
+    pub file_name: String,
+    pub path: String,
+    pub kind: String,
+    pub name: String,
+    pub enabled: bool,
+    pub size_bytes: u64,
+    pub modified_secs: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loader: Option<String>,
+}

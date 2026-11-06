@@ -6,8 +6,8 @@
 
 use crate::core_api;
 use crate::dto::{
-    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, LauncherConfig, OsInfo, StoredAccount,
-    VersionManifest,
+    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, JavaRuntime, LauncherConfig,
+    LocalContentItem, OsInfo, StoredAccount, VersionManifest,
 };
 
 /* ------------------------------ 内核命令 ------------------------------ */
@@ -184,6 +184,73 @@ pub fn save_config(config: LauncherConfig) -> Result<(), String> {
     core_api::save_config(config)
 }
 
+/* ------------------------- Java / 本地内容命令 ------------------------- */
+
+#[tauri::command]
+#[specta::specta]
+pub fn scan_java() -> Result<Vec<JavaRuntime>, String> {
+    crate::core_api::scan_java()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn required_java(mc_version: String) -> u32 {
+    crate::core_api::required_java(mc_version)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_instance_dir(id: String) -> Result<String, String> {
+    crate::core_api::get_instance_dir(id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_content(instance_id: String, kind: String) -> Result<Vec<LocalContentItem>, String> {
+    crate::core_api::list_content(instance_id, kind)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_content_enabled(
+    instance_id: String,
+    kind: String,
+    file_name: String,
+    enabled: bool,
+) -> Result<(), String> {
+    crate::core_api::set_content_enabled(instance_id, kind, file_name, enabled)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_content(instance_id: String, kind: String, file_name: String) -> Result<(), String> {
+    crate::core_api::delete_content(instance_id, kind, file_name)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn import_content(instance_id: String, kind: String, source: String) -> Result<LocalContentItem, String> {
+    crate::core_api::import_content(instance_id, kind, source)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn read_text(path: String) -> Result<Option<String>, String> {
+    crate::core_api::read_text(path)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_path(path: String) -> Result<(), String> {
+    crate::core_api::delete_path(path)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn rename_path(from: String, to: String) -> Result<(), String> {
+    crate::core_api::rename_path(from, to)
+}
+
 /* ------------------------------ 窗口命令 ------------------------------ */
 
 #[tauri::command]
@@ -221,10 +288,7 @@ pub fn open_folder_in_explorer(app: tauri::AppHandle, path: String) -> Result<()
 #[tauri::command]
 #[specta::specta]
 pub fn write_text(path: String, content: String) -> Result<(), String> {
-    if let Some(parent) = std::path::Path::new(&path).parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    std::fs::write(path, content).map_err(|e| e.to_string())
+    crate::core_api::write_text(path, content)
 }
 
 /// 读取随包公告（src-tauri/resources/announcements.json）。

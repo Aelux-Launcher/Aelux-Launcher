@@ -227,10 +227,9 @@ export function summarizeInstance(
 
 /* ------------------------------ 目录与文件 ------------------------------ */
 
-/** 实例根目录（`<数据目录>/.aelux/instances/<id>`）。 */
+/** 实例根目录（由内核返回，前端不自行拼接）。 */
 export async function resolveInstanceDir(instanceId: string): Promise<string> {
-  const dataDir = await call<string>('get_data_dir')
-  return `${dataDir}/.aelux/instances/${instanceId}`
+  return call<string>('get_instance_dir', { id: instanceId })
 }
 
 /** 在系统文件管理器里打开目录（失败时抛出，由调用方提示）。 */
@@ -240,7 +239,7 @@ export async function openFolderInExplorer(path: string): Promise<void> {
 
 /* ------------------------------ Java 运行时 ------------------------------ */
 
-/** 本机可用的 Java 运行时。 */
+/** 本机可用的 Java 运行时（内核扫描结果）。 */
 export interface JavaRuntime {
   /** 可执行文件 / 安装目录路径 */
   path: string
@@ -248,6 +247,10 @@ export interface JavaRuntime {
   major: number
   /** 完整版本字符串 */
   version: string
+  /** 发行方（Oracle / Eclipse Adoptium / Microsoft…），内核提供 */
+  vendor?: string
+  /** 架构（x64 / x86 / aarch64） */
+  arch?: string
 }
 
 /** 按 MC 版本推断所需的 Java 大版本（1.20.5+ → 21，1.18+ → 17，1.17 → 16，更早 → 8）。 */
@@ -270,11 +273,7 @@ export class JavaManager {
   /** 扫描结果缓存（同一实例页内只扫一次）。 */
   private cache: JavaRuntime[] | null = null
 
-  /**
-   * 扫描本机可用的 Java 运行时。
-   * TODO: 内核提供 Java 扫描命令（如 scan_java）后接入真实实现；
-   * 目前命令不存在时返回空列表，界面给出「尚未找到可用 Java」的提示。
-   */
+  /** 扫描本机可用的 Java 运行时（内核 `scan_java`）。 */
   async allAvailable(): Promise<JavaRuntime[]> {
     if (this.cache) return this.cache
     try {
@@ -290,33 +289,113 @@ export class JavaManager {
   async resolveFor(version: string): Promise<{ jre: JavaRuntime | null }> {
     const list = await this.allAvailable()
     if (list.length === 0) return { jre: null }
-    const need = requiredJavaMajor(version)
+    let need: number
+    try {
+      need = await call<number>('required_java', { mcVersion: version })
+    } catch {
+      need = requiredJavaMajor(version)
+    }
     const exact = list.filter((j) => j.major === need)
     const newer = list.filter((j) => j.major > need).sort((a, b) => a.major - b.major)
     return { jre: exact[0] ?? newer[0] ?? null }
   }
 }
 
-/* ------------------------------ 本地 Mod ------------------------------ */
+/* ------------------------------ 本地内容 ------------------------------ */
 
-/** 本地已安装的 Mod。 */
-export interface LocalMod {
+/** 本地已安装的一件内容（Mod / 资源包 / 光影 / 存档 / 原理图）。 */
+export interface LocalContent {
+  /** 稳定标识（文件名） */
   id: string
+  /** 展示名（元数据优先） */
   name: string
+  /** 磁盘文件名（不含 `.disabled`） */
   fileName: string
+  /** 相对实例目录的路径 */
+  path: string
   description?: string
+  version?: string
+  loader?: string
+  enabled: boolean
+  sizeBytes: number
+  modifiedSecs: number
+}
+
+/** 兼容旧命名的 Mod 清单类型。 */
+export type LocalMod = LocalContent
+
+/** 读取实例内某类本地内容（内核 `list_content`）。 */
+export async function listLocalContent(instanceId: string, kind: string): Promise<LocalContent[]> {
+  const items = await call<Omit<LocalContent, 'id'>[]>('list_content', { instanceId, kind })
+  if (!Array.isArray(items)) return []
+  return items.map((item) => ({ ...item, id: item.path || item.fileName }))
 }
 
 /** 本地 Mod 清单仓库。 */
 export const localModsRepo = {
-  /**
-   * 列出某实例 mods 目录下的 Mod。
-   * TODO: 内核提供目录列举命令后改为读取 mods 文件夹；
-   * 目前返回空列表，界面用演示数据兜底撑起布局。
-   */
-  async list(_instanceId: string): Promise<LocalMod[]> {
-    return []
+  list(instanceId: string): Promise<LocalMod[]> {
+    return listLocalContent(instanceId, 'mods')
   },
+}
+
+/** 文件大小：10 / 1k / 1.3M / 1B（与下载页统一的简洁单位）。 */
+export function formatContentSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0'
+  const units = ['k', 'M', 'B', 'T']
+  let value = bytes
+  let unit = -1
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000
+    unit += 1
+  }
+  if (unit < 0) return String(Math.round(value))
+  const text = value >= 10 ? Math.round(value).toString() : value.toFixed(1).replace(/\.0$/, '')
+  return `${text}${units[unit]}`
+}
+
+/** 相对时间：刚刚 / X 分钟前 / X 小时前 / X 天前 / X 个月前 / X 年前。 */
+export function formatModifiedAgo(secs: number, nowSecs = Date.now() / 1000): string {
+  if (!Number.isFinite(secs) || secs <= 0) return '—'
+  const diff = Math.max(0, nowSecs - secs)
+  if (diff < 60) return '刚刚'
+  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`
+  if (diff < 86400 * 30) return `${Math.floor(diff / 86400)} 天前`
+  if (diff < 86400 * 365) return `${Math.floor(diff / (86400 * 30))} 个月前`
+  return `${Math.floor(diff / (86400 * 365))} 年前`
+}
+
+/** 读取实例内某类内容并在失败时返回空列表（界面据此展示空状态）。 */
+export async function loadLocalContent(instanceId: string, kind: string): Promise<LocalContent[]> {
+  try {
+    return await listLocalContent(instanceId, kind)
+  } catch {
+    return []
+  }
+}
+
+/** 启用 / 禁用本地内容。 */
+export async function setContentEnabled(
+  instanceId: string,
+  kind: string,
+  fileName: string,
+  enabled: boolean,
+): Promise<void> {
+  await call('set_content_enabled', { instanceId, kind, fileName, enabled })
+}
+
+/** 删除本地内容（文件 / 存档目录）。 */
+export async function deleteLocalContent(instanceId: string, kind: string, fileName: string): Promise<void> {
+  await call('delete_content', { instanceId, kind, fileName })
+}
+
+/** 从外部文件导入内容。 */
+export async function importLocalContent(
+  instanceId: string,
+  kind: string,
+  source: string,
+): Promise<LocalContent> {
+  return call<LocalContent>('import_content', { instanceId, kind, source })
 }
 
 /* ------------------------------ 导出计划 ------------------------------ */

@@ -8,7 +8,8 @@ use serde_json::Value;
 use tauri::Emitter;
 
 use crate::dto::{
-    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, LauncherConfig, OsInfo, StoredAccount, VersionManifest,
+    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, JavaRuntime, LauncherConfig,
+    LocalContentItem, OsInfo, StoredAccount, VersionManifest,
 };
 
 use super::CoreError;
@@ -214,4 +215,75 @@ pub fn save_config(config: LauncherConfig) -> Result<(), CoreError> {
     let core_cfg: aelux_core::config::LauncherConfig =
         serde_json::from_value(serde_json::to_value(config).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     core().save_config(&core_cfg).map_err(|e| e.to_string())
+}
+
+/* --------------------------- Java / 本地内容 --------------------------- */
+
+pub fn scan_java() -> Result<Vec<JavaRuntime>, CoreError> {
+    let value = serde_json::to_value(core().scan_java()).map_err(|e| e.to_string())?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn required_java(mc_version: String) -> u32 {
+    core().required_java(&mc_version)
+}
+
+pub fn get_instance_dir(id: String) -> Result<String, CoreError> {
+    core()
+        .get_instance_dir(&id)
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| e.to_string())
+}
+
+pub fn list_content(instance_id: String, kind: String) -> Result<Vec<LocalContentItem>, CoreError> {
+    let value = serde_json::to_value(
+        core()
+            .list_content(&instance_id, &kind)
+            .map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn set_content_enabled(
+    instance_id: String,
+    kind: String,
+    file_name: String,
+    enabled: bool,
+) -> Result<(), CoreError> {
+    core()
+        .set_content_enabled(&instance_id, &kind, &file_name, enabled)
+        .map_err(|e| e.to_string())
+}
+
+pub fn delete_content(instance_id: String, kind: String, file_name: String) -> Result<(), CoreError> {
+    core()
+        .delete_content(&instance_id, &kind, &file_name)
+        .map_err(|e| e.to_string())
+}
+
+pub fn import_content(instance_id: String, kind: String, source: String) -> Result<LocalContentItem, CoreError> {
+    let value = serde_json::to_value(
+        core()
+            .import_content(&instance_id, &kind, &source)
+            .map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn read_text(path: String) -> Result<Option<String>, CoreError> {
+    core().read_text(&path).map_err(|e| e.to_string())
+}
+
+pub fn write_text(path: String, content: String) -> Result<(), CoreError> {
+    core().write_text(&path, &content).map_err(|e| e.to_string())
+}
+
+pub fn delete_path(path: String) -> Result<(), CoreError> {
+    core().delete_path(&path).map_err(|e| e.to_string())
+}
+
+pub fn rename_path(from: String, to: String) -> Result<(), CoreError> {
+    core().rename_path(&from, &to).map_err(|e| e.to_string())
 }
