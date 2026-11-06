@@ -191,7 +191,7 @@ export const useAppStore = defineStore('app', () => {
   const session = ref<Session | null>(null)
   const settings = ref<Settings>({ ...DEFAULT_SETTINGS })
   const instances = ref<GameInstance[]>([])
-  const theme = ref<'light' | 'dark'>('light')
+  const theme = ref<'system' | 'light' | 'dark'>('system')
   const pendingAnnouncements = ref<Announcement[]>([])
   const updateAvailable = ref(false)
 
@@ -262,15 +262,32 @@ export const useAppStore = defineStore('app', () => {
 
   /* --------------------------------- 动作 --------------------------------- */
 
-  function applyTheme(t: 'light' | 'dark', persist: boolean) {
-    document.documentElement.setAttribute('data-theme', t)
+  /* 系统主题监听：偏好为「跟随系统」时随系统深浅色实时切换 */
+  const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)')
+
+  /** 偏好 → 实际生效的深浅色。 */
+  function resolveTheme(t: 'system' | 'light' | 'dark'): 'light' | 'dark' {
+    if (t !== 'system') return t
+    return systemDarkQuery.matches ? 'dark' : 'light'
+  }
+
+  function applyTheme(t: 'system' | 'light' | 'dark', persist: boolean) {
+    document.documentElement.setAttribute('data-theme', resolveTheme(t))
     theme.value = t
     if (persist) void call('kv_set', { key: 'theme', value: t })
   }
-  const setTheme = (t: 'light' | 'dark') => applyTheme(t, true)
+  const setTheme = (t: 'system' | 'light' | 'dark') => applyTheme(t, true)
+
+  systemDarkQuery.addEventListener('change', () => {
+    if (theme.value === 'system') applyTheme('system', false)
+  })
 
   async function init() {
-    applyTheme(((await kvGet('theme')) === 'dark' ? 'dark' : 'light') as 'light' | 'dark', false)
+    const savedTheme = await kvGet('theme')
+    applyTheme(
+      savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system' ? savedTheme : 'system',
+      false,
+    )
     initError.value = null
     browserMode.value = !('__TAURI_INTERNALS__' in window)
 

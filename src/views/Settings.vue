@@ -307,19 +307,21 @@ function revealJava(j: JavaEntry) {
   void call('open_folder_in_explorer', { path: j.path }).catch(() => toast.error('无法打开所在文件夹'))
 }
 
-/** 待确认移除的 Java 路径（删除是二级确认：先点一次进入确认态，再点一次才移除）。 */
-const pendingRemove = ref('')
+/** 待移除的 Java（删除走弹窗确认）。 */
+const removeTarget = ref<JavaEntry | null>(null)
 
-/** 从全局 Java 列表移除（仅移出列表，不删除磁盘上的 Java）。 */
-function removeJava(j: JavaEntry) {
-  if (pendingRemove.value !== j.path) {
-    pendingRemove.value = j.path
-    toast.info(`再次点击删除按钮，确认移除 Java ${j.major}`)
-    return
-  }
-  pendingRemove.value = ''
-  javas.value = javas.value.filter((item) => item.path !== j.path)
-  toast.success(`已从列表移除 Java ${j.major}（未删除本地文件）`)
+/** 请求移除：先打开确认弹窗。 */
+function askRemoveJava(j: JavaEntry) {
+  removeTarget.value = j
+}
+
+/** 确认移除：仅从全局列表移除，不删除磁盘上的 Java。 */
+function confirmRemoveJava() {
+  const target = removeTarget.value
+  if (!target) return
+  javas.value = javas.value.filter((item) => item.path !== target.path)
+  removeTarget.value = null
+  toast.success(`已从列表移除 Java ${target.major}（未删除本地文件）`)
 }
 
 /** 手动指定 Java 路径（内核文件选择命令未接入，先提示）。 */
@@ -332,7 +334,7 @@ function pickJavaManually() {
 
 /** 主题模式下拉提交（store.setTheme 同步 data-theme 并落盘）。 */
 function onThemeValue(value: string) {
-  store.setTheme(value === 'dark' ? 'dark' : 'light')
+  store.setTheme(value === 'light' || value === 'dark' ? value : 'system')
 }
 </script>
 
@@ -655,14 +657,7 @@ function onThemeValue(value: string) {
     <!-- ==================== Java 运行环境管理 ==================== -->
     <template v-else-if="section === 'java'">
 
-      <SettingGroup title="已安装的 Java">
-        <!-- 工具栏：在线下载 Java -->
-        <div class="java-toolbar">
-          <button type="button" class="btn-download btn-ghost" @click="openJavaDownload">
-            <AlxIcon name="download" :size="14" />下载 Java
-          </button>
-        </div>
-
+      <SettingGroup title="已安装的 Java" :collapsible="false">
         <!-- Java 列表：版本徽标 + 版本名 / 架构 / 供应商 + 路径，右侧打开文件夹与移除 -->
         <template v-if="javas.length > 0">
           <div v-for="j in javas" :key="j.path" class="list-item java-row">
@@ -689,10 +684,10 @@ function onThemeValue(value: string) {
               </button>
               <button
                 type="button"
-                :class="['setting-icon-btn', pendingRemove === j.path ? 'danger' : '']"
-                :title="pendingRemove === j.path ? '再次点击确认从列表移除' : '从列表移除'"
+                class="setting-icon-btn"
+                title="从列表移除"
                 aria-label="从列表移除"
-                @click="removeJava(j)"
+                @click="askRemoveJava(j)"
               >
                 <AlxIcon name="trash" :size="16" />
               </button>
@@ -703,18 +698,17 @@ function onThemeValue(value: string) {
         <div v-else class="empty-state">
           <AlxIcon name="coffee" :size="32" />
           <span>{{ javaScanning ? '正在获取本机 Java…' : '未发现已安装的 Java' }}</span>
-          <span class="setting-desc">点击下方「自动获取路径」扫描，或手动指定路径。</span>
+          <span class="setting-desc">点击下方「自动获取」扫描，或使用「添加 Java」手动选择。</span>
         </div>
       </SettingGroup>
 
-      <!-- 底部动作：与下载页「开始下载」同款居中按钮，列表有数据时也常驻 -->
+      <!-- 底部动作：固定在页面底部居中，列表有数据时也常驻 -->
       <div class="setting-actions">
         <button type="button" class="btn-download" :disabled="javaScanning" @click="refreshJavaList">
-          自动获取路径
+          自动获取
         </button>
-        <button type="button" class="btn-download btn-ghost" @click="pickJavaManually">
-          手动指定路径
-        </button>
+        <button type="button" class="btn-download" @click="openJavaDownload">下载 Java</button>
+        <button type="button" class="btn-download" @click="pickJavaManually">添加 Java</button>
       </div>
 
       <!-- 在线下载 Java：发行版 + 自动获取的大版本（统一 JDK） -->
@@ -735,6 +729,19 @@ function onThemeValue(value: string) {
         <template #actions>
           <button type="button" class="btn-sub" @click="javaDownloadOpen = false">取消</button>
           <button type="button" class="btn-download" @click="downloadJava">下载 Java</button>
+        </template>
+      </AlxModal>
+
+      <!-- 从全局 Java 列表移除（二次确认弹窗，不改动磁盘文件） -->
+      <AlxModal :open="removeTarget !== null" title="从列表移除 Java" @close="removeTarget = null">
+        <p class="modal-note">
+          将从全局 Java 列表中移除
+          <strong>{{ removeTarget?.version ?? `Java ${removeTarget?.major ?? ''}` }}</strong>，
+          不会删除磁盘上的 Java 文件，之后仍可重新添加。
+        </p>
+        <template #actions>
+          <button type="button" class="btn-sub" @click="removeTarget = null">取消</button>
+          <button type="button" class="btn-download" @click="confirmRemoveJava">移除</button>
         </template>
       </AlxModal>
     </template>
@@ -799,7 +806,7 @@ function onThemeValue(value: string) {
         <div class="setting-row">
           <div class="setting-label">
             模式
-            <div class="setting-desc">浅色 / 深色，立即生效并记住</div>
+            <div class="setting-desc">跟随系统 / 浅色 / 深色，立即生效并记住</div>
           </div>
           <AlxSelect
             :model-value="store.theme"
@@ -839,12 +846,10 @@ function onThemeValue(value: string) {
       </SettingGroup>
 
       <SettingGroup title="下载性能">
-        <div class="setting-row">
+        <div class="setting-row stacked">
           <div class="setting-label">
             最大线程数
-            <div class="setting-desc">
-              当前 {{ extras.maxParallel }} 线程；64 线程已足够，线程数越多下载越快，但过高会造成下载期间明显卡顿
-            </div>
+            <div class="setting-desc">当前 {{ extras.maxParallel }} 线程</div>
             <div v-if="parallelWarning" class="setting-warning">
               超过 {{ PARALLEL_WARN_THRESHOLD }} 线程可能明显加剧下载时的卡顿，建议保持 64
             </div>
@@ -856,10 +861,11 @@ function onThemeValue(value: string) {
             :max="PARALLEL_RANGE[1]"
             step="1"
             :value="extras.maxParallel"
+            title="64 线程已足够；线程数越多，限速文件下载越快，但过高会造成下载时明显卡顿"
             @change="onParallelChange"
           />
         </div>
-        <div class="setting-row">
+        <div class="setting-row stacked">
           <div class="setting-label">
             速度限制
             <div class="setting-desc">{{ speedLimitLabel }}</div>
@@ -871,6 +877,7 @@ function onThemeValue(value: string) {
             :max="SPEED_LIMIT_RANGE[1]"
             step="1"
             :value="extras.speedLimit"
+            title="0 表示无限制；可设置 1–128 MB/s，限制过高会拖慢下载"
             @change="onSpeedChange"
           />
         </div>

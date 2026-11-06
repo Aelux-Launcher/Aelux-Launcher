@@ -364,7 +364,8 @@ export const JAVA_MAJOR_OPTIONS = ['8', '11', '16', '17', '21', '25', '26'].map(
 }))
 
 /** 主题模式选项（值与 store.theme 一致） */
-export const THEME_OPTIONS: Array<{ value: 'light' | 'dark'; label: string }> = [
+export const THEME_OPTIONS: Array<{ value: 'system' | 'light' | 'dark'; label: string }> = [
+  { value: 'system', label: '跟随系统' },
   { value: 'light', label: '浅色' },
   { value: 'dark', label: '深色' },
 ]

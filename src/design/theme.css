@@ -512,6 +512,10 @@ svg {
 /* 设置页：父容器是 flex 列时卡片会被压缩，配合卡片的 overflow:hidden 会裁掉内容；
    禁止直接子元素收缩即可完整展示（仅限设置页，避免影响版本详情等自带滚动区的页面）。 */
 .page-view.active.settings-page > * { flex-shrink: 0; }
+/* 设置页不留底部内边距：Java 的底部动作条才能贴到滚动区最底部，不被裁切 */
+.page-view.active.settings-page { padding-bottom: 0; }
+/* 其余分节的最后一张卡片自行保留底部留白 */
+.page-view.active.settings-page > .setting-group:last-child { margin-bottom: 32px; }
 
 .page-header {
   font-size: 22px;
@@ -952,7 +956,6 @@ svg {
 .setting-icon-btn:hover { color: var(--text-main); background: var(--hover-bg); }
 .setting-icon-btn:active { background: var(--icon-bg); }
 .setting-icon-btn:disabled { opacity: 0.4; cursor: default; }
-.setting-icon-btn.danger { color: var(--danger); border-color: var(--danger); }
 
 /* Java 列表行（参考常见 Java 管理页的信息密度） */
 .java-row { padding: 10px 8px; }
@@ -992,11 +995,6 @@ svg {
   font-weight: 400;
 }
 .java-actions { display: flex; gap: 8px; flex: none; }
-.java-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 8px 8px 4px;
-}
 
 /* 下载 Java 弹窗字段 */
 .modal-field {
@@ -1034,13 +1032,16 @@ svg {
   color: var(--text-sub);
 }
 
-/* 设置页底部动作：只有两个按钮，无分隔线、无整块背景 */
+/* 设置页底部动作：吸底居中（不随内容滚动），横向拉满、底部贴齐滚动区，无背景无分隔线 */
 .setting-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   display: flex;
   justify-content: center;
   gap: 12px;
-  margin: auto -40px -32px;
-  padding: 16px 40px 12px;
+  margin: auto -40px 0;
+  padding: 16px 40px 24px;
 }
 .setting-actions .btn-download {
   height: 40px;
@@ -1109,6 +1110,9 @@ svg {
 
 /* 滑块（延展：外观设置用） */
 .setting-range { width: 200px; accent-color: var(--text-main); }
+/* 滑块独占一行：两个滑条长度一致，说明移到滑块悬停提示里省空间 */
+.setting-row.stacked { flex-direction: column; align-items: stretch; }
+.setting-row.stacked .setting-range { width: 100%; margin-top: 10px; }
 .setting-input.wide { width: 320px; }
 
 /* ------------------------------ 自绘下拉 ------------------------------ */
