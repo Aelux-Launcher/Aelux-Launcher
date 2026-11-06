@@ -184,8 +184,8 @@ pub struct LocalContentItem {
     pub kind: String,
     pub name: String,
     pub enabled: bool,
-    pub size_bytes: u64,
-    pub modified_secs: u64,
+    pub size_bytes: f64,
+    pub modified_secs: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -248,7 +248,7 @@ pub struct ModUpdate {
     pub new_file_name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sha1: Option<String>,
-    pub file_size: u64,
+    pub file_size: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub changelog: Option<String>,
 }
