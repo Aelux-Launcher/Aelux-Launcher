@@ -251,8 +251,14 @@ export type SettingsSection = 'global' | 'java' | 'general' | 'appearance' | 'do
 /** 更多模块分节。 */
 export type MoreSection = 'help' | 'about' | 'feedback' | 'online'
 
-/** 版本设置页的左栏子项（概览→设置→修改→Mod 管理→导出）。 */
-export type InstanceTab = 'overall' | 'setup' | 'modify' | 'mod' | 'export'
+/** 版本设置页的左栏子项（版本概览 / 游戏设置 / 模组 / 资源包 / 世界 / 原理图）。 */
+export type InstanceTab =
+  | 'overall'
+  | 'setup'
+  | 'mod'
+  | 'resourcepack'
+  | 'world'
+  | 'schematic'
 
 /** 详情页（进入后顶栏出现返回按钮）。 */
 export type SubPage =

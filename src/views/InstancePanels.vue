@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
  * 「版本设置」子页的面板分发：
- * 按当前标签渲染 概览 / 设置 / Mod 管理 / 导出 面板，
+ * 按当前标签渲染 版本概览 / 游戏设置 / 模组管理 / 资源包管理 / 世界管理 / 原理图，
  * 各面板本体拆在本目录的 instance/ 下的 SFC 里。
- * 加载器更换（原独立「修改」标签）并入「设置」面板底部。
+ * 加载器更换（原独立「修改」标签）并入「游戏设置」面板底部。
  *
  * 数据归属：
  *   - 实例设置（Java、内存、服务器、高级选项）一律走 store 的
@@ -15,7 +15,9 @@ import OverviewPanel from './instance/OverviewPanel.vue'
 import SetupPanel from './instance/SetupPanel.vue'
 import ModifyPanel from './instance/ModifyPanel.vue'
 import ModPanel from './instance/ModPanel.vue'
-import ExportPanel from './instance/ExportPanel.vue'
+import ResourcePackPanel from './instance/ResourcePackPanel.vue'
+import WorldPanel from './instance/WorldPanel.vue'
+import SchematicPanel from './instance/SchematicPanel.vue'
 import type { InstanceSettings, InstanceUi } from './instanceMeta'
 
 defineProps<{
@@ -52,5 +54,7 @@ defineProps<{
     <ModifyPanel :instance="instance" />
   </template>
   <ModPanel v-else-if="tab === 'mod'" :instance="instance" />
-  <ExportPanel v-else-if="tab === 'export'" :instance="instance" />
+  <ResourcePackPanel v-else-if="tab === 'resourcepack'" :instance="instance" />
+  <WorldPanel v-else-if="tab === 'world'" :instance="instance" />
+  <SchematicPanel v-else-if="tab === 'schematic'" :instance="instance" />
 </template>

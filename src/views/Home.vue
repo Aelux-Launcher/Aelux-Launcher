@@ -139,11 +139,13 @@ function openAccounts() {
 }
 
 function openInstanceSetup() {
+  // 还没有游戏版本时，直接带去下载页选版本下载。
   if (!selected.value) {
-    toast.warning('请先安装一个游戏版本')
+    toast.info('还没有游戏版本，先去下载一个吧')
+    store.setView('download')
     return
   }
-  store.openSubPage({ kind: 'instance', instanceId: selected.value.id, tab: 'setup' })
+  store.openSubPage({ kind: 'instance', instanceId: selected.value.id, tab: 'overall' })
 }
 </script>
 

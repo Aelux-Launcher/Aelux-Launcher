@@ -58,6 +58,8 @@ export const ICONS = {
   code: { vb: V, body: `<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>` },
   layout: { vb: V, body: `<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>` },
   grid: { vb: V, body: `<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>` },
+  /* 服务端：双层机架（用于「下载服务端」，区别于普通下载图标） */
+  server: { vb: V, body: `<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>` },
   /* 资源分类：模组=拼图，资源包=衣物（与侧栏图形一致）。 */
   puzzle: { vb: V, body: `<path d="M6 4h4a2 2 0 0 1 4 0h4a2 2 0 0 1 2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 1-2 2h-4a2 2 0 0 0-4 0h-4a2 2 0 0 1-2-2v-4a2 2 0 0 0 0-4v-4a2 2 0 0 1 2-2z"/>` },
   shirt: { vb: V, body: `<path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 .55.45 1 1 1h10a1 1 0 0 0 1-1V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/>` },

@@ -651,9 +651,6 @@ svg {
 .version-row .item-right { opacity: 0; transition: opacity 0.15s; }
 .version-row:hover .item-right,
 .version-row:focus-within .item-right { opacity: 1; }
-/* 版本行前的快捷下载按钮：常驻显示（不随 hover 淡入） */
-.version-download-btn { opacity: 1; flex: none; color: var(--text-main); }
-.version-download-btn:hover { background: var(--icon-bg); }
 
 /* 分类折叠组：平滑展开（grid-rows 0fr→1fr 过渡，双向动画） */
 .version-group-header {
@@ -1273,6 +1270,32 @@ svg {
   border-radius: 3px;
   background: var(--text-main);
   transition: width 120ms linear;
+}
+
+/* ---------------- 版本设置各管理面板（模组 / 资源包 / 世界 / 原理图） ---------------- */
+.panel-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.panel-counter {
+  float: right;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.item-meta {
+  font-size: 12px;
+  color: var(--text-sub);
+  white-space: nowrap;
 }
 
 /* ---------------- 下载状态页（任务管理） ----------------

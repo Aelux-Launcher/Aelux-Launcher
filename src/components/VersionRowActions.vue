@@ -54,7 +54,7 @@ async function handleServerDownload() {
       <AlxIcon name="info" :size="16" />
     </button>
     <button type="button" class="icon-btn" title="下载服务端" @click.stop="handleServerDownload">
-      <AlxIcon name="download" :size="16" />
+      <AlxIcon name="server" :size="16" />
     </button>
   </div>
 </template>

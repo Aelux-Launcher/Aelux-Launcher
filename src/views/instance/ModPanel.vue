@@ -122,9 +122,9 @@ function selectAll() {
 
 <template>
   <!-- 搜索 + 工具行 -->
-  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px">
+  <div class="panel-toolbar">
     <AlxSearchBar v-model="query" placeholder="搜索 Mod" />
-    <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end">
+    <div class="panel-actions">
       <button type="button" class="btn-sub" @click="openModsFolder">打开文件夹</button>
       <button type="button" class="btn-sub" @click="installFromFile">从文件安装</button>
       <button type="button" class="btn-sub" @click="store.setView('download')">下载新 Mod</button>
@@ -149,10 +149,8 @@ function selectAll() {
   <!-- Mod 列表 -->
   <div class="setting-group">
     <div class="setting-group-title">
-      Mod 列表
-      <span style="float: right; font-weight: 400; font-size: 12px; color: var(--text-sub)">
-        已选 {{ selectedCount }}
-      </span>
+      模组列表
+      <span class="panel-counter">已选 {{ selectedCount }}</span>
     </div>
     <div v-if="rows.length === 0" class="empty-state">
       <AlxIcon name="package" :size="32" />

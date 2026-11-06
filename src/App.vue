@@ -108,18 +108,11 @@ function stageMotion(from: (typeof route.value), to: (typeof route.value)): Stag
   return 'swap'
 }
 
-/** 每页独立记录滚动位置；从详情返回列表时不会丢失阅读位置。 */
-const scrollPositions = new Map<string, number>()
-
-function saveScroll(key: string) {
-  const page = document.querySelector<HTMLElement>('.alx-stage__layer:last-child .page-view')
-  if (page) scrollPositions.set(key, page.scrollTop)
-}
-
-function restoreScroll(key: string) {
+/** 页面切换后始终从顶部开始（不再保留上一页的滚动位置）。 */
+function resetStageScroll() {
   void nextTick(() => {
     const page = document.querySelector<HTMLElement>('.alx-stage__layer:last-child .page-view')
-    if (page) page.scrollTop = scrollPositions.get(key) ?? 0
+    if (page) page.scrollTop = 0
   })
 }
 
@@ -138,11 +131,10 @@ let nextId = 1
 // 目标页变化 → 旧层转退场，新层立即入场。
 watch(
   () => stageKey(route.value),
-  (key, previousKey) => {
+  (key) => {
     const top = layers.value[layers.value.length - 1]
     if (!top || top.key === key) return
     const motion = stageMotion(topRoute.value, route.value)
-    saveScroll(previousKey)
     layers.value = [
       ...layers.value.map((l, i) =>
         i === layers.value.length - 1 ? { ...l, leaving: true, motion } : l,
@@ -156,7 +148,7 @@ watch(
         motion,
       },
     ]
-    restoreScroll(key)
+    resetStageScroll()
   },
   // 同步捕捉：DOM 仍是旧页，且 topRoute 尚未被路由快照观察器覆盖。
   { flush: 'sync' },
@@ -196,6 +188,9 @@ onBeforeUnmount(() => {
 })
 
 onMounted(() => {
+  // 刷新后不还原上次的滚动位置：页面回到顶部。
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+  resetStageScroll()
   void store.init()
   // 浏览器预览提示只停留 3 秒：说明数据是模拟的即可，不常驻遮挡内容
   window.setTimeout(() => {

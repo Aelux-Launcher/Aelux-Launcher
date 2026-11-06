@@ -160,13 +160,15 @@ const sidePanelKind = computed(() => {
   return kind === 'select' || kind === 'accounts' || kind === 'instance' ? kind : null
 })
 
-/* ----- 版本设置页：左栏切换 概览 / 设置 / Mod 管理 / 导出 ----- */
+/* ----- 版本设置页：左栏切换 版本概览 / 游戏设置 / 模组管理 / 资源包管理 / 世界管理 / 原理图 ----- */
 
 const INSTANCE_TABS = [
-  { key: 'overall', label: '概览', icon: 'layout' },
-  { key: 'setup', label: '设置', icon: 'settings' },
-  { key: 'mod', label: 'Mod 管理', icon: 'puzzle' },
-  { key: 'export', label: '导出', icon: 'package' },
+  { key: 'overall', label: '版本概览', icon: 'layout' },
+  { key: 'setup', label: '游戏设置', icon: 'settings' },
+  { key: 'mod', label: '模组管理', icon: 'puzzle' },
+  { key: 'resourcepack', label: '资源包管理', icon: 'shirt' },
+  { key: 'world', label: '世界管理', icon: 'globe' },
+  { key: 'schematic', label: '原理图', icon: 'grid' },
 ] as const
 
 /** 当前版本设置标签（非该子页时回落「概览」）。 */
@@ -434,10 +436,10 @@ function selectFolder(f: StoredFolder) {
         </div>
       </div>
 
-      <!-- 版本设置页：侧栏切换为 概览 / 设置 / Mod 管理 / 导出（子页侧栏） -->
-      <div v-else-if="sidePanelKind === 'instance'" class="folder-panel">
-        <div class="folder-section-title">版本设置</div>
+      <!-- 版本设置页：侧栏切换为六个版本管理面板（子页侧栏） -->
+      <div v-else-if="sidePanelKind === 'instance'">
         <div class="nav-group active">
+          <div class="nav-title">版本设置</div>
           <div
             v-for="item in INSTANCE_TABS"
             :key="item.key"
