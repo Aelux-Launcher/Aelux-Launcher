@@ -2,8 +2,9 @@
 /**
  * 实例设置子页（版本设置，从主页「版本设置」或版本选择页进入）。
  *
- * 页头右侧五个标签：概览 / 设置 / 修改 / Mod 管理 / 导出，
+ * 左侧导航（SideNav 子页侧栏）：概览 / 设置 / Mod 管理 / 导出，
  * 按当前标签渲染对应面板（InstancePanels.vue 分发）。
+ * 加载器更换已并入「设置」面板，不再单独占标签。
  *
  * 实例设置（Java、内存、服务器、高级选项）由 store 的
  * loadInstanceSettings / updateInstanceSettings 负责持久化，
@@ -11,7 +12,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../stores/app'
-import type { GameInstance, InstanceTab } from '../lib/types'
+import type { GameInstance } from '../lib/types'
 import PageHeader from '../components/PageHeader.vue'
 import AlxIcon from '../components/AlxIcon.vue'
 import InstancePanels from './InstancePanels.vue'
@@ -27,15 +28,6 @@ import {
 const props = defineProps<{ instanceId: string; tab: string }>()
 
 const store = useAppStore()
-
-/** 页头右侧的五个标签，顺序与上游一致：概览 → 设置 → 修改 → Mod 管理 → 导出。 */
-const TABS: { key: InstanceTab; title: string }[] = [
-  { key: 'overall', title: '概览' },
-  { key: 'setup', title: '设置' },
-  { key: 'modify', title: '修改' },
-  { key: 'mod', title: 'Mod 管理' },
-  { key: 'export', title: '导出' },
-]
 
 /** 外观偏好（图标 / 分类 / 收藏等）。 */
 const ui = ref<InstanceUi>({ ...DEFAULT_INSTANCE_UI })
@@ -84,30 +76,12 @@ function setUi(p: InstanceUi) {
   ui.value = { ...ui.value, ...p }
   void saveInstanceUi(props.instanceId, p)
 }
-
-/** 切换标签（同一副页面内换内容，不动页面栈）。 */
-function setTab(key: string) {
-  store.setInstanceTab(key as InstanceTab)
-}
 </script>
 
 <template>
   <div class="page-view active sub-page">
-    <!-- 页头：标题 + 右侧标签切换 -->
-    <PageHeader :title="instance ? `版本设置 - ${instance.name}` : '版本设置'">
-      <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end">
-        <button
-          v-for="t in TABS"
-          :key="t.key"
-          type="button"
-          :class="tab === t.key ? 'btn-sub active' : 'btn-sub'"
-          :style="tab === t.key ? { borderColor: 'var(--text-main)', fontWeight: 600 } : undefined"
-          @click="setTab(t.key)"
-        >
-          {{ t.title }}
-        </button>
-      </div>
-    </PageHeader>
+    <!-- 页头：标题（分类切换在左侧栏） -->
+    <PageHeader :title="instance ? `版本设置 - ${instance.name}` : '版本设置'" />
 
     <!-- 实例不存在（可能已被删除） -->
     <div v-if="!instance" class="empty-state">

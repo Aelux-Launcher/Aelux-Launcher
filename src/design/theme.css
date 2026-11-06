@@ -651,6 +651,9 @@ svg {
 .version-row .item-right { opacity: 0; transition: opacity 0.15s; }
 .version-row:hover .item-right,
 .version-row:focus-within .item-right { opacity: 1; }
+/* 版本行前的快捷下载按钮：常驻显示（不随 hover 淡入） */
+.version-download-btn { opacity: 1; flex: none; color: var(--text-main); }
+.version-download-btn:hover { background: var(--icon-bg); }
 
 /* 分类折叠组：平滑展开（grid-rows 0fr→1fr 过渡，双向动画） */
 .version-group-header {
@@ -1270,6 +1273,84 @@ svg {
   border-radius: 3px;
   background: var(--text-main);
   transition: width 120ms linear;
+}
+
+/* ---------------- 下载状态页（任务管理） ----------------
+   左栏统计（总进度 / 速度 / 剩余文件）+ 右栏步骤清单。 */
+.task-status-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+}
+.task-stats {
+  width: 220px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+.task-stat {
+  padding: 20px 4px;
+  border-bottom: 1px solid var(--border-light);
+}
+.task-stat:last-child { border-bottom: none; }
+.task-stat-label {
+  font-size: 12px;
+  color: var(--text-sub);
+  text-align: center;
+}
+.task-stat-value {
+  margin: 10px 0 12px;
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+}
+.task-panel {
+  flex: 1;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+}
+.task-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+.task-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-step-list { display: flex; flex-direction: column; }
+.task-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 4px;
+  font-size: 13px;
+}
+.task-step-mark {
+  width: 38px;
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  color: var(--text-sub);
+}
+.task-step.done .task-step-mark { color: var(--text-main); }
+.task-step.failed .task-step-mark { color: var(--danger); }
+.task-step.pending { color: var(--text-sub); }
+.task-step-pct { font-size: 11px; color: var(--text-main); }
+.task-step-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 标签 */

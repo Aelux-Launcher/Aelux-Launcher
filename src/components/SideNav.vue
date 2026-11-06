@@ -154,10 +154,25 @@ async function refreshCategory(key: string) {
 
 /* ------------------- 子页侧栏面板（子页替换导航区） ------------------- */
 
-/** 当前是否处于带侧栏面板的子页（版本选择 → 文件夹列表；账户管理 → 添加账户）。 */
+/** 当前是否处于带侧栏面板的子页（版本选择 / 账户管理 / 版本设置）。 */
 const sidePanelKind = computed(() => {
   const kind = store.subPage?.kind
-  return kind === 'select' || kind === 'accounts' ? kind : null
+  return kind === 'select' || kind === 'accounts' || kind === 'instance' ? kind : null
+})
+
+/* ----- 版本设置页：左栏切换 概览 / 设置 / Mod 管理 / 导出 ----- */
+
+const INSTANCE_TABS = [
+  { key: 'overall', label: '概览', icon: 'layout' },
+  { key: 'setup', label: '设置', icon: 'settings' },
+  { key: 'mod', label: 'Mod 管理', icon: 'puzzle' },
+  { key: 'export', label: '导出', icon: 'package' },
+] as const
+
+/** 当前版本设置标签（非该子页时回落「概览」）。 */
+const instanceTab = computed(() => {
+  const page = store.subPage
+  return page && page.kind === 'instance' ? page.tab : 'overall'
 })
 
 /* ----- 版本选择页：文件夹列表 ----- */
@@ -416,6 +431,26 @@ function selectFolder(f: StoredFolder) {
           >
             <AlxIcon name="x" :size="15" />
           </button>
+        </div>
+      </div>
+
+      <!-- 版本设置页：侧栏切换为 概览 / 设置 / Mod 管理 / 导出（子页侧栏） -->
+      <div v-else-if="sidePanelKind === 'instance'" class="folder-panel">
+        <div class="folder-section-title">版本设置</div>
+        <div class="nav-group active">
+          <div
+            v-for="item in INSTANCE_TABS"
+            :key="item.key"
+            role="button"
+            tabindex="0"
+            :class="['nav-item', instanceTab === item.key ? 'active' : '']"
+            @click="store.setInstanceTab(item.key)"
+            @keydown.enter.prevent="store.setInstanceTab(item.key)"
+            @keydown.space.prevent="store.setInstanceTab(item.key)"
+          >
+            <AlxIcon :name="item.icon" :size="20" class="nav-icon" />
+            {{ item.label }}
+          </div>
         </div>
       </div>
 

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 /**
- * 任务管理（副页面）：下载任务 + 启动日志。
+ * 下载状态页（副页面，/tasks）：下载进度 + 启动日志。
  *
- * 数据全部来自 store（downloadState / launchLogs），这里只做展示；
- * 下载进度由 store 的安装流程实时写入，启动日志由 pushLaunchLog 追加。
+ * 布局参考同类启动器的任务窗口，但按本启动器的极简黑白风格重做：
+ *   左栏 = 总进度 / 下载速度 / 剩余文件；
+ *   右栏 = 本次安装的步骤清单（已完成打勾、下载中显示百分比、等待中为省略号）。
+ * 数据全部来自 store（downloadState / installing / launchLogs），这里只做展示。
  */
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useAppStore } from '../stores/app'
 import type { DownloadTaskState } from '../lib/types'
 import AlxIcon from '../components/AlxIcon.vue'
@@ -16,13 +18,24 @@ const store = useAppStore()
 /** 下载任务清单。 */
 const tasks = computed(() => store.downloadState?.tasks ?? [])
 
-/** 任务状态 → 中文文案。 */
-const STATUS_LABEL: Record<DownloadTaskState['status'], string> = {
-  pending: '等待中',
-  downloading: '下载中',
-  done: '已完成',
-  failed: '失败',
-}
+/** 剩余文件数（等待 + 下载中）。 */
+const remainingFiles = computed(
+  () => tasks.value.filter((t) => t.status === 'pending' || t.status === 'downloading').length,
+)
+
+/** 已接收 / 总字节（总大小未知的任务不计入总进度）。 */
+const receivedBytes = computed(() => tasks.value.reduce((sum, t) => sum + Math.max(0, t.received), 0))
+const totalBytes = computed(() => tasks.value.reduce((sum, t) => sum + (t.total > 0 ? t.total : 0), 0))
+
+/** 总进度：有总大小时按字节算，全部结束时固定 100%。 */
+const overallPct = computed(() => {
+  if (store.downloadState.finished) return 100
+  if (totalBytes.value <= 0) return 0
+  return Math.min(100, Math.round((receivedBytes.value / totalBytes.value) * 100))
+})
+
+/** 标题：正在安装的版本名。 */
+const jobTitle = computed(() => (store.installing ? `${store.installing} 安装` : '下载任务'))
 
 /** 把字节数转成人话。 */
 function human(bytes: number): string {
@@ -42,13 +55,31 @@ function pct(t: DownloadTaskState): number {
   return t.total > 0 ? Math.min(100, Math.round((t.received / t.total) * 100)) : 0
 }
 
-/** 任务副文案：失败原因 / 已传字节 / 排队提示。 */
-function taskDesc(t: DownloadTaskState): string {
-  if (t.status === 'failed') return t.error ?? '下载失败'
-  if (t.status === 'done') return t.total > 0 ? human(t.total) : '下载完成'
-  if (t.total > 0) return `${human(t.received)} / ${human(t.total)}`
-  return '等待中 = 排队中'
-}
+/* ------------------------------ 下载速度 ------------------------------ */
+
+/** 每秒采样一次已接收字节，计算瞬时速度（内核暂未直接上报速度）。 */
+const speed = ref(0)
+let speedTimer: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  let lastReceived = receivedBytes.value
+  let lastAt = performance.now()
+  speedTimer = setInterval(() => {
+    const now = performance.now()
+    const current = receivedBytes.value
+    const seconds = (now - lastAt) / 1000
+    speed.value = seconds > 0 ? Math.max(0, (current - lastReceived) / seconds) : 0
+    lastReceived = current
+    lastAt = now
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (speedTimer) clearInterval(speedTimer)
+})
+
+/** 速度文案（没有流量时显示占位符）。 */
+const speedLabel = computed(() => (speed.value > 0 ? `${human(speed.value)}/s` : '—'))
 </script>
 
 <template>
@@ -64,40 +95,55 @@ function taskDesc(t: DownloadTaskState): string {
       </button>
     </PageHeader>
 
-    <div class="section-title">下载任务</div>
-
-    <!-- 汇总行：完成 / 失败 / 等待 -->
-    <div v-if="tasks.length > 0" style="display: flex; gap: 8px; margin-bottom: 12px">
-      <span class="tag">完成 {{ store.downloadState.done }}</span>
-      <span class="tag">失败 {{ store.downloadState.failed }}</span>
-      <span class="tag">等待 {{ store.downloadState.pending }}</span>
-    </div>
-
-    <!-- 空态 -->
+    <!-- 空态：安装刚开始时任务清单还没生成，先显示准备中 -->
     <div v-if="tasks.length === 0" class="empty-state">
       <AlxIcon name="download" :size="32" />
-      <div>暂无下载任务</div>
-      <div>下载游戏版本或社区资源时，任务会显示在这里。</div>
+      <div v-if="store.installing">正在准备 {{ store.installing }} 的下载任务…</div>
+      <template v-else>
+        <div>暂无下载任务</div>
+        <div>下载游戏版本或社区资源时，进度会显示在这里。</div>
+      </template>
     </div>
 
-    <!-- 任务列表 -->
-    <template v-else>
-      <div v-for="t in tasks" :key="t.id" class="list-item">
-        <div class="item-left" style="flex: 1; min-width: 0">
-          <div class="item-info" style="flex: 1">
-            <div class="item-title">{{ t.name }}</div>
-            <div class="item-desc">{{ taskDesc(t) }}</div>
-            <!-- 小型进度条：等待中为 0%，完成后为 100% -->
-            <div class="progress-track" style="width: 220px; margin-top: 8px">
-              <div class="progress-fill" :style="{ width: `${pct(t)}%` }" />
-            </div>
+    <!-- 下载状态：左栏统计 + 右栏步骤清单 -->
+    <div v-else class="task-status-layout">
+      <aside class="task-stats">
+        <div class="task-stat">
+          <div class="task-stat-label">总进度</div>
+          <div class="task-stat-value">{{ overallPct }} %</div>
+          <div class="progress-track">
+            <div class="progress-fill" :style="{ width: `${overallPct}%` }" />
           </div>
         </div>
-        <div class="item-right">
-          <span class="tag">{{ STATUS_LABEL[t.status] }}</span>
+        <div class="task-stat">
+          <div class="task-stat-label">下载速度</div>
+          <div class="task-stat-value">{{ speedLabel }}</div>
         </div>
-      </div>
-    </template>
+        <div class="task-stat">
+          <div class="task-stat-label">剩余文件</div>
+          <div class="task-stat-value">{{ remainingFiles }}</div>
+        </div>
+      </aside>
+
+      <section class="task-panel">
+        <div class="task-panel-head">
+          <span class="task-panel-title">{{ jobTitle }}</span>
+          <span class="tag">{{ store.downloadState.finished ? '已完成' : '进行中' }}</span>
+        </div>
+
+        <div class="task-step-list">
+          <div v-for="t in tasks" :key="t.id" class="task-step" :class="t.status">
+            <span class="task-step-mark">
+              <AlxIcon v-if="t.status === 'done'" name="check" :size="14" />
+              <AlxIcon v-else-if="t.status === 'failed'" name="x" :size="14" />
+              <span v-else-if="t.status === 'downloading'" class="task-step-pct">{{ pct(t) }}%</span>
+              <AlxIcon v-else name="more-horizontal" :size="14" />
+            </span>
+            <span class="task-step-name" :title="t.name">{{ t.name }}</span>
+          </div>
+        </div>
+      </section>
+    </div>
 
     <div class="section-title">启动日志</div>
 
@@ -113,9 +159,8 @@ function taskDesc(t: DownloadTaskState): string {
       </button>
     </div>
 
-    <div v-if="store.launchLogs.length === 0" class="empty-state">
-      <AlxIcon name="info" :size="32" />
-      <div>暂无启动日志，启动游戏后相关记录会显示在这里。</div>
+    <div v-if="store.launchLogs.length === 0" class="loading-hint">
+      暂无启动日志，启动游戏后相关记录会显示在这里。
     </div>
     <div v-else class="setting-group" style="padding: 12px 16px">
       <div

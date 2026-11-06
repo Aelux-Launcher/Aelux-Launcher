@@ -221,13 +221,16 @@ function goBack() {
   store.pageBack()
 }
 
-/** 开始下载：安装原版核心，成功 / 失败均给反馈；实例名即包名。 */
+/** 开始下载：安装原版核心后立即跳到下载状态页；结果在任务页可见。 */
 async function startDownload() {
   const loader = primarySelection.value ?? (selectedVersions.value.optifine ? 'optifine' : 'vanilla')
-  await store.installVersion(props.versionId, { name: packageName.value, loader })
+  const job = store.installVersion(props.versionId, { name: packageName.value, loader })
+  // 不等下载完成：先进下载状态页看进度，安装结束后再补一条反馈。
+  store.openSubPage({ kind: 'tasks' })
+  await job
   const err = store.installError
   if (err) toast.error(`安装失败：${err}`)
-  else toast.success(`已下载 ${packageName.value}，可在「启动」页一键启动`)
+  else toast.success(`已完成 ${packageName.value} 的安装`)
 }
 </script>
 

@@ -151,6 +151,17 @@ function openVersionPage(id: string) {
   store.openSubPage({ kind: 'version', versionId: id })
 }
 
+/**
+ * 行前快捷下载：直接开始该版本的原版下载，并跳到下载状态页看进度。
+ * 已有任务在运行时不再叠加新任务，只做跳转。
+ */
+function quickDownload(id: string) {
+  if (!store.installing) {
+    void store.installVersion(id, { name: id, loader: 'vanilla' })
+  }
+  store.openSubPage({ kind: 'tasks' })
+}
+
 /* ------------------------------ 社区资源 ------------------------------ */
 
 /** 当前分类是否为社区资源（原版之外全部走 Modrinth 检索，按 cat 切换内容） */
@@ -382,6 +393,14 @@ function retrySearch() {
             @click="openVersionPage(latestRelease.id)"
           >
             <div class="item-left">
+              <button
+                type="button"
+                class="icon-btn version-download-btn"
+                title="下载此版本"
+                @click.stop="quickDownload(latestRelease.id)"
+              >
+                <AlxIcon name="download" :size="16" />
+              </button>
               <div class="item-icon">
                 <img :src="versionRowIcon('release')" width="20" height="20" alt="" />
               </div>
@@ -398,6 +417,14 @@ function retrySearch() {
             @click="openVersionPage(latestSnapshot.id)"
           >
             <div class="item-left">
+              <button
+                type="button"
+                class="icon-btn version-download-btn"
+                title="下载此版本"
+                @click.stop="quickDownload(latestSnapshot.id)"
+              >
+                <AlxIcon name="download" :size="16" />
+              </button>
               <div class="item-icon">
                 <img :src="versionRowIcon('snapshot')" width="20" height="20" alt="" />
               </div>
@@ -433,6 +460,14 @@ function retrySearch() {
                 @click="openVersionPage(v.id)"
               >
                 <div class="item-left">
+                  <button
+                    type="button"
+                    class="icon-btn version-download-btn"
+                    title="下载此版本"
+                    @click.stop="quickDownload(v.id)"
+                  >
+                    <AlxIcon name="download" :size="16" />
+                  </button>
                   <div class="item-icon">
                     <img :src="versionRowIcon(g.key)" width="20" height="20" alt="" />
                   </div>

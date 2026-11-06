@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
  * 「版本设置」子页的面板分发：
- * 按当前标签渲染 概览 / 设置 / 修改 / Mod 管理 / 导出 面板，
+ * 按当前标签渲染 概览 / 设置 / Mod 管理 / 导出 面板，
  * 各面板本体拆在本目录的 instance/ 下的 SFC 里。
+ * 加载器更换（原独立「修改」标签）并入「设置」面板底部。
  *
  * 数据归属：
  *   - 实例设置（Java、内存、服务器、高级选项）一律走 store 的
@@ -39,15 +40,17 @@ defineProps<{
     :ui="ui"
     :set-ui="setUi"
   />
-  <SetupPanel
-    v-else-if="tab === 'setup'"
-    :instance="instance"
-    :settings="settings"
-    :patch="patch"
-    :ui="ui"
-    :set-ui="setUi"
-  />
-  <ModifyPanel v-else-if="tab === 'modify'" :instance="instance" />
+  <template v-else-if="tab === 'setup'">
+    <SetupPanel
+      :instance="instance"
+      :settings="settings"
+      :patch="patch"
+      :ui="ui"
+      :set-ui="setUi"
+    />
+    <!-- 加载器更换（原「修改」标签的内容） -->
+    <ModifyPanel :instance="instance" />
+  </template>
   <ModPanel v-else-if="tab === 'mod'" :instance="instance" />
   <ExportPanel v-else-if="tab === 'export'" :instance="instance" />
 </template>
