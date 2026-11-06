@@ -37,6 +37,8 @@ export type GameWindowSize = 'fullscreen' | 'default' | 'launcher' | 'custom' | 
 export type QuickPlay = 'none' | 'multiplayer' | 'singleplayer' | 'realms'
 /** 游戏设置预设继承策略 */
 export type PresetInherit = 'configured' | 'inherit'
+/** 内存管理（垃圾回收器） */
+export type GcMode = 'zgc' | 'generational-zgc' | 'g1' | 'tuned-g1' | 'none'
 
 /** 界面层偏好（核心 Settings 暂未覆盖的字段）。 */
 export interface SettingsExtras {
@@ -86,6 +88,8 @@ export interface SettingsExtras {
   jvmArgs: string
   /** 游戏启动参数（一行） */
   gameArgs: string
+  /** 内存管理（垃圾回收器） */
+  gcMode: GcMode
   /** 禁用 Java Launch Wrapper */
   disableLaunchWrapper: boolean
   /** 禁用 LWJGL Unsafe Agent */
@@ -116,6 +120,7 @@ const DEFAULT_EXTRAS: SettingsExtras = {
   memoryOptimize: true,
   jvmArgs: '',
   gameArgs: '',
+  gcMode: 'none',
   disableLaunchWrapper: false,
   disableUnsafeAgent: false,
   preferHighPerfGpu: true,
@@ -215,6 +220,16 @@ export const PRESET_INHERIT_OPTIONS: Array<{ value: PresetInherit; label: string
   { value: 'inherit', label: '所有游戏设置继承预设' },
 ]
 
+export const GC_MODE_VALUES = ['zgc', 'generational-zgc', 'g1', 'tuned-g1', 'none'] as const
+
+export const GC_MODE_OPTIONS: Array<{ value: GcMode; label: string }> = [
+  { value: 'zgc', label: '尽量使用 ZGC' },
+  { value: 'generational-zgc', label: '尽量使用分代 ZGC' },
+  { value: 'g1', label: '标准 G1GC' },
+  { value: 'tuned-g1', label: '调优 G1GC' },
+  { value: 'none', label: '不指定（可自定义）' },
+]
+
 /* ============================== 校验 / 夹取 ============================== */
 
 function clamp(n: number, min: number, max: number) {
@@ -264,6 +279,7 @@ export function readExtras(raw: unknown): SettingsExtras {
   if (typeof obj.memoryOptimize === 'boolean') out.memoryOptimize = obj.memoryOptimize
   if (typeof obj.jvmArgs === 'string') out.jvmArgs = obj.jvmArgs
   if (typeof obj.gameArgs === 'string') out.gameArgs = obj.gameArgs
+  out.gcMode = pick(obj.gcMode, GC_MODE_VALUES, out.gcMode)
   if (typeof obj.disableLaunchWrapper === 'boolean') out.disableLaunchWrapper = obj.disableLaunchWrapper
   if (typeof obj.disableUnsafeAgent === 'boolean') out.disableUnsafeAgent = obj.disableUnsafeAgent
   if (typeof obj.preferHighPerfGpu === 'boolean') out.preferHighPerfGpu = obj.preferHighPerfGpu

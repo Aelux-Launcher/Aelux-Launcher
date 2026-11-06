@@ -15,10 +15,13 @@ import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import AlxSelect from '../components/AlxSelect.vue'
 import AlxToggle from '../components/AlxToggle.vue'
+import AlxInfoTip from '../components/AlxInfoTip.vue'
 import SettingGroup from '../components/SettingGroup.vue'
 import AlxIcon from '../components/AlxIcon.vue'
+import { JavaManager } from './instanceMeta'
 import {
   DOWNLOAD_SOURCE_OPTIONS,
+  GC_MODE_OPTIONS,
   LANGUAGE_OPTIONS,
   LAUNCHER_VISIBILITY_OPTIONS,
   OPACITY_RANGE,
@@ -106,10 +109,17 @@ function onDownloadSourceValue(value: string) {
   setExtra('downloadSource', value as SettingsExtras['downloadSource'])
 }
 
-/** 当前隔离策略的说明文案。 */
+/** 当前隔离策略的说明文案（放在标题后的感叹号气泡里，避免行内文字过长）。 */
 const isolationDesc = computed(
   () => VERSION_ISOLATION_OPTIONS.find((o) => o.value === extras.value.versionIsolation)?.desc ?? '',
 )
+
+/** Java 列表的说明文案。 */
+const JAVA_LIST_TIP = [
+  '启动游戏时，会优先选择列表中第一个兼容当前 Minecraft 的 Java。',
+  '点击选项右侧的箭头可以调整排序，以控制优先选择哪个 Java。',
+  '若想无视兼容性强制使用某个 Java，请在版本独立设置中修改。',
+].join('\n')
 
 /** 自定义图标选择（内核文件选择命令未接入，先提示）。 */
 function pickIcon() {
@@ -175,6 +185,22 @@ const autoUpdate = computed({
 /** 探测到的 Java 列表（内核暂无探测命令，恒为空 → 展示空态）。 */
 // TODO: 内核 Java 探测命令就绪后在此填充（PATH 扫描 / JAVA_HOME / 注册表）。
 const javas = ref<JavaEntry[]>([])
+/** 探测中（刷新按钮禁用，避免重复触发）。 */
+const javaScanning = ref(false)
+
+/** 重新探测本机 Java（列表有数据时也可用）。 */
+async function refreshJavaList() {
+  if (javaScanning.value) return
+  javaScanning.value = true
+  try {
+    const list = await new JavaManager().allAvailable()
+    javas.value = list.map((j) => ({ major: j.major, path: j.path }))
+    if (javas.value.length > 0) toast.success(`已找到 ${javas.value.length} 个 Java`)
+    else toast.info('未发现已安装的 Java，可手动指定路径')
+  } finally {
+    javaScanning.value = false
+  }
+}
 
 /** 把某个探测结果设为默认 Java（写核心字段 javaPath）。 */
 function setDefaultJava(j: JavaEntry) {
@@ -205,8 +231,11 @@ function onThemeValue(value: string) {
 
         <div class="setting-row">
           <div class="setting-label">
-            默认版本隔离
-            <div class="setting-desc">{{ isolationDesc }}</div>
+            <span class="setting-label-line">
+              默认版本隔离
+              <AlxInfoTip :text="isolationDesc" />
+            </span>
+            <div class="setting-desc">新建实例默认采用的隔离方式</div>
           </div>
           <AlxSelect
             :model-value="extras.versionIsolation"
@@ -433,12 +462,45 @@ function onThemeValue(value: string) {
 
         <div class="setting-row">
           <div class="setting-label">
-            Java 列表
+            <span class="setting-label-line">
+              Java 列表
+              <AlxInfoTip :text="JAVA_LIST_TIP" />
+            </span>
             <div class="setting-desc">{{ store.settings.javaPath || '未指定，将自动选择' }}</div>
           </div>
-          <button type="button" class="btn-download btn-ghost" @click="store.routerPush('/settings/java')">
-            <AlxIcon name="settings" :size="14" />管理
-          </button>
+          <div class="setting-controls">
+            <button
+              type="button"
+              class="icon-btn"
+              title="重新获取 Java 列表"
+              aria-label="重新获取 Java 列表"
+              :disabled="javaScanning"
+              @click="refreshJavaList"
+            >
+              <AlxIcon name="refresh" :size="15" />
+            </button>
+            <button
+              type="button"
+              class="icon-btn"
+              title="Java 管理"
+              aria-label="Java 管理"
+              @click="store.routerPush('/settings/java')"
+            >
+              <AlxIcon name="settings" :size="15" />
+            </button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            内存管理
+            <div class="setting-desc">选择游戏使用的垃圾回收器</div>
+          </div>
+          <AlxSelect
+            :model-value="extras.gcMode"
+            :options="GC_MODE_OPTIONS"
+            @update:model-value="(v: string) => setExtra('gcMode', v as SettingsExtras['gcMode'])"
+          />
         </div>
 
         <div class="setting-row">
@@ -495,13 +557,23 @@ function onThemeValue(value: string) {
             </div>
           </div>
         </template>
-        <!-- 静态空态：暂无 Java 探测能力 -->
+        <!-- 空态：未探测到 Java -->
         <div v-else class="empty-state">
           <AlxIcon name="coffee" :size="32" />
-          <span>未发现已安装的 Java</span>
-          <button type="button" class="btn-download btn-ghost" @click="pickJavaManually">手动指定路径</button>
+          <span>{{ javaScanning ? '正在获取本机 Java…' : '未发现已安装的 Java' }}</span>
+          <span class="setting-desc">点击下方「自动获取路径」扫描，或手动指定路径。</span>
         </div>
       </SettingGroup>
+
+      <!-- 底部动作：与下载页「开始下载」同款居中按钮，列表有数据时也常驻 -->
+      <div class="setting-actions">
+        <button type="button" class="btn-download" :disabled="javaScanning" @click="refreshJavaList">
+          自动获取路径
+        </button>
+        <button type="button" class="btn-download btn-ghost" @click="pickJavaManually">
+          手动指定路径
+        </button>
+      </div>
     </template>
 
     <!-- ==================== 启动器通用设置 ==================== -->

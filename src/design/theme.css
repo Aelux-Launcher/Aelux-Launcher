@@ -581,6 +581,10 @@ svg {
 .item-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
 .btn-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 6px 16px;
   background-color: var(--text-main);
   color: var(--bg-color);
@@ -754,7 +758,7 @@ svg {
   overflow: hidden;
 }
 .loader-expand-empty { padding: 8px 20px 14px; font-size: 13px; color: var(--text-sub); }
-.loader-version-row { cursor: pointer; border-radius: 7px; }
+.loader-version-row { cursor: pointer; border-radius: 7px; padding: 12px 16px; }
 .loader-version-row:hover { background: var(--hover-bg); }
 .loader-version-row.selected { background: var(--icon-bg); }
 .loader-version-row .item-info { flex-direction: row; align-items: center; gap: 16px; }
@@ -894,6 +898,74 @@ svg {
 .setting-row:last-child { border-bottom: none; }
 .setting-row .setting-label { min-width: 0; }
 .setting-row .setting-desc { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+
+/* 标题行：标题 + 说明感叹号 */
+.setting-label-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 说明图标与悬浮气泡（Teleport 到 body，避免被卡片裁切） */
+.alx-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-sub);
+  cursor: help;
+  outline: none;
+}
+.alx-tip:hover,
+.alx-tip:focus-visible { color: var(--text-main); }
+.alx-tip-bubble {
+  position: fixed;
+  z-index: 3100;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-color);
+  color: var(--text-main);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+/* 图标按钮（仅图标、无文字） */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-sub);
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.15s, background 0.15s;
+}
+.icon-btn:hover { color: var(--text-main); background: var(--hover-bg); }
+.icon-btn:active { background: var(--icon-bg); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* 设置页底部动作（居中，与版本详情「开始下载」同款观感） */
+.setting-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px 0 8px;
+}
+.setting-actions .btn-download {
+  height: 40px;
+  padding: 0 28px;
+  border-radius: 999px;
+  font-size: 14px;
+}
 
 .setting-select,
 .setting-input {
