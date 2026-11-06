@@ -3,9 +3,9 @@
  * 应用外壳（极简黑白设计稿）：
  *   全局顶栏（返回 + Logo + 窗口控制）
  *   + 侧栏（按模块分组切换 + 底部账户区）
- *   + 内容舞台（双层交叉过渡，沿用既有动画体系）
+ *   + 内容舞台（页面切换直接替换，内容块逐项淡入）
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
+import { computed, nextTick, onMounted, ref, watch, type Component } from 'vue'
 import { router } from './router'
 import { useAppStore } from './stores/app'
 import TopHeader from './components/TopHeader.vue'
@@ -26,18 +26,12 @@ import Accounts from './views/Accounts.vue'
 import DeviceLoginModal from './components/DeviceLoginModal.vue'
 import DialogHost from './components/DialogHost.vue'
 
-/** 离场动画时长（须与 theme.css 里的 stage leave 时长一致）。 */
-const LEAVE_MS = 180
-
-type StageMotion = 'forward' | 'back' | 'swap'
-
+/** 舞台层：同一时间只渲染这一页。 */
 interface StageLayer {
   id: number
   key: string
   comp: Component
   props: Record<string, unknown>
-  leaving: boolean
-  motion: StageMotion
 }
 
 const COMPONENTS: Record<string, Component> = {
@@ -91,23 +85,6 @@ function stageProps(r: (typeof route.value)): Record<string, unknown> {
   return {}
 }
 
-/**
- * 根据页面层级决定过渡方向：模块进入详情是“推进”，从详情或模块回首页是“回退”；
- * 同一模块的分类切换保持克制，避免用户在筛选资源时感到页面被重新打开。
- */
-function stageMotion(from: (typeof route.value), to: (typeof route.value)): StageMotion {
-  const fromSub = Boolean(from.meta.sub)
-  const toSub = Boolean(to.meta.sub)
-  const fromModule = String(from.meta.module ?? 'home')
-  const toModule = String(to.meta.module ?? 'home')
-
-  if (!fromSub && toSub) return 'forward'
-  if (fromSub && !toSub) return 'back'
-  if (toModule === 'home' && fromModule !== 'home') return 'back'
-  if (fromModule === 'home' && toModule !== 'home') return 'forward'
-  return 'swap'
-}
-
 /** 页面切换后始终从顶部开始（不再保留上一页的滚动位置）。 */
 function resetStageScroll() {
   void nextTick(() => {
@@ -116,76 +93,31 @@ function resetStageScroll() {
   })
 }
 
-const layers = ref<StageLayer[]>([
-  {
-    id: 0,
-    key: stageKey(route.value),
-    comp: COMPONENTS[String(route.value.name ?? 'home')] ?? Home,
-    props: stageProps(route.value),
-    leaving: false,
-    motion: 'swap',
-  },
-])
+const layer = ref<StageLayer>({
+  id: 0,
+  key: stageKey(route.value),
+  comp: COMPONENTS[String(route.value.name ?? 'home')] ?? Home,
+  props: stageProps(route.value),
+})
 let nextId = 1
 
-// 目标页变化 → 旧层转退场，新层立即入场。
+// 页面切换：直接替换舞台内容，旧页在同一帧内卸载。
+// 保留旧层等待卸载会让 WebView 的合成缓存残留上一页像素，形成重叠 / 拖影。
 watch(
   () => stageKey(route.value),
   (key) => {
-    const top = layers.value[layers.value.length - 1]
-    if (!top || top.key === key) return
-    const motion = stageMotion(topRoute.value, route.value)
-    layers.value = [
-      ...layers.value.map((l, i) =>
-        i === layers.value.length - 1 ? { ...l, leaving: true, motion } : l,
-      ),
-      {
-        id: nextId++,
-        key,
-        comp: COMPONENTS[String(route.value.name ?? 'home')] ?? Home,
-        props: stageProps(route.value),
-        leaving: false,
-        motion,
-      },
-    ]
+    if (layer.value.key === key) return
+    layer.value = {
+      id: nextId++,
+      key,
+      comp: COMPONENTS[String(route.value.name ?? 'home')] ?? Home,
+      props: stageProps(route.value),
+    }
     resetStageScroll()
   },
-  // 同步捕捉：DOM 仍是旧页，且 topRoute 尚未被路由快照观察器覆盖。
+  // 同步捕捉：DOM 仍是旧页，且路由参数已更新。
   { flush: 'sync' },
 )
-
-/** 路由快照用于在响应式路由切换后仍能判断上一页的层级。 */
-const topRoute = ref(route.value)
-watch(
-  route,
-  (current, previous) => {
-    if (stageKey(current) !== stageKey(previous)) topRoute.value = previous
-  },
-)
-
-// 每个退场层各管各的卸载定时器：快切时互不干扰。
-const timers = new Map<number, number>()
-watch(
-  layers,
-  (ls) => {
-    for (const layer of ls) {
-      if (!layer.leaving || timers.has(layer.id)) continue
-      timers.set(
-        layer.id,
-        window.setTimeout(() => {
-          timers.delete(layer.id)
-          layers.value = layers.value.filter((l) => l.id !== layer.id)
-        }, LEAVE_MS + 16),
-      )
-    }
-  },
-  { deep: true },
-)
-
-onBeforeUnmount(() => {
-  for (const t of timers.values()) window.clearTimeout(t)
-  timers.clear()
-})
 
 onMounted(() => {
   // 刷新后不还原上次的滚动位置：页面回到顶部。
@@ -211,18 +143,7 @@ const showPreviewTip = ref(true)
 
       <div class="content-area">
         <div class="alx-stage">
-          <div
-            v-for="layer in layers"
-            :key="layer.id"
-            :class="[
-              'alx-stage__layer',
-              `alx-stage__layer--${layer.motion}`,
-              layer.leaving && 'alx-stage__layer--leaving',
-              !layer.leaving && layer.id !== 0 && 'alx-stage__layer--entering',
-            ]"
-            :aria-hidden="layer.leaving || undefined"
-            :inert="layer.leaving || undefined"
-          >
+          <div :key="layer.id" class="alx-stage__layer">
             <component :is="layer.comp" v-bind="layer.props" />
           </div>
         </div>

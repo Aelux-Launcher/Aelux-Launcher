@@ -316,10 +316,11 @@ svg {
 .account-info .sub { font-size: 11px; color: var(--text-sub); }
 
 /* ============================================================================
- * 内容区 + 舞台（分层页面过渡）
+ * 内容区 + 舞台
  *
- * 详情页以短距离水平推进，返回反向回退；同级分类用更轻的淡入淡出。
- * 它比全页缩放更能表达信息层级，也避免大列表切换时的“抽离感”。
+ * 页面切换时舞台只保留当前页：旧页在同一帧内卸载，内容块再做逐项淡入。
+ * 不再保留退场层——停用进退场动画后，双层的合成缓存会在 WebView 里
+ * 残留上一页的像素，形成页面重叠 / 拖影。
  * ========================================================================== */
 .content-area {
   flex: 1;
@@ -334,8 +335,6 @@ svg {
   flex: 1;
   min-height: 0;
   display: flex;
-  /* 退场页独立合成，避免其 transform 影响新页的滚动与绘制顺序。 */
-  isolation: isolate;
   overflow: hidden;
 }
 .alx-stage__layer {
@@ -344,26 +343,9 @@ svg {
   min-height: 0;
   display: flex;
   position: relative;
-  z-index: 1;
-  will-change: transform, opacity;
 }
 .alx-stage__layer > * { flex: 1; min-width: 0; }
-.alx-stage__layer--entering {
-  /* 页面容器不做位移：它与内容逐项位移叠加会形成斜向轨迹。 */
-  animation: none;
-}
-.alx-stage__layer--leaving {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  /* 新页面挂载后立即遮蔽旧页面，避免内容重叠造成残影。 */
-  visibility: hidden;
-  animation: none;
-}
 @media (prefers-reduced-motion: reduce) {
-  .alx-stage__layer--entering,
-  .alx-stage__layer--leaving,
   .nav-group.active > .nav-item,
   .page-view.active > *,
   .back-btn,
@@ -371,7 +353,6 @@ svg {
   .alx-modal__box {
     animation: none;
   }
-  .alx-stage__layer--leaving { display: none; }
 }
 
 /* ---------------- 页面容器 ----------------
