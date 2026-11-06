@@ -13,15 +13,20 @@ import { computed, ref, watch } from 'vue'
 import type { SettingsSection } from '../lib/types'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
-import PageHeader from '../components/PageHeader.vue'
 import AlxToggle from '../components/AlxToggle.vue'
 import AlxIcon from '../components/AlxIcon.vue'
 import {
   DOWNLOAD_SOURCE_OPTIONS,
   LANGUAGE_OPTIONS,
+  LAUNCHER_VISIBILITY_OPTIONS,
   OPACITY_RANGE,
   PARALLEL_OPTIONS,
+  PRESET_INHERIT_OPTIONS,
+  PROCESS_PRIORITY_OPTIONS,
+  QUICK_PLAY_OPTIONS,
   THEME_OPTIONS,
+  VERSION_ISOLATION_OPTIONS,
+  WINDOW_SIZE_OPTIONS,
   clampOpacity,
   extrasPatch,
   readExtras,
@@ -62,8 +67,77 @@ function setExtra<K extends keyof SettingsExtras>(key: K, value: SettingsExtras[
 }
 
 /** 文本输入行提交（change 事件，避免每次按键都落盘）。 */
-function onTextInput(key: 'windowTitle' | 'preLaunchCommand', e: Event) {
+function onTextInput(
+  key: 'windowTitle' | 'preLaunchCommand' | 'customInfo' | 'jvmArgs' | 'gameArgs',
+  e: Event,
+) {
   setExtra(key, (e.target as HTMLInputElement).value)
+}
+
+/** 全局设置里的下拉项。 */
+type ChoiceKey =
+  | 'versionIsolation'
+  | 'launcherVisibility'
+  | 'processPriority'
+  | 'windowSize'
+  | 'quickPlay'
+  | 'presetInherit'
+  | 'presetName'
+
+/** 下拉提交：写入对应偏好并落盘。 */
+function onChoice(key: ChoiceKey, e: Event) {
+  const value = (e.target as HTMLSelectElement).value
+  extras.value = { ...extras.value, [key]: value } as SettingsExtras
+  persistExtras()
+}
+
+/** 当前隔离策略的说明文案。 */
+const isolationDesc = computed(
+  () => VERSION_ISOLATION_OPTIONS.find((o) => o.value === extras.value.versionIsolation)?.desc ?? '',
+)
+
+/** 自定义图标选择（内核文件选择命令未接入，先提示）。 */
+function pickIcon() {
+  toast.info('自定义图标选择尚未接入，等待内核文件选择命令就绪。')
+}
+
+/** 新建游戏设置预设（预设管理尚未接入，先提示）。 */
+function addPreset() {
+  toast.info('自定义预设管理尚未接入。')
+}
+
+/* ------------------------------ 内存分配 ------------------------------ */
+
+/** 系统总内存（浏览器只能拿到近似值，缺失时按 16 GB 估算）。 */
+const SYSTEM_MEMORY_GB = Math.max(
+  4,
+  Math.round((navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 16),
+)
+
+/** 游戏分配内存（核心字段 memoryMb）。 */
+const memoryMb = computed({
+  get: () => store.settings.memoryMb,
+  set: (v) => {
+    store.saveSettings({ memoryMb: v }).catch(() => {})
+  },
+})
+
+/** 分配条占比。 */
+const memoryPercent = computed(() =>
+  Math.min(100, Math.round((memoryMb.value / (SYSTEM_MEMORY_GB * 1024)) * 100)),
+)
+
+/** 分配后剩余可用内存（GB）。 */
+const memoryAvailableGb = computed(() => Math.max(0, SYSTEM_MEMORY_GB - memoryMb.value / 1024))
+
+/** GB 显示（保留一位小数）。 */
+function formatGb(gb: number) {
+  return `${Math.round(gb * 10) / 10} GB`
+}
+
+/** 滑块/数值输入提交。 */
+function onMemoryChange(e: Event) {
+  memoryMb.value = Number((e.target as HTMLInputElement).value)
 }
 
 /** 游戏语言下拉提交（仅接受已知值）。 */
@@ -130,10 +204,26 @@ function onThemeChange(e: Event) {
   <div class="page-view active sub-page">
     <!-- ==================== 全局设置 ==================== -->
     <template v-if="section === 'global'">
-      <PageHeader title="全局设置" />
-
+      <!-- 启动选项 -->
       <div class="setting-group">
         <div class="setting-group-title">启动选项</div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            默认版本隔离
+            <div class="setting-desc">{{ isolationDesc }}</div>
+          </div>
+          <select
+            class="setting-select"
+            :value="extras.versionIsolation"
+            @change="onChoice('versionIsolation', $event)"
+          >
+            <option v-for="o in VERSION_ISOLATION_OPTIONS" :key="o.value" :value="o.value">
+              {{ o.label }}
+            </option>
+          </select>
+        </div>
+
         <div class="setting-row">
           <div class="setting-label">
             游戏窗口标题
@@ -146,6 +236,92 @@ function onThemeChange(e: Event) {
             @change="onTextInput('windowTitle', $event)"
           />
         </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            自定义图标
+            <div class="setting-desc">{{ extras.iconPath || '未选择（使用默认图标）' }}</div>
+          </div>
+          <button type="button" class="btn-download btn-ghost" @click="pickIcon">选择图片</button>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            自定义信息
+            <div class="setting-desc">显示在游戏窗口的信息栏，留空则不显示</div>
+          </div>
+          <input
+            class="setting-input"
+            :value="extras.customInfo"
+            placeholder="无"
+            @change="onTextInput('customInfo', $event)"
+          />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            启动器可见性
+            <div class="setting-desc">游戏启动后启动器的行为</div>
+          </div>
+          <select
+            class="setting-select"
+            :value="extras.launcherVisibility"
+            @change="onChoice('launcherVisibility', $event)"
+          >
+            <option v-for="o in LAUNCHER_VISIBILITY_OPTIONS" :key="o.value" :value="o.value">
+              {{ o.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            进程优先级
+            <div class="setting-desc">越高游戏越流畅，但可能影响其他程序</div>
+          </div>
+          <select
+            class="setting-select"
+            :value="extras.processPriority"
+            @change="onChoice('processPriority', $event)"
+          >
+            <option v-for="o in PROCESS_PRIORITY_OPTIONS" :key="o.value" :value="o.value">
+              {{ o.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            窗口大小
+            <div class="setting-desc">游戏窗口的初始尺寸</div>
+          </div>
+          <select
+            class="setting-select"
+            :value="extras.windowSize"
+            @change="onChoice('windowSize', $event)"
+          >
+            <option v-for="o in WINDOW_SIZE_OPTIONS" :key="o.value" :value="o.value">
+              {{ o.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            快速游玩
+            <div class="setting-desc">启动游戏后直接进入指定服务器或世界</div>
+          </div>
+          <select
+            class="setting-select"
+            :value="extras.quickPlay"
+            @change="onChoice('quickPlay', $event)"
+          >
+            <option v-for="o in QUICK_PLAY_OPTIONS" :key="o.value" :value="o.value">
+              {{ o.label }}
+            </option>
+          </select>
+        </div>
+
         <div class="setting-row">
           <div class="setting-label">
             启动前执行命令
@@ -160,16 +336,175 @@ function onThemeChange(e: Event) {
         </div>
       </div>
 
+      <!-- 预设 -->
+      <div class="setting-group">
+        <div class="setting-group-title">预设</div>
+        <p class="setting-note">
+          游戏设置预设管理着一组游戏设置，你可以在下方调整这些设置。所有实例默认继承当前预设中的游戏设置，
+          也可以在实例的游戏设置页面中覆盖特定项。
+        </p>
+        <div class="setting-row">
+          <div class="setting-label">
+            当前预设
+            <div class="setting-desc">实例默认继承该预设的游戏设置</div>
+          </div>
+          <div class="setting-controls">
+            <select
+              class="setting-select"
+              :value="extras.presetName"
+              @change="onChoice('presetName', $event)"
+            >
+              <option value="预设1">预设1</option>
+            </select>
+            <button type="button" class="btn-download btn-ghost" @click="addPreset">新建预设</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            继承策略
+            <div class="setting-desc">已自带游戏设置文件的整合包不继承预设</div>
+          </div>
+          <select
+            class="setting-select"
+            :value="extras.presetInherit"
+            @change="onChoice('presetInherit', $event)"
+          >
+            <option v-for="o in PRESET_INHERIT_OPTIONS" :key="o.value" :value="o.value">
+              {{ o.label }}
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 内存分配 -->
       <div class="setting-group">
         <div class="setting-group-title">内存分配</div>
+
         <div class="setting-row">
           <div class="setting-label">
             自动配置内存
-            <div class="setting-desc">按系统可用内存自动分配；关闭后使用手动分配值</div>
+            <div class="setting-desc">按系统可用内存自动分配；关闭后手动指定</div>
           </div>
           <AlxToggle
             :model-value="extras.autoMemory"
             @update:model-value="(v: boolean) => setExtra('autoMemory', v)"
+          />
+        </div>
+
+        <div v-if="!extras.autoMemory" class="setting-row">
+          <div class="setting-label">
+            分配内存
+            <div class="setting-desc">{{ formatGb(memoryMb / 1024) }}</div>
+          </div>
+          <input
+            class="setting-range"
+            type="range"
+            min="512"
+            :max="SYSTEM_MEMORY_GB * 1024 - 512"
+            step="256"
+            :value="memoryMb"
+            @change="onMemoryChange"
+          />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            启动游戏前进行内存优化
+            <div class="setting-desc">启动前清理系统缓存，尽量为游戏腾出内存</div>
+          </div>
+          <AlxToggle
+            :model-value="extras.memoryOptimize"
+            @update:model-value="(v: boolean) => setExtra('memoryOptimize', v)"
+          />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            已使用的内存
+            <div class="setting-desc">系统总内存约 {{ SYSTEM_MEMORY_GB }} GB</div>
+          </div>
+          <div class="setting-label setting-memory-value">
+            游戏分配 {{ formatGb(memoryMb / 1024) }}
+            <div class="setting-desc">可用 {{ formatGb(memoryAvailableGb) }}</div>
+          </div>
+        </div>
+        <div class="setting-row setting-row-bar">
+          <div class="memory-bar">
+            <div class="memory-bar-fill" :style="{ width: `${memoryPercent}%` }"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 高级选项 -->
+      <div class="setting-group">
+        <div class="setting-group-title">高级选项</div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            Java 虚拟机参数
+            <div class="setting-desc">留空使用默认参数，多个参数用空格分隔</div>
+          </div>
+          <input
+            class="setting-input wide"
+            :value="extras.jvmArgs"
+            placeholder="默认"
+            @change="onTextInput('jvmArgs', $event)"
+          />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            游戏启动参数
+            <div class="setting-desc">追加到游戏主类之后的参数</div>
+          </div>
+          <input
+            class="setting-input wide"
+            :value="extras.gameArgs"
+            placeholder="无"
+            @change="onTextInput('gameArgs', $event)"
+          />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            Java 列表
+            <div class="setting-desc">{{ store.settings.javaPath || '未指定，将自动选择' }}</div>
+          </div>
+          <button type="button" class="btn-download btn-ghost" @click="store.routerPush('/settings/java')">
+            <AlxIcon name="settings" :size="14" />管理
+          </button>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            禁用 Java Launch Wrapper
+            <div class="setting-desc">不使用启动包装器，直接拉起 Java 进程</div>
+          </div>
+          <AlxToggle
+            :model-value="extras.disableLaunchWrapper"
+            @update:model-value="(v: boolean) => setExtra('disableLaunchWrapper', v)"
+          />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            禁用 LWJGL Unsafe Agent
+            <div class="setting-desc">关闭 LWJGL 的 Unsafe 代理，兼容部分旧环境</div>
+          </div>
+          <AlxToggle
+            :model-value="extras.disableUnsafeAgent"
+            @update:model-value="(v: boolean) => setExtra('disableUnsafeAgent', v)"
+          />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            使用高性能显卡
+            <div class="setting-desc">双显卡设备优先使用独立显卡</div>
+          </div>
+          <AlxToggle
+            :model-value="extras.preferHighPerfGpu"
+            @update:model-value="(v: boolean) => setExtra('preferHighPerfGpu', v)"
           />
         </div>
       </div>
@@ -177,7 +512,6 @@ function onThemeChange(e: Event) {
 
     <!-- ==================== Java 运行环境管理 ==================== -->
     <template v-else-if="section === 'java'">
-      <PageHeader title="Java 运行环境管理" />
 
       <div class="setting-group">
         <div class="setting-group-title">已安装的 Java</div>
@@ -207,7 +541,6 @@ function onThemeChange(e: Event) {
 
     <!-- ==================== 启动器通用设置 ==================== -->
     <template v-else-if="section === 'general'">
-      <PageHeader title="启动器通用设置" />
 
       <div class="setting-group">
         <div class="setting-group-title">基础</div>
@@ -232,7 +565,6 @@ function onThemeChange(e: Event) {
 
     <!-- ==================== 启动器外观设置 ==================== -->
     <template v-else-if="section === 'appearance'">
-      <PageHeader title="启动器外观设置" />
 
       <div class="setting-group">
         <div class="setting-group-title">主题</div>
@@ -279,7 +611,6 @@ function onThemeChange(e: Event) {
 
     <!-- ==================== 下载设置 ==================== -->
     <template v-else-if="section === 'download'">
-      <PageHeader title="下载设置" />
 
       <div class="setting-group">
         <div class="setting-group-title">网络与并发</div>
