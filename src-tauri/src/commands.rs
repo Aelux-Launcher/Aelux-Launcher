@@ -5,7 +5,10 @@
 //! 生成类型化 TS 绑定（`src/lib/bindings.ts`，纳入 git）。
 
 use crate::core_api;
-use crate::dto::{Account, DeviceCodeSession, GameInstance, LauncherConfig, OsInfo, VersionManifest};
+use crate::dto::{
+    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, LauncherConfig, OsInfo, StoredAccount,
+    VersionManifest,
+};
 
 /* ------------------------------ 内核命令 ------------------------------ */
 
@@ -63,6 +66,62 @@ pub async fn auth_poll_device_flow(session: DeviceCodeSession) -> Result<Account
 #[specta::specta]
 pub fn auth_logout(msa_id: String) -> Result<(), String> {
     core_api::auth_logout(msa_id)
+}
+
+/* ----------------------- 账户 / 会话 / 认证服务器 ----------------------- */
+
+#[tauri::command]
+#[specta::specta]
+pub fn accounts_list() -> Result<Vec<StoredAccount>, String> {
+    core_api::accounts_list()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn accounts_upsert(account: StoredAccount) -> Result<(), String> {
+    core_api::accounts_upsert(account)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn accounts_remove(id: String) -> Result<(), String> {
+    core_api::accounts_remove(id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn account_session_get() -> Result<Option<AccountSession>, String> {
+    core_api::account_session_get()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn account_session_set(session: Option<AccountSession>) -> Result<(), String> {
+    core_api::account_session_set(session)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn account_login_offline(username: String) -> Result<StoredAccount, String> {
+    core_api::account_login_offline(username)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn auth_servers_list() -> Result<Vec<AuthServer>, String> {
+    core_api::auth_servers_list()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn auth_server_add(name: Option<String>, url: String) -> Result<AuthServer, String> {
+    core_api::auth_server_add(name, url)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn auth_server_remove(id: String) -> Result<(), String> {
+    core_api::auth_server_remove(id)
 }
 
 #[tauri::command]

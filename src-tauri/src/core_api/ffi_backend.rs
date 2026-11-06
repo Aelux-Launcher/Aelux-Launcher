@@ -12,7 +12,9 @@ use std::sync::OnceLock;
 use serde_json::Value;
 use tauri::Manager;
 
-use crate::dto::{Account, DeviceCodeSession, GameInstance, LauncherConfig, OsInfo, VersionManifest};
+use crate::dto::{
+    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, LauncherConfig, OsInfo, StoredAccount, VersionManifest,
+};
 
 use super::CoreError;
 
@@ -257,6 +259,54 @@ pub fn create_instance(name: String, version: String, loader: Option<String>) ->
 
 pub fn delete_instance(id: String) -> Result<(), CoreError> {
     invoke_sync("instances.delete", &serde_json::json!({ "id": id }))?;
+    Ok(())
+}
+
+/* ----------------------- 账户 / 会话 / 认证服务器 ----------------------- */
+
+pub fn accounts_list() -> Result<Vec<StoredAccount>, CoreError> {
+    let value = invoke_sync("accounts.list", &Value::Null)?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn accounts_upsert(account: StoredAccount) -> Result<(), CoreError> {
+    let value = serde_json::to_value(account).map_err(|e| e.to_string())?;
+    invoke_sync("accounts.upsert", &value)?;
+    Ok(())
+}
+
+pub fn accounts_remove(id: String) -> Result<(), CoreError> {
+    invoke_sync("accounts.remove", &serde_json::json!({ "id": id }))?;
+    Ok(())
+}
+
+pub fn account_session_get() -> Result<Option<AccountSession>, CoreError> {
+    let value = invoke_sync("accounts.session.get", &Value::Null)?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn account_session_set(session: Option<AccountSession>) -> Result<(), CoreError> {
+    invoke_sync("accounts.session.set", &serde_json::json!({ "session": session }))?;
+    Ok(())
+}
+
+pub fn account_login_offline(username: String) -> Result<StoredAccount, CoreError> {
+    let value = invoke_sync("accounts.login_offline", &serde_json::json!({ "username": username }))?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn auth_servers_list() -> Result<Vec<AuthServer>, CoreError> {
+    let value = invoke_sync("authservers.list", &Value::Null)?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn auth_server_add(name: Option<String>, url: String) -> Result<AuthServer, CoreError> {
+    let value = invoke_sync("authservers.add", &serde_json::json!({ "name": name, "url": url }))?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn auth_server_remove(id: String) -> Result<(), CoreError> {
+    invoke_sync("authservers.remove", &serde_json::json!({ "id": id }))?;
     Ok(())
 }
 

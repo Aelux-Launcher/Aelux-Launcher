@@ -43,7 +43,6 @@ import {
   RESOURCE_CATEGORIES,
   RESOURCE_PAGE_SIZE,
 } from '../lib/modrinth'
-import { md5 } from '../lib/md5'
 
 /** 页面栈记录：进入详情页之前待返回的位置。 */
 export interface PageStackEntry {
@@ -751,25 +750,20 @@ export const useAppStore = defineStore('app', () => {
   /* --------------------------------- 会话 --------------------------------- */
 
   async function restoreSession() {
-    const raw = await kvGet('session')
-    session.value = raw ? (JSON.parse(raw) as Session) : null
+    // 会话真相源在内核（accounts.session.get）
+    session.value = await call<Session | null>('account_session_get')
   }
 
   /* ------------------------------- 多账户管理 ------------------------------- */
 
-  /** 账户列表（微软 / 离线多账户并存，落 kv 'accounts'）。 */
+  /** 账户列表（微软 / 离线多账户并存；内核 accounts.list）。 */
   const accounts = ref<StoredAccount[]>([])
 
   async function loadAccounts() {
-    const raw = await kvGet('accounts')
-    accounts.value = raw ? (JSON.parse(raw) as StoredAccount[]) : []
+    accounts.value = await call<StoredAccount[]>('accounts_list')
   }
 
-  async function persistAccounts() {
-    await call('kv_set', { key: 'accounts', value: JSON.stringify(accounts.value) })
-  }
-
-  /** 把账户设为当前会话并落 kv。 */
+  /** 把账户设为当前会话（内核 accounts.session.set）。 */
   async function applyAccount(acc: StoredAccount) {
     const s: Session = {
       type: acc.type === 'microsoft' ? 'microsoft' : 'offline',
@@ -777,7 +771,7 @@ export const useAppStore = defineStore('app', () => {
       uuid: acc.uuid,
     }
     session.value = s
-    await call('kv_set', { key: 'session', value: JSON.stringify(s) })
+    await call('account_session_set', { session: { type: s.type, username: s.username, uuid: s.uuid } })
   }
 
   /** 微软账户（内核登录成功）入列并设为当前；重复登录同账户则更新。 */
@@ -789,12 +783,10 @@ export const useAppStore = defineStore('app', () => {
       uuid: a.uuid,
       loggedInAt: a.loggedInAt,
     }
-    const idx = accounts.value.findIndex((x) => x.id === acc.id)
-    if (idx >= 0) accounts.value[idx] = acc
-    else accounts.value.push(acc)
+    await call('accounts_upsert', { account: acc })
     setLoginMode('official')
     await applyAccount(acc)
-    await persistAccounts()
+    await loadAccounts()
   }
 
   /** 切换当前账户（账户页单选）。 */
@@ -805,104 +797,43 @@ export const useAppStore = defineStore('app', () => {
     await applyAccount(acc)
   }
 
-  /** 移除账户；微软账户同时清钥匙串凭证；移除当前账户则登出会话。 */
+  /** 移除账户（内核一并处理当前会话与微软钥匙串凭证）。 */
   async function removeAccount(id: string) {
-    const acc = accounts.value.find((a) => a.id === id)
-    if (!acc) return
-    accounts.value = accounts.value.filter((a) => a.id !== id)
-    await persistAccounts()
-    if (acc.type === 'microsoft') {
-      try {
-        await call('auth_logout', { msaId: acc.id })
-      } catch {
-        /* 钥匙串清理失败不阻断前端移除 */
-      }
-    }
-    if (session.value && session.value.uuid === acc.uuid) {
-      session.value = null
-      await call('kv_remove', { key: 'session' })
-    }
+    if (!accounts.value.some((a) => a.id === id)) return
+    await call('accounts_remove', { id })
+    await loadAccounts()
+    await restoreSession()
   }
 
-  /** 离线登录：加入 / 更新离线账户并设为当前（多离线账户并存）。 */
+  /** 离线登录：内核派生 UUID、入列并设为当前（多离线账户并存）。 */
   async function loginOffline(username: string) {
     if (!username.trim()) throw new Error('用户名不能为空')
-    const uuid = offlineUuid(username.trim())
-    const acc: StoredAccount = {
-      id: uuid,
-      type: 'offline',
-      username: username.trim(),
-      uuid,
-      loggedInAt: String(Math.floor(Date.now() / 1000)),
-    }
-    const idx = accounts.value.findIndex((x) => x.id === acc.id)
-    if (idx >= 0) accounts.value[idx] = acc
-    else accounts.value.push(acc)
+    const acc = await call<StoredAccount>('account_login_offline', { username })
     setLoginMode('offline')
-    await applyAccount(acc)
-    await persistAccounts()
+    session.value = { type: 'offline', username: acc.username, uuid: acc.uuid }
+    await loadAccounts()
   }
 
   /* --------------------------- 外置登录服务器 --------------------------- */
 
-  /** 已添加的认证服务器（落 kv 'auth-servers'，账户管理侧栏在离线模式下方列出）。 */
+  /** 已添加的认证服务器（真相源在内核 authservers.list）。 */
   const authServers = ref<AuthServer[]>([])
 
-  /** 首次初始化时自带的认证服务器：LittleSkin（用户删除后不再自动补回）。 */
-  const DEFAULT_AUTH_SERVERS: AuthServer[] = [
-    {
-      id: 'littleskin',
-      name: 'LittleSkin',
-      url: 'https://littleskin.cn/api/yggdrasil',
-    },
-  ]
-
   async function loadAuthServers() {
-    const raw = await kvGet('auth-servers')
-    const seeded = await kvGet('auth-servers-seeded')
-    if (!seeded) {
-      // 首次（含升级后第一次启动）：合并默认服务器并只播种一次
-      const list = raw ? (JSON.parse(raw) as AuthServer[]) : []
-      if (!list.some((s) => s.id === 'littleskin')) {
-        list.unshift(...DEFAULT_AUTH_SERVERS)
-      }
-      authServers.value = list
-      await persistAuthServers()
-      await call('kv_set', { key: 'auth-servers-seeded', value: '1' })
-      return
-    }
-    authServers.value = raw ? (JSON.parse(raw) as AuthServer[]) : []
+    authServers.value = await call<AuthServer[]>('auth_servers_list')
   }
 
-  async function persistAuthServers() {
-    await call('kv_set', { key: 'auth-servers', value: JSON.stringify(authServers.value) })
-  }
-
-  /** 添加认证服务器：名称为空时取地址的域名。 */
+  /** 添加认证服务器（内核负责地址去重与名称回退域名）。 */
   async function addAuthServer(name: string, url: string): Promise<AuthServer> {
-    const addr = url.trim().replace(/\/+$/, '')
-    if (!addr) throw new Error('认证服务器地址不能为空')
-    if (authServers.value.some((s) => s.url === addr)) throw new Error('该认证服务器已添加')
-    let host = addr
-    try {
-      host = new URL(addr).host
-    } catch {
-      /* 非法 URL 时保留原始输入作为名称 */
-    }
-    const srv: AuthServer = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name: name.trim() || host,
-      url: addr,
-    }
+    const srv = await call<AuthServer>('auth_server_add', { name, url })
     authServers.value = [...authServers.value, srv]
-    await persistAuthServers()
     return srv
   }
 
   /** 删除认证服务器（调用方负责二次确认）。 */
   async function removeAuthServer(id: string) {
+    await call('auth_server_remove', { id })
     authServers.value = authServers.value.filter((s) => s.id !== id)
-    await persistAuthServers()
   }
 
   /* ----------------------------- 微软设备码登录 ----------------------------- */
@@ -1522,9 +1453,3 @@ function mapOs(): string {
   return 'linux'
 }
 
-/** 离线 UUID：MD5("OfflinePlayer:<name>") 转 UUID v3 形式。 */
-function offlineUuid(name: string): string {
-  const hash = md5(`OfflinePlayer:${name}`)
-  const hex = Array.from(hash, (b) => b.toString(16).padStart(2, '0')).join('')
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-3${hex.slice(13, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
-}

@@ -7,6 +7,7 @@
  *   保证 UI 布局预览始终可用。
  */
 import { invoke } from '@tauri-apps/api/core'
+import { md5 } from './md5'
 
 /** 是否运行在 Tauri 容器内。 */
 export const isTauri: boolean =
@@ -21,6 +22,50 @@ export async function call<T>(command: string, args?: Record<string, unknown>): 
 /* ======================= 浏览器预览模拟 ======================= */
 
 const LS_PREFIX = 'aelux.preview.'
+
+/* ==================== 账户 / 认证服务器（预览持久化） ==================== */
+
+interface PreviewAccount {
+  id: string
+  type: string
+  username: string
+  uuid: string
+  loggedInAt: string
+}
+
+interface PreviewSession {
+  type: string
+  username: string
+  uuid: string
+}
+
+interface PreviewAuthServer {
+  id: string
+  name: string
+  url: string
+}
+
+function previewKvGet(key: string): string | null {
+  return localStorage.getItem(LS_PREFIX + key)
+}
+
+function previewKvSet(key: string, value: string) {
+  localStorage.setItem(LS_PREFIX + key, value)
+}
+
+function readPreviewList<T>(key: string): T[] {
+  try {
+    return JSON.parse(previewKvGet(key) ?? '[]') as T[]
+  } catch {
+    return []
+  }
+}
+
+function previewOfflineUuid(name: string): string {
+  const hash = md5(`OfflinePlayer:${name}`)
+  const hex = Array.from(hash, (b) => b.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-3${hex.slice(13, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
+}
 
 const PREVIEW_VERSIONS = [
   '1.21.4', '1.21.3', '1.21.1', '1.21', '1.20.6', '1.20.4', '1.20.2', '1.20.1',
@@ -341,6 +386,101 @@ async function mockCall<T>(command: string, args?: Record<string, unknown>): Pro
       } as T
     case 'auth_logout':
       return null as T
+    case 'accounts_list':
+      return readPreviewList<PreviewAccount>('accounts') as T
+    case 'accounts_upsert': {
+      const account = args?.account as PreviewAccount
+      const list = readPreviewList<PreviewAccount>('accounts')
+      const idx = list.findIndex((a) => a.id === account.id)
+      if (idx >= 0) list[idx] = account
+      else list.push(account)
+      previewKvSet('accounts', JSON.stringify(list))
+      return null as T
+    }
+    case 'accounts_remove': {
+      const id = String(args?.id ?? '')
+      const list = readPreviewList<PreviewAccount>('accounts')
+      const removed = list.find((a) => a.id === id)
+      previewKvSet('accounts', JSON.stringify(list.filter((a) => a.id !== id)))
+      const raw = previewKvGet('session')
+      if (removed && raw) {
+        const session = JSON.parse(raw) as PreviewSession
+        if (session.uuid === removed.uuid) localStorage.removeItem(LS_PREFIX + 'session')
+      }
+      return null as T
+    }
+    case 'account_session_get': {
+      const raw = previewKvGet('session')
+      try {
+        return (raw ? JSON.parse(raw) : null) as T
+      } catch {
+        return null as T
+      }
+    }
+    case 'account_session_set': {
+      const session = args?.session as PreviewSession | null
+      if (session) previewKvSet('session', JSON.stringify(session))
+      else localStorage.removeItem(LS_PREFIX + 'session')
+      return null as T
+    }
+    case 'account_login_offline': {
+      const name = String(args?.username ?? '').trim()
+      if (!name) throw new Error('用户名不能为空')
+      const uuid = previewOfflineUuid(name)
+      const account: PreviewAccount = {
+        id: uuid,
+        type: 'offline',
+        username: name,
+        uuid,
+        loggedInAt: String(Math.floor(Date.now() / 1000)),
+      }
+      const list = readPreviewList<PreviewAccount>('accounts')
+      const idx = list.findIndex((a) => a.id === account.id)
+      if (idx >= 0) list[idx] = account
+      else list.push(account)
+      previewKvSet('accounts', JSON.stringify(list))
+      previewKvSet('session', JSON.stringify({ type: 'offline', username: name, uuid }))
+      return account as T
+    }
+    case 'auth_servers_list': {
+      const list = readPreviewList<PreviewAuthServer>('auth-servers')
+      if (previewKvGet('auth-servers-seeded') === null) {
+        if (!list.some((s) => s.id === 'littleskin')) {
+          list.unshift({ id: 'littleskin', name: 'LittleSkin', url: 'https://littleskin.cn/api/yggdrasil' })
+        }
+        previewKvSet('auth-servers', JSON.stringify(list))
+        previewKvSet('auth-servers-seeded', '1')
+      }
+      return list as T
+    }
+    case 'auth_server_add': {
+      const url = String(args?.url ?? '').trim().replace(/\/+$/, '')
+      if (!url) throw new Error('认证服务器地址不能为空')
+      const list = readPreviewList<PreviewAuthServer>('auth-servers')
+      if (list.some((s) => s.url === url)) throw new Error('该认证服务器已添加')
+      let host = url
+      try {
+        host = new URL(url).host
+      } catch {
+        /* 非法 URL 时保留原始输入作为名称 */
+      }
+      const server: PreviewAuthServer = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: String(args?.name ?? '').trim() || host,
+        url,
+      }
+      list.push(server)
+      previewKvSet('auth-servers', JSON.stringify(list))
+      return server as T
+    }
+    case 'auth_server_remove': {
+      const id = String(args?.id ?? '')
+      previewKvSet(
+        'auth-servers',
+        JSON.stringify(readPreviewList<PreviewAuthServer>('auth-servers').filter((s) => s.id !== id)),
+      )
+      return null as T
+    }
     case 'fetch_json':
       return mockFetchJson(String(args?.url ?? '')) as T
     case 'download_file':

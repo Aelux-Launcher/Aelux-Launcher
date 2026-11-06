@@ -127,3 +127,36 @@ pub struct Account {
     /// 登录时间（Unix 秒，仅展示）
     pub logged_in_at: String,
 }
+
+/// 本地账户列表条目（微软 / 离线多账户并存）。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct StoredAccount {
+    /// 微软账户为 msaId，离线账户为离线 UUID
+    pub id: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub username: String,
+    pub uuid: String,
+    /// 登录时间（Unix 秒，仅展示）
+    pub logged_in_at: String,
+}
+
+/// 当前登录会话。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountSession {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub username: String,
+    pub uuid: String,
+}
+
+/// 外置登录认证服务器（authlib-injector）。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthServer {
+    pub id: String,
+    pub name: String,
+    pub url: String,
+}

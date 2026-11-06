@@ -7,7 +7,9 @@ use aelux_core::CoreApi;
 use serde_json::Value;
 use tauri::Emitter;
 
-use crate::dto::{Account, DeviceCodeSession, GameInstance, LauncherConfig, OsInfo, VersionManifest};
+use crate::dto::{
+    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, LauncherConfig, OsInfo, StoredAccount, VersionManifest,
+};
 
 use super::CoreError;
 
@@ -112,6 +114,69 @@ pub fn create_instance(name: String, version: String, loader: Option<String>) ->
 
 pub fn delete_instance(id: String) -> Result<(), CoreError> {
     core().delete_instance(&id).map_err(|e| e.to_string())
+}
+
+/* ----------------------- 账户 / 会话 / 认证服务器 ----------------------- */
+
+pub fn accounts_list() -> Result<Vec<StoredAccount>, CoreError> {
+    let value = Value::Array(
+        core()
+            .list_accounts()
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .map(|a| serde_json::to_value(a).map_err(|e| e.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn accounts_upsert(account: StoredAccount) -> Result<(), CoreError> {
+    let core_account: aelux_core::accounts::StoredAccount =
+        serde_json::from_value(serde_json::to_value(account).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    core().upsert_account(&core_account).map_err(|e| e.to_string())
+}
+
+pub fn accounts_remove(id: String) -> Result<(), CoreError> {
+    core().remove_account(&id).map_err(|e| e.to_string())
+}
+
+pub fn account_session_get() -> Result<Option<AccountSession>, CoreError> {
+    let value = serde_json::to_value(core().get_account_session()).map_err(|e| e.to_string())?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn account_session_set(session: Option<AccountSession>) -> Result<(), CoreError> {
+    let core_session: Option<aelux_core::accounts::AccountSession> =
+        serde_json::from_value(serde_json::to_value(session).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    core().set_account_session(core_session).map_err(|e| e.to_string())
+}
+
+pub fn account_login_offline(username: String) -> Result<StoredAccount, CoreError> {
+    let value = serde_json::to_value(core().login_offline(&username).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn auth_servers_list() -> Result<Vec<AuthServer>, CoreError> {
+    let value = Value::Array(
+        core()
+            .list_auth_servers()
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .map(|s| serde_json::to_value(s).map_err(|e| e.to_string()))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn auth_server_add(name: Option<String>, url: String) -> Result<AuthServer, CoreError> {
+    let value = serde_json::to_value(core().add_auth_server(name, &url).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn auth_server_remove(id: String) -> Result<(), CoreError> {
+    core().remove_auth_server(&id).map_err(|e| e.to_string())
 }
 
 pub fn kv_get(key: String) -> Option<String> {
