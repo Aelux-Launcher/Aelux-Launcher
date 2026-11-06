@@ -22,6 +22,8 @@ import SettingGroup from '../components/SettingGroup.vue'
 import AlxIcon from '../components/AlxIcon.vue'
 import { JavaManager } from './instanceMeta'
 import {
+  ACCENT_COLOR_OPTIONS,
+  BACKGROUND_MODE_OPTIONS,
   DOWNLOAD_SOURCE_OPTIONS,
   GC_MODE_OPTIONS,
   JAVA_DISTRIBUTION_OPTIONS,
@@ -36,6 +38,7 @@ import {
   QUICK_PLAY_OPTIONS,
   SPEED_LIMIT_RANGE,
   THEME_OPTIONS,
+  UPDATE_CHANNEL_OPTIONS,
   VERSION_ISOLATION_OPTIONS,
   WINDOW_SIZE_OPTIONS,
   clampOpacity,
@@ -46,6 +49,7 @@ import {
   type JavaEntry,
   type SettingsExtras,
 } from './SettingsModel'
+import { LAUNCHER_LANGUAGE_OPTIONS, applyLocale, isLocaleSupported, resolveLocale } from '../lib/i18n'
 
 const props = defineProps<{ sec: string }>()
 
@@ -335,6 +339,25 @@ function pickJavaManually() {
 /** 主题模式下拉提交（store.setTheme 同步 data-theme 并落盘）。 */
 function onThemeValue(value: string) {
   store.setTheme(value === 'light' || value === 'dark' ? value : 'system')
+}
+
+/** 启动器语言：保存偏好并应用语言包；未支持的语言回退简体中文并提示。 */
+function onLanguageValue(value: string) {
+  setExtra('launcherLanguage', value)
+  applyLocale(resolveLocale(value))
+  if (value !== 'system' && !isLocaleSupported(value)) {
+    toast.info('该语言暂未支持，界面将继续使用简体中文。')
+  }
+}
+
+/** 手动检查更新（内核更新服务未接入，先给出反馈）。 */
+function checkUpdates() {
+  toast.info('检查更新功能尚未接入内核更新服务。')
+}
+
+/** 自定义主题色取色提交。 */
+function onAccentColorHex(e: Event) {
+  setExtra('accentColorHex', (e.target as HTMLInputElement).value)
 }
 </script>
 
@@ -752,6 +775,17 @@ function onThemeValue(value: string) {
       <SettingGroup title="基础">
         <div class="setting-row">
           <div class="setting-label">
+            启动器语言
+            <div class="setting-desc">默认跟随系统语言，目前仅提供简体中文</div>
+          </div>
+          <AlxSelect
+            :model-value="extras.launcherLanguage"
+            :options="LAUNCHER_LANGUAGE_OPTIONS"
+            @update:model-value="onLanguageValue"
+          />
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
             游戏语言
             <div class="setting-desc">以启动参数传入游戏进程</div>
           </div>
@@ -761,6 +795,50 @@ function onThemeValue(value: string) {
             @update:model-value="(v: string) => setExtra('gameLanguage', v as SettingsExtras['gameLanguage'])"
           />
         </div>
+      </SettingGroup>
+
+      <SettingGroup title="启动器更新">
+        <div class="setting-row">
+          <div class="setting-label">
+            启动器更新版本
+            <div class="setting-desc">开发版包含尚未稳定的新功能</div>
+          </div>
+          <AlxSelect
+            :model-value="extras.updateChannel"
+            :options="UPDATE_CHANNEL_OPTIONS"
+            @update:model-value="(v: string) => setExtra('updateChannel', v as SettingsExtras['updateChannel'])"
+          />
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            提前预览更新版本
+            <div class="setting-desc">接收下一个正式版之前的预览版；正式版发布后会自动升级为正式版</div>
+          </div>
+          <AlxToggle
+            :model-value="extras.previewUpdates"
+            @update:model-value="(v: boolean) => setExtra('previewUpdates', v)"
+          />
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            自动显示更新弹窗
+            <div class="setting-desc">发现新版本时自动弹出更新提示</div>
+          </div>
+          <AlxToggle
+            :model-value="extras.showUpdateDialog"
+            @update:model-value="(v: boolean) => setExtra('showUpdateDialog', v)"
+          />
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            自动显示所有公告
+            <div class="setting-desc">启动时展示全部未读公告</div>
+          </div>
+          <AlxToggle
+            :model-value="extras.showAnnouncements"
+            @update:model-value="(v: boolean) => setExtra('showAnnouncements', v)"
+          />
+        </div>
         <div class="setting-row">
           <div class="setting-label">
             自动检查更新
@@ -768,13 +846,62 @@ function onThemeValue(value: string) {
           </div>
           <AlxToggle v-model="autoUpdate" />
         </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            手动检查更新
+            <div class="setting-desc">立即向更新服务查询是否有新版本</div>
+          </div>
+          <button type="button" class="btn-sub" @click="checkUpdates">检查更新</button>
+        </div>
       </SettingGroup>
     </template>
 
     <!-- ==================== 启动器外观设置 ==================== -->
     <template v-else-if="section === 'appearance'">
 
-      <SettingGroup title="主题">
+      <SettingGroup title="外观">
+        <div class="setting-row">
+          <div class="setting-label">
+            主题模式
+            <div class="setting-desc">跟随系统 / 浅色 / 深色，立即生效并记住</div>
+          </div>
+          <AlxSelect
+            :model-value="store.theme"
+            :options="THEME_OPTIONS"
+            @update:model-value="onThemeValue"
+          />
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            主题色
+            <div class="setting-desc">自定义时可选任意颜色</div>
+          </div>
+          <div class="setting-controls">
+            <AlxSelect
+              :model-value="extras.accentColor"
+              :options="ACCENT_COLOR_OPTIONS"
+              @update:model-value="(v: string) => setExtra('accentColor', v as SettingsExtras['accentColor'])"
+            />
+            <input
+              v-if="extras.accentColor === 'custom'"
+              type="color"
+              class="setting-color"
+              :value="extras.accentColorHex"
+              @change="onAccentColorHex"
+            />
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            背景图片
+            <div class="setting-desc">内置 / 自定义 / 纯色等来源</div>
+          </div>
+          <AlxSelect
+            :model-value="extras.backgroundMode"
+            :options="BACKGROUND_MODE_OPTIONS"
+            @update:model-value="(v: string) => setExtra('backgroundMode', v as SettingsExtras['backgroundMode'])"
+          />
+        </div>
         <div class="setting-row">
           <div class="setting-label">
             不透明度
@@ -798,20 +925,6 @@ function onThemeValue(value: string) {
           <AlxToggle
             :model-value="extras.showLauncherIcon"
             @update:model-value="(v: boolean) => setExtra('showLauncherIcon', v)"
-          />
-        </div>
-      </SettingGroup>
-
-      <SettingGroup title="主题模式">
-        <div class="setting-row">
-          <div class="setting-label">
-            模式
-            <div class="setting-desc">跟随系统 / 浅色 / 深色，立即生效并记住</div>
-          </div>
-          <AlxSelect
-            :model-value="store.theme"
-            :options="THEME_OPTIONS"
-            @update:model-value="onThemeValue"
           />
         </div>
       </SettingGroup>

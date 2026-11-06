@@ -10,6 +10,7 @@
  *      读取时按类型回落默认值，形成尽力而为的持久化回路。
  */
 import type { Settings } from '../lib/types'
+import { LOCALES, SYSTEM_LANGUAGE_VALUE } from '../lib/i18n'
 
 /* ============================== 界面层偏好 ============================== */
 
@@ -37,6 +38,12 @@ export type QuickPlay = 'none' | 'multiplayer' | 'singleplayer' | 'realms'
 export type PresetInherit = 'configured' | 'inherit'
 /** 内存管理（垃圾回收器） */
 export type GcMode = 'zgc' | 'generational-zgc' | 'g1' | 'tuned-g1' | 'none'
+/** 启动器更新通道 */
+export type UpdateChannel = 'release' | 'dev'
+/** 主题色来源 */
+export type AccentColorMode = 'default' | 'system' | 'custom' | 'wallpaper'
+/** 背景图片来源 */
+export type BackgroundMode = 'default' | 'builtin' | 'follow' | 'custom' | 'solid'
 
 /** 界面层偏好（核心 Settings 暂未覆盖的字段）。 */
 export interface SettingsExtras {
@@ -52,6 +59,22 @@ export interface SettingsExtras {
   opacity: number
   /** 启动页是否显示启动器图标 */
   showLauncherIcon: boolean
+  /** 启动器界面语言（system 表示跟随系统） */
+  launcherLanguage: string
+  /** 启动器更新通道（正式版 / 开发版） */
+  updateChannel: UpdateChannel
+  /** 提前接收预览版更新（正式版发布后自动升级到正式版） */
+  previewUpdates: boolean
+  /** 自动显示更新弹窗 */
+  showUpdateDialog: boolean
+  /** 自动显示所有公告 */
+  showAnnouncements: boolean
+  /** 主题色来源 */
+  accentColor: AccentColorMode
+  /** 自定义主题色（accentColor 为 custom 时生效） */
+  accentColorHex: string
+  /** 背景图片来源 */
+  backgroundMode: BackgroundMode
   /** 最大并行下载线程数（1–256，默认 64） */
   maxParallel: number
   /** 文件下载源（游戏文件、资源等） */
@@ -108,6 +131,14 @@ const DEFAULT_EXTRAS: SettingsExtras = {
   gameLanguage: 'zh-CN',
   opacity: 100,
   showLauncherIcon: true,
+  launcherLanguage: 'system',
+  updateChannel: 'release',
+  previewUpdates: false,
+  showUpdateDialog: true,
+  showAnnouncements: true,
+  accentColor: 'default',
+  accentColorHex: '#111111',
+  backgroundMode: 'default',
   maxParallel: 64,
   fileSource: 'auto',
   versionSource: 'auto',
@@ -226,6 +257,10 @@ export const PRESET_INHERIT_OPTIONS: Array<{ value: PresetInherit; label: string
 
 export const GC_MODE_VALUES = ['zgc', 'generational-zgc', 'g1', 'tuned-g1', 'none'] as const
 
+export const UPDATE_CHANNEL_VALUES = ['release', 'dev'] as const
+export const ACCENT_COLOR_VALUES = ['default', 'system', 'custom', 'wallpaper'] as const
+export const BACKGROUND_MODE_VALUES = ['default', 'builtin', 'follow', 'custom', 'solid'] as const
+
 export const GC_MODE_OPTIONS: Array<{ value: GcMode; label: string }> = [
   { value: 'zgc', label: '尽量使用 ZGC' },
   { value: 'generational-zgc', label: '尽量使用分代 ZGC' },
@@ -293,6 +328,12 @@ export function readExtras(raw: unknown): SettingsExtras {
   if (obj.gameLanguage === 'zh-CN' || obj.gameLanguage === 'en-US') out.gameLanguage = obj.gameLanguage
   if (typeof obj.opacity === 'number') out.opacity = clampOpacity(obj.opacity)
   if (typeof obj.showLauncherIcon === 'boolean') out.showLauncherIcon = obj.showLauncherIcon
+  if (typeof obj.previewUpdates === 'boolean') out.previewUpdates = obj.previewUpdates
+  if (typeof obj.showUpdateDialog === 'boolean') out.showUpdateDialog = obj.showUpdateDialog
+  if (typeof obj.showAnnouncements === 'boolean') out.showAnnouncements = obj.showAnnouncements
+  if (typeof obj.accentColorHex === 'string' && /^#[0-9a-fA-F]{6}$/.test(obj.accentColorHex)) {
+    out.accentColorHex = obj.accentColorHex
+  }
   if (typeof obj.maxParallel === 'number') out.maxParallel = clampParallel(obj.maxParallel)
   if (typeof obj.speedLimit === 'number') out.speedLimit = clampSpeedLimit(obj.speedLimit)
   // 兼容旧版单一下载源字段（official-first / mirror-first）
@@ -301,6 +342,15 @@ export function readExtras(raw: unknown): SettingsExtras {
 
   const pick = <T extends string>(value: unknown, options: readonly T[], fallback: T): T =>
     typeof value === 'string' && (options as readonly string[]).includes(value) ? (value as T) : fallback
+
+  out.launcherLanguage = pick(
+    obj.launcherLanguage,
+    [SYSTEM_LANGUAGE_VALUE, ...LOCALES.map((l) => l.code)],
+    out.launcherLanguage,
+  )
+  out.updateChannel = pick(obj.updateChannel, UPDATE_CHANNEL_VALUES, out.updateChannel)
+  out.accentColor = pick(obj.accentColor, ACCENT_COLOR_VALUES, out.accentColor)
+  out.backgroundMode = pick(obj.backgroundMode, BACKGROUND_MODE_VALUES, out.backgroundMode)
 
   out.versionIsolation = pick(obj.versionIsolation, VERSION_ISOLATION_VALUES, out.versionIsolation)
   out.launcherVisibility = pick(obj.launcherVisibility, LAUNCHER_VISIBILITY_VALUES, out.launcherVisibility)
@@ -368,6 +418,29 @@ export const THEME_OPTIONS: Array<{ value: 'system' | 'light' | 'dark'; label: s
   { value: 'system', label: '跟随系统' },
   { value: 'light', label: '浅色' },
   { value: 'dark', label: '深色' },
+]
+
+/** 启动器更新通道选项 */
+export const UPDATE_CHANNEL_OPTIONS: Array<{ value: UpdateChannel; label: string }> = [
+  { value: 'release', label: '正式版' },
+  { value: 'dev', label: '开发版' },
+]
+
+/** 主题色来源选项 */
+export const ACCENT_COLOR_OPTIONS: Array<{ value: AccentColorMode; label: string }> = [
+  { value: 'default', label: '默认' },
+  { value: 'system', label: '跟随系统' },
+  { value: 'custom', label: '自定义颜色' },
+  { value: 'wallpaper', label: '跟随背景壁纸' },
+]
+
+/** 背景图片来源选项 */
+export const BACKGROUND_MODE_OPTIONS: Array<{ value: BackgroundMode; label: string }> = [
+  { value: 'default', label: '默认' },
+  { value: 'builtin', label: '内置' },
+  { value: 'follow', label: '跟随主题色' },
+  { value: 'custom', label: '自定义' },
+  { value: 'solid', label: '纯色' },
 ]
 
 /* ============================== Java 管理 ============================== */

@@ -1062,6 +1062,17 @@ svg {
   background: var(--bg-color);
   font-family: inherit;
 }
+
+/* 主题色自定义取色器：与下拉同高 */
+.setting-color {
+  width: 34px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--bg-color);
+  cursor: pointer;
+}
 .setting-input:focus,
 .setting-select:focus { border-color: var(--text-sub); }
 .setting-input::placeholder { color: var(--text-sub); }
