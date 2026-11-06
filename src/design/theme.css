@@ -1528,6 +1528,7 @@ select.filter-control { cursor: pointer; }
 .resource-item {
   display: flex;
   align-items: center;
+  border: 1px solid transparent;
   border-radius: 8px;
   gap: 14px;
   padding: 8px;
@@ -1535,7 +1536,7 @@ select.filter-control { cursor: pointer; }
   transition: background 0.15s;
 }
 .resource-item:last-child { border-bottom: none; }
-.resource-item:hover { background: var(--hover-bg); }
+.resource-item:hover { background: var(--hover-bg); border: 1px solid var(--text-main); }
 .resource-item:active { background: var(--icon-bg); border-radius: 8px;}
 .resource-item-icon {
   width: 46px;
