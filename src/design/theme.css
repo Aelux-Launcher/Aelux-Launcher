@@ -704,7 +704,7 @@ svg {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 16px 20px;
+  padding: 16px;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -741,7 +741,7 @@ svg {
   overscroll-behavior: contain;
 }
 .loader-expand-empty { padding: 8px 20px 14px; font-size: 13px; color: var(--text-sub); }
-.loader-version-row { margin: 0 8px; cursor: pointer; border-radius: 7px; }
+.loader-version-row { cursor: pointer; border-radius: 7px; }
 .loader-version-row:hover { background: var(--hover-bg); }
 .loader-version-row.selected { background: var(--icon-bg); }
 .loader-version-row .item-info { flex-direction: row; align-items: center; gap: 10px; }
