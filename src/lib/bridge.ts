@@ -386,6 +386,27 @@ async function mockCall<T>(command: string, args?: Record<string, unknown>): Pro
       } as T
     case 'auth_logout':
       return null as T
+    case 'loader_versions': {
+      const loader = String(args?.loader ?? '')
+      const list: Record<string, string[]> = {
+        forge: ['54.1.17', '54.1.13', '54.1.9'],
+        neoforge: ['21.4.117', '21.4.110', '21.4.101'],
+        fabric: ['0.20.1', '0.19.2', '0.18.4'],
+        quilt: ['0.27.0', '0.26.4', '0.26.1'],
+        optifine: ['HD U I7', 'HD U I6', 'HD U I5'],
+      }
+      if (!(loader in list)) throw new Error(`未知加载器: ${loader}`)
+      return list[loader] as T
+    }
+    case 'mod_api_versions': {
+      const api = String(args?.api ?? '')
+      const list: Record<string, string[]> = {
+        'fabric-api': ['0.119.4+1.21.4', '0.119.3+1.21.4', '0.119.2+1.21.4'],
+        qsl: ['7.7.0+0.27.0', '7.6.0+0.27.0', '7.5.0+0.27.0'],
+      }
+      if (!(api in list)) throw new Error(`未知前置 API: ${api}`)
+      return list[api] as T
+    }
     case 'accounts_list':
       return readPreviewList<PreviewAccount>('accounts') as T
     case 'accounts_upsert': {

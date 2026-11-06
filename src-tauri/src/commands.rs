@@ -48,6 +48,18 @@ pub async fn fetch_minecraft_manifest() -> Result<VersionManifest, String> {
     core_api::fetch_minecraft_manifest().await
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn loader_versions(loader: String, mc_version: String) -> Result<Vec<String>, String> {
+    core_api::loader_versions(loader, mc_version).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn mod_api_versions(api: String, mc_version: String) -> Result<Vec<String>, String> {
+    core_api::mod_api_versions(api, mc_version).await
+}
+
 /* ------------------------------ 认证命令 ------------------------------ */
 
 #[tauri::command]

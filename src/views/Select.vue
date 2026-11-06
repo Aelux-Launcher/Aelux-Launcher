@@ -7,6 +7,7 @@
 import { computed, ref } from 'vue'
 import { useAppStore } from '../stores/app'
 import AlxIcon from '../components/AlxIcon.vue'
+import { loaderIconUrl } from '../lib/loaderIcons'
 import type { GameInstance } from '../lib/types'
 
 const store = useAppStore()
@@ -62,7 +63,12 @@ function instanceDesc(instance: GameInstance): string {
   return [`${kind} ${instance.version}`, loaderText(instance), verifyLabel()].filter(Boolean).join('，')
 }
 
-/** 实例图标跟随加载器（原版用 Minecraft 图标）。 */
+/** 实例图标跟随加载器：有品牌素材用位图，原版 / 缺素材回退矢量图标。 */
+function loaderIconSrc(instance: GameInstance): string | null {
+  const key = instance.loader || 'vanilla'
+  return key === 'vanilla' ? null : loaderIconUrl(key)
+}
+
 function loaderIcon(instance: GameInstance): string {
   const key = instance.loader || 'vanilla'
   return key === 'vanilla' ? 'minecraft' : key
@@ -131,7 +137,8 @@ function openInstance(id: string) {
             >
               <div class="item-left">
                 <div class="item-icon">
-                  <AlxIcon :name="loaderIcon(i)" :size="20" />
+                  <img v-if="loaderIconSrc(i)" :src="loaderIconSrc(i) || ''" width="20" height="20" alt="" />
+                  <AlxIcon v-else :name="loaderIcon(i)" :size="20" />
                 </div>
                 <div class="item-info">
                   <div class="item-title">{{ i.name }}</div>

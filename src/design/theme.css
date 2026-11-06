@@ -602,7 +602,7 @@ svg {
 .version-card-title {
   font-size: 15px;
   font-weight: 700;
-  padding: 16px 16px 4px;
+  padding: 6px;
 }
 .version-card .list-item { margin: 0 8px; }
 .version-card .list-item:last-child { margin-bottom: 8px; }
@@ -736,15 +736,14 @@ svg {
 .loader-group.open .loader-expand { grid-template-rows: 1fr; }
 .loader-expand-inner {
   min-height: 0;
-  max-height: min(360px, 40vh);
-  overflow: hidden auto;
-  overscroll-behavior: contain;
+  /* 内容完整展开，滚动交给外层 .version-detail-scroll，避免嵌套滚动条 */
+  overflow: hidden;
 }
 .loader-expand-empty { padding: 8px 20px 14px; font-size: 13px; color: var(--text-sub); }
 .loader-version-row { cursor: pointer; border-radius: 7px; }
 .loader-version-row:hover { background: var(--hover-bg); }
 .loader-version-row.selected { background: var(--icon-bg); }
-.loader-version-row .item-info { flex-direction: row; align-items: center; gap: 10px; }
+.loader-version-row .item-info { flex-direction: row; align-items: center; gap: 16px; }
 .loader-version-icon { color: var(--text-sub); flex-shrink: 0; }
 .loader-row-actions { display: flex; align-items: center; gap: 2px; }
 .loader-row-actions .icon-btn { opacity: 0.68; transition: opacity 0.15s; }
@@ -752,25 +751,20 @@ svg {
 .loader-version-row:focus-within .icon-btn { opacity: 1; }
 .loader-row-actions .icon-btn:disabled { opacity: 0.35; }
 .loader-expand-inner .loader-version-row:last-child { margin-bottom: 8px; }
-.fabric-api-choice {
-  width: 100%;
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 20px;
-  border: 0;
-  border-top: 1px solid var(--border-light);
-  background: var(--hover-bg);
-  color: var(--text-main);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
+/* 前置 API 行：与加载器行共用 .loader-item 的尺寸与交互，仅去掉顶部边框避免双线 */
+.loader-group.has-mod-api {
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
-.fabric-api-choice:hover { background: var(--icon-bg); }
-.fabric-api-choice > span:nth-child(2) { font-weight: 600; }
-.fabric-api-hint { flex: 1; color: var(--text-sub); font-size: 13px; }
-.fabric-api-choice > svg:last-child { color: var(--text-main); }
+.mod-api-group {
+  border-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.mod-api-group .loader-item { background: var(--bg-color); }
+.mod-api-group .loader-item:hover { background: var(--hover-bg); }
+.loader-group .loader-brand-icon { object-fit: contain; }
 .version-detail-page {
   overflow: hidden;
   padding-bottom: 0;

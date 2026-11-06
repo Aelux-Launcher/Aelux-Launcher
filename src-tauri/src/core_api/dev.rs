@@ -74,6 +74,20 @@ pub async fn fetch_minecraft_manifest() -> Result<VersionManifest, CoreError> {
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
+pub async fn loader_versions(loader: String, mc_version: String) -> Result<Vec<String>, CoreError> {
+    core()
+        .loader_versions(&loader, &mc_version)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+pub async fn mod_api_versions(api: String, mc_version: String) -> Result<Vec<String>, CoreError> {
+    core()
+        .mod_api_versions(&api, &mc_version)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 pub async fn auth_start_device_flow() -> Result<DeviceCodeSession, CoreError> {
     let value = serde_json::to_value(core().start_microsoft_login().await.map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;

@@ -171,6 +171,29 @@ pub fn delete_instance(_id: String) -> Result<(), CoreError> {
     Ok(())
 }
 
+/* -------------------------- 加载器 / 前置 API -------------------------- */
+
+pub async fn loader_versions(loader: String, _mc_version: String) -> Result<Vec<String>, CoreError> {
+    let list = match loader.as_str() {
+        "forge" => vec!["54.1.17", "54.1.13", "54.1.9"],
+        "neoforge" => vec!["21.4.117", "21.4.110", "21.4.101"],
+        "fabric" => vec!["0.20.1", "0.19.2", "0.18.4"],
+        "quilt" => vec!["0.27.0", "0.26.4", "0.26.1"],
+        "optifine" => vec!["HD U I7", "HD U I6", "HD U I5"],
+        other => return Err(format!("未知加载器: {other}").into()),
+    };
+    Ok(list.into_iter().map(str::to_string).collect())
+}
+
+pub async fn mod_api_versions(api: String, _mc_version: String) -> Result<Vec<String>, CoreError> {
+    let list = match api.as_str() {
+        "fabric-api" => vec!["0.119.4+1.21.4", "0.119.3+1.21.4", "0.119.2+1.21.4"],
+        "qsl" => vec!["7.7.0+0.27.0", "7.6.0+0.27.0", "7.5.0+0.27.0"],
+        other => return Err(format!("未知前置 API: {other}").into()),
+    };
+    Ok(list.into_iter().map(str::to_string).collect())
+}
+
 /* ----------------------- 账户 / 会话 / 认证服务器 ----------------------- */
 // 无内核时仍需与内核同规则：离线 UUID、LittleSkin 播种、地址去重。
 

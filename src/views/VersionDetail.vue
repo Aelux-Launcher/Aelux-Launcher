@@ -11,18 +11,19 @@ import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import { call } from '../lib/bridge'
 import AlxIcon from '../components/AlxIcon.vue'
+import { loaderIconUrl } from '../lib/loaderIcons'
 
 const props = defineProps<{ versionId: string }>()
 
 const store = useAppStore()
 
-/** 可叠加的加载器（安装仍走原版管线，加载器自动安装接入前仅展示版本列表）。 */
+/** 可叠加的加载器（ICL/PCL 素材用于品牌图标，缺素材时回退内置矢量图标）。 */
 const LOADERS = [
-  { key: 'forge', name: 'Forge', icon: 'forge' },
-  { key: 'neoforge', name: 'NeoForge', icon: 'neoforge' },
-  { key: 'fabric', name: 'Fabric', icon: 'fabric' },
-  { key: 'quilt', name: 'Quilt', icon: 'quilt' },
-  { key: 'optifine', name: 'OptiFine', icon: 'optifine' },
+  { key: 'forge', name: 'Forge', icon: 'forge', img: loaderIconUrl('forge') },
+  { key: 'neoforge', name: 'NeoForge', icon: 'neoforge', img: loaderIconUrl('neoforge') },
+  { key: 'fabric', name: 'Fabric', icon: 'fabric', img: loaderIconUrl('fabric') },
+  { key: 'quilt', name: 'Quilt', icon: 'quilt', img: loaderIconUrl('quilt') },
+  { key: 'optifine', name: 'OptiFine', icon: 'optifine', img: loaderIconUrl('optifine') },
 ] as const
 
 type LoaderKey = (typeof LOADERS)[number]['key']
@@ -30,7 +31,9 @@ type LoaderKey = (typeof LOADERS)[number]['key']
 /** 展开状态（PCL 式：点击加载器行展开其版本列表）。 */
 const expandedLoaders = ref(new Set<string>())
 const selectedVersions = ref<Partial<Record<LoaderKey, string>>>({})
-const modApiAuto = ref<Record<'fabric' | 'quilt', boolean>>({ fabric: true, quilt: true })
+/** 前置 API（Fabric API / QSL）的选中版本；空 = 不安装。 */
+const modApiSelection = ref<Partial<Record<'fabric' | 'quilt', string>>>({})
+const expandedModApi = ref(new Set<string>())
 
 type PrimaryLoaderKey = Exclude<LoaderKey, 'optifine'>
 
@@ -108,19 +111,23 @@ function selectLoaderVersion(loader: LoaderKey, version: string) {
     for (const primary of ['forge', 'neoforge', 'fabric', 'quilt'] as PrimaryLoaderKey[]) {
       if (primary !== loader) delete next[primary]
     }
-    if (loader !== 'fabric' && loader !== 'quilt') {
-      modApiAuto.value = { fabric: false, quilt: false }
-    }
+    // 切换主加载器时，前置 API 选择随旧加载器一起清空
+    modApiSelection.value = {}
+    expandedModApi.value = new Set()
   }
   selectedVersions.value = next
   expandedLoaders.value = new Set()
+  if (hasModApi(loader)) void ensureModApi(loader)
 }
 
 function clearLoader(loader: LoaderKey) {
   const next = { ...selectedVersions.value }
   delete next[loader]
   selectedVersions.value = next
-  if (loader === 'fabric' || loader === 'quilt') modApiAuto.value = { ...modApiAuto.value, [loader]: false }
+  const apiNext = { ...modApiSelection.value }
+  delete apiNext[loader as 'fabric' | 'quilt']
+  modApiSelection.value = apiNext
+  expandedModApi.value = new Set()
 }
 
 function hasModApi(loader: LoaderKey): loader is 'fabric' | 'quilt' {
@@ -128,16 +135,73 @@ function hasModApi(loader: LoaderKey): loader is 'fabric' | 'quilt' {
 }
 
 function apiLabel(loader: LoaderKey) {
-  return loader === 'fabric' ? 'Fabric API' : 'Quilt Standard Libraries'
+  return loader === 'fabric' ? 'Fabric API' : 'QSL/QFAPI'
 }
 
-function apiEnabled(loader: LoaderKey) {
-  return hasModApi(loader) && modApiAuto.value[loader]
+/** 前置 API 在 Modrinth 的项目键。 */
+function modApiKey(loader: 'fabric' | 'quilt'): 'fabric-api' | 'qsl' {
+  return loader === 'fabric' ? 'fabric-api' : 'qsl'
+}
+
+function modApiState(loader: LoaderKey) {
+  if (!hasModApi(loader)) return undefined
+  return store.modApiVersions[`${modApiKey(loader)}:${props.versionId}`]
+}
+
+/** 展开前置 API 列表；首次自动选中当前支持的最新版本（内核已按新→旧排序）。 */
+async function ensureModApi(loader: LoaderKey) {
+  if (!hasModApi(loader)) return
+  await store.loadModApiVersions(modApiKey(loader), props.versionId)
+  // 等待期间用户可能已取消该加载器：只在加载器仍被选中时补默认选择。
+  if (!selectedVersions.value[loader] || modApiSelection.value[loader]) return
+  const latest = modApiState(loader)?.versions[0]
+  if (latest) modApiSelection.value = { ...modApiSelection.value, [loader]: latest }
 }
 
 function toggleModApi(loader: LoaderKey) {
   if (!hasModApi(loader)) return
-  modApiAuto.value = { ...modApiAuto.value, [loader]: !modApiAuto.value[loader] }
+  const s = expandedModApi.value
+  if (s.has(loader)) {
+    s.delete(loader)
+  } else {
+    s.add(loader)
+    void ensureModApi(loader)
+  }
+}
+
+/** 前置 API 行右侧提示：展示实际选中的版本，而不是「自动」。 */
+function apiHint(loader: LoaderKey) {
+  const selected = hasModApi(loader) ? modApiSelection.value[loader] : undefined
+  if (selected) return selected
+  const st = modApiState(loader)
+  if (!st) return '可以添加'
+  if (st.loading) return '加载中…'
+  if (st.error) return '加载失败'
+  if (st.versions.length === 0) return '暂无可用版本'
+  return '可以添加'
+}
+
+function isModApiSelected(loader: LoaderKey) {
+  return hasModApi(loader) && !!modApiSelection.value[loader]
+}
+
+function isModApiVersion(loader: LoaderKey, version: string) {
+  return hasModApi(loader) && modApiSelection.value[loader] === version
+}
+
+function selectModApiVersion(loader: LoaderKey, version: string) {
+  if (!hasModApi(loader)) return
+  modApiSelection.value = { ...modApiSelection.value, [loader]: version }
+  expandedModApi.value = new Set()
+}
+
+/** 点 X = 不安装。 */
+function clearModApi(loader: LoaderKey) {
+  if (!hasModApi(loader)) return
+  const next = { ...modApiSelection.value }
+  delete next[loader]
+  modApiSelection.value = next
+  expandedModApi.value = new Set()
 }
 
 function openLoaderChangelog(loader: LoaderKey) {
@@ -183,74 +247,125 @@ async function startDownload() {
       </div>
 
       <!-- 加载器列表（可展开） -->
-      <div
-        v-for="l in LOADERS"
-        :key="l.key"
-        class="loader-group"
-        :class="{ open: expandedLoaders.has(l.key), selected: !!selectedVersions[l.key], unavailable: isUnavailable(l.key) }"
-      >
-        <button type="button" class="loader-item" :disabled="isUnavailable(l.key)" @click="toggleLoader(l.key)">
-          <AlxIcon :name="l.icon" :size="22" class="loader-brand-icon" />
-          <span class="loader-name">{{ l.name }}</span>
-          <span class="loader-hint">{{ loaderHint(l.key) }}</span>
-          <AlxIcon
-            v-if="selectedVersions[l.key]"
-            name="x"
-            :size="18"
-            class="loader-cancel-icon"
-            title="取消选择"
-            @click.stop="clearLoader(l.key)"
-          />
-          <AlxIcon name="chevron-right" :size="18" class="loader-chevron" />
-        </button>
-        <div class="loader-expand">
-          <div class="loader-expand-inner" :inert="!expandedLoaders.has(l.key)">
-            <div v-if="loaderState(l.key)?.loading" class="loading-hint">正在获取版本列表…</div>
-            <div v-else-if="loaderState(l.key)?.error" class="loader-expand-empty">
-              加载失败：{{ loaderState(l.key)?.error }}
-            </div>
-            <div v-else-if="(loaderState(l.key)?.versions.length ?? 0) === 0" class="loader-expand-empty">
-              暂无可用的{{ l.name }}版本
-            </div>
-            <template v-else>
-              <div
-                v-for="lv in loaderState(l.key)?.versions"
-                :key="lv"
-                :class="['list-item', 'loader-version-row', selectedVersions[l.key] === lv && 'selected']"
-                role="button"
-                tabindex="0"
-                @click="selectLoaderVersion(l.key, lv)"
-                @keydown.enter="selectLoaderVersion(l.key, lv)"
-              >
-                <div class="item-info">
-                  <AlxIcon :name="l.icon" :size="19" class="loader-version-icon" />
-                  <div class="item-title">{{ lv }}</div>
-                </div>
-                <div class="loader-row-actions">
-                  <button type="button" class="icon-btn" title="另存为（下载功能接入后可用）" disabled>
-                    <AlxIcon name="folder" :size="16" />
-                  </button>
-                  <button type="button" class="icon-btn" title="更新日志" @click.stop="openLoaderChangelog(l.key)">
-                    <AlxIcon name="info" :size="16" />
-                  </button>
-                </div>
+      <template v-for="l in LOADERS" :key="l.key">
+        <div
+          class="loader-group"
+          :class="{
+            open: expandedLoaders.has(l.key),
+            selected: !!selectedVersions[l.key],
+            unavailable: isUnavailable(l.key),
+            'has-mod-api': hasModApi(l.key) && !!selectedVersions[l.key],
+          }"
+        >
+          <button type="button" class="loader-item" :disabled="isUnavailable(l.key)" @click="toggleLoader(l.key)">
+            <img v-if="l.img" :src="l.img" width="22" height="22" class="loader-brand-icon" alt="" />
+            <AlxIcon v-else :name="l.icon" :size="22" class="loader-brand-icon" />
+            <span class="loader-name">{{ l.name }}</span>
+            <span class="loader-hint">{{ loaderHint(l.key) }}</span>
+            <AlxIcon
+              v-if="selectedVersions[l.key]"
+              name="x"
+              :size="18"
+              class="loader-cancel-icon"
+              title="取消选择"
+              @click.stop="clearLoader(l.key)"
+            />
+            <AlxIcon name="chevron-right" :size="18" class="loader-chevron" />
+          </button>
+          <div class="loader-expand">
+            <div class="loader-expand-inner" :inert="!expandedLoaders.has(l.key)">
+              <div v-if="loaderState(l.key)?.loading" class="loading-hint">正在获取版本列表…</div>
+              <div v-else-if="loaderState(l.key)?.error" class="loader-expand-empty">
+                加载失败：{{ loaderState(l.key)?.error }}
               </div>
-            </template>
+              <div v-else-if="(loaderState(l.key)?.versions.length ?? 0) === 0" class="loader-expand-empty">
+                暂无可用的{{ l.name }}版本
+              </div>
+              <template v-else>
+                <div
+                  v-for="lv in loaderState(l.key)?.versions"
+                  :key="lv"
+                  :class="['list-item', 'loader-version-row', selectedVersions[l.key] === lv && 'selected']"
+                  role="button"
+                  tabindex="0"
+                  @click="selectLoaderVersion(l.key, lv)"
+                  @keydown.enter="selectLoaderVersion(l.key, lv)"
+                >
+                  <div class="item-info">
+                    <img v-if="l.img" :src="l.img" width="22" height="22" class="loader-version-icon" alt="" />
+                    <AlxIcon v-else :name="l.icon" :size="22" class="loader-version-icon" />
+                    <div class="item-title">{{ lv }}</div>
+                  </div>
+                  <div class="loader-row-actions">
+                    <button type="button" class="icon-btn" title="另存为（下载功能接入后可用）" disabled>
+                      <AlxIcon name="folder" :size="16" />
+                    </button>
+                    <button type="button" class="icon-btn" title="更新日志" @click.stop="openLoaderChangelog(l.key)">
+                      <AlxIcon name="info" :size="16" />
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
-        <button
-          v-if="(l.key === 'fabric' || l.key === 'quilt') && selectedVersions[l.key]"
-          type="button"
-          class="fabric-api-choice"
-          :class="{ selected: apiEnabled(l.key) }"
-          @click="toggleModApi(l.key)"
+
+        <!-- 前置 API：与加载器行同尺寸，点开同样是版本下拉 -->
+        <div
+          v-if="hasModApi(l.key) && selectedVersions[l.key]"
+          class="loader-group mod-api-group"
+          :class="{ open: expandedModApi.has(l.key), selected: isModApiSelected(l.key) }"
         >
-          <AlxIcon :name="l.icon" :size="18" />
-          <span>{{ apiLabel(l.key) }}</span>
-          <span class="fabric-api-hint">{{ apiEnabled(l.key) ? '自动选择最新兼容版 · 下载到 mods' : '不安装' }}</span>
-          <AlxIcon v-if="apiEnabled(l.key)" name="check" :size="16" />
-        </button>
-      </div>
+          <button type="button" class="loader-item" @click="toggleModApi(l.key)">
+            <img v-if="l.img" :src="l.img" width="22" height="22" class="loader-brand-icon" alt="" />
+            <AlxIcon v-else :name="l.icon" :size="22" class="loader-brand-icon" />
+            <span class="loader-name">{{ apiLabel(l.key) }}</span>
+            <span class="loader-hint">{{ apiHint(l.key) }}</span>
+            <AlxIcon
+              v-if="isModApiSelected(l.key)"
+              name="x"
+              :size="18"
+              class="loader-cancel-icon"
+              title="不安装"
+              @click.stop="clearModApi(l.key)"
+            />
+            <AlxIcon name="chevron-right" :size="18" class="loader-chevron" />
+          </button>
+          <div class="loader-expand">
+            <div class="loader-expand-inner" :inert="!expandedModApi.has(l.key)">
+              <div v-if="modApiState(l.key)?.loading" class="loading-hint">正在获取版本列表…</div>
+              <div v-else-if="modApiState(l.key)?.error" class="loader-expand-empty">
+                加载失败：{{ modApiState(l.key)?.error }}
+              </div>
+              <div v-else-if="(modApiState(l.key)?.versions.length ?? 0) === 0" class="loader-expand-empty">
+                暂无可用的{{ apiLabel(l.key) }}版本
+              </div>
+              <template v-else>
+                <div
+                  v-for="av in modApiState(l.key)?.versions"
+                  :key="av"
+                  :class="['list-item', 'loader-version-row', isModApiVersion(l.key, av) && 'selected']"
+                  role="button"
+                  tabindex="0"
+                  @click="selectModApiVersion(l.key, av)"
+                  @keydown.enter="selectModApiVersion(l.key, av)"
+                >
+                  <div class="item-info">
+                    <img v-if="l.img" :src="l.img" width="19" height="19" class="loader-version-icon" alt="" />
+                    <AlxIcon v-else :name="l.icon" :size="19" class="loader-version-icon" />
+                    <div class="item-title">{{ av }}</div>
+                  </div>
+                  <div class="loader-row-actions">
+                    <button type="button" class="icon-btn" title="另存为（下载功能接入后可用）" disabled>
+                      <AlxIcon name="folder" :size="16" />
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- 底部动作 -->

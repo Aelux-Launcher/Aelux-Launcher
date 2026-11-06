@@ -15,6 +15,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::fetch_json,
         commands::download_file,
         commands::fetch_minecraft_manifest,
+        commands::loader_versions,
+        commands::mod_api_versions,
         commands::auth_start_device_flow,
         commands::auth_poll_device_flow,
         commands::auth_logout,

@@ -150,19 +150,31 @@ async fn invoke(method: &str, payload: &Value) -> Result<Value, CoreError> {
                 serde_json::from_str(&json).map_err(|e| format!("内核返回非法 JSON: {e}"))?;
             match parsed.get("ok").and_then(|v| v.as_bool()) {
                 Some(true) => Ok(parsed.get("data").cloned().unwrap_or(Value::Null)),
-                Some(false) => {
-                    let err = parsed
-                        .pointer("/error/message")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("内核错误");
-                    Err(err.into())
-                }
+                Some(false) => Err(core_error_message(parsed.get("error").unwrap_or(&Value::Null))),
                 None => Err("内核返回缺少 ok 字段".into()),
             }
         }
     })
     .await
     .map_err(|e| format!("内核调用任务失败: {e}"))?
+}
+
+pub async fn loader_versions(loader: String, mc_version: String) -> Result<Vec<String>, CoreError> {
+    let value = invoke(
+        "loaders.versions",
+        &serde_json::json!({ "loader": loader, "mc_version": mc_version }),
+    )
+    .await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn mod_api_versions(api: String, mc_version: String) -> Result<Vec<String>, CoreError> {
+    let value = invoke(
+        "modapis.versions",
+        &serde_json::json!({ "api": api, "mc_version": mc_version }),
+    )
+    .await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
 pub fn get_data_dir() -> String {
@@ -200,8 +212,50 @@ fn invoke_sync(method: &str, payload: &Value) -> Result<Value, CoreError> {
         let parsed: Value = serde_json::from_str(&json).map_err(|e| e.to_string())?;
         match parsed.get("ok").and_then(|v| v.as_bool()) {
             Some(true) => Ok(parsed.get("data").cloned().unwrap_or(Value::Null)),
-            _ => Err("内核调用失败".into()),
+            Some(false) => Err(core_error_message(parsed.get("error").unwrap_or(&Value::Null))),
+            None => Err("内核返回缺少 ok 字段".into()),
         }
+    }
+}
+
+/// 内核 `CoreError` 在 FFI 里是外部标签枚举（`{"Json":"..."}` / `{"HashMismatch":{...}}`），
+/// 这里转成与内核 `Display` 一致的文本，避免发布链路只显示一句笼统的「内核错误」。
+fn core_error_message(error: &Value) -> String {
+    if let Some(text) = error.as_str() {
+        return text.to_string();
+    }
+    let Some((kind, detail)) = error.as_object().and_then(|o| o.iter().next()) else {
+        return "内核错误".into();
+    };
+    let prefix = match kind.as_str() {
+        "Io" => "IO 错误",
+        "Network" => "网络错误",
+        "Json" => "数据解析错误",
+        "HashMismatch" => "校验失败",
+        "Config" => "配置错误",
+        "Instance" => "实例错误",
+        "Auth" => "账户错误",
+        "Keyring" => "凭证存储错误",
+        "NotFound" => "未找到",
+        "InvalidInput" => "参数错误",
+        _ => return format!("{kind}: {detail}"),
+    };
+    let detail = match detail {
+        Value::String(s) => s.clone(),
+        Value::Object(map) => map
+            .iter()
+            .map(|(k, v)| {
+                let value = v.as_str().map(str::to_string).unwrap_or_else(|| v.to_string());
+                format!("{k}={value}")
+            })
+            .collect::<Vec<_>>()
+            .join(", "),
+        other => other.to_string(),
+    };
+    if detail.is_empty() {
+        prefix.to_string()
+    } else {
+        format!("{prefix}: {detail}")
     }
 }
 

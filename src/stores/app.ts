@@ -549,55 +549,39 @@ export const useAppStore = defineStore('app', () => {
   /** 加载器版本列表缓存（key = `loader:mcVersion`），PCL 式展开时按需拉取。 */
   const loaderVersions = ref<Record<string, LoaderVersionsState>>({})
 
-  /**
-   * 拉取某 MC 版本下某加载器的可用版本列表：
-   *   forge / optifine → BMCLAPI；fabric → Fabric meta；neoforge → NeoForged maven。
-   */
+  /** 前置 API（Fabric API / QSL）版本列表缓存（key = `api:mcVersion`）。 */
+  const modApiVersions = ref<Record<string, LoaderVersionsState>>({})
+
+  /** 拉取加载器版本：来源白名单与解析都在内核，前端只拿字符串列表。 */
   async function loadLoaderVersions(loader: string, mcVersion: string) {
     const key = `${loader}:${mcVersion}`
     const st = loaderVersions.value[key]
     if (st?.loading || st?.loaded) return
     loaderVersions.value[key] = { loading: true, loaded: false, versions: [], error: null }
     try {
-      let versions: string[] = []
-      if (loader === 'forge') {
-        const raw = await call<string>('fetch_json', {
-          url: `https://bmclapi2.bangbang93.com/forge/minecraft/${mcVersion}`,
-        })
-        const arr = JSON.parse(raw) as Array<{ version: string }>
-        versions = arr.map((b) => b.version).reverse()
-      } else if (loader === 'fabric') {
-        const raw = await call<string>('fetch_json', {
-          url: `https://meta.fabricmc.net/v2/versions/loader/${mcVersion}`,
-        })
-        const arr = JSON.parse(raw) as Array<{ loader: { version: string } }>
-        versions = arr.map((e) => e.loader.version)
-      } else if (loader === 'quilt') {
-        const raw = await call<string>('fetch_json', {
-          url: `https://meta.quiltmc.org/v3/versions/loader/${mcVersion}`,
-        })
-        const arr = JSON.parse(raw) as Array<{ loader?: { version?: string }; version?: string }>
-        versions = arr
-          .map((e) => e.loader?.version ?? e.version ?? '')
-          .filter(Boolean)
-      } else if (loader === 'neoforge') {
-        const raw = await call<string>('fetch_json', {
-          url: 'https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge',
-        })
-        const data = JSON.parse(raw) as { versions: string[] }
-        // NeoForge 版本号 = MC 次版本号段（1.21.4 → 21.4.x）
-        const prefix = mcVersion.split('.').slice(1).join('.')
-        versions = data.versions.filter((v) => v.startsWith(prefix)).reverse()
-      } else if (loader === 'optifine') {
-        const raw = await call<string>('fetch_json', {
-          url: `https://bmclapi2.bangbang93.com/optifine/${mcVersion}`,
-        })
-        const arr = JSON.parse(raw) as Array<{ type: string; patch: string }>
-        versions = arr.map((o) => `${o.type} ${o.patch}`).reverse()
-      }
+      const versions = await call<string[]>('loader_versions', { loader, mcVersion })
       loaderVersions.value[key] = { loading: false, loaded: true, versions, error: null }
     } catch (e) {
       loaderVersions.value[key] = {
+        loading: false,
+        loaded: false,
+        versions: [],
+        error: (e as Error).message,
+      }
+    }
+  }
+
+  /** 拉取前置 API 版本（Modrinth 来源由内核负责）。 */
+  async function loadModApiVersions(api: string, mcVersion: string) {
+    const key = `${api}:${mcVersion}`
+    const st = modApiVersions.value[key]
+    if (st?.loading || st?.loaded) return
+    modApiVersions.value[key] = { loading: true, loaded: false, versions: [], error: null }
+    try {
+      const versions = await call<string[]>('mod_api_versions', { api, mcVersion })
+      modApiVersions.value[key] = { loading: false, loaded: true, versions, error: null }
+    } catch (e) {
+      modApiVersions.value[key] = {
         loading: false,
         loaded: false,
         versions: [],
@@ -1365,6 +1349,8 @@ export const useAppStore = defineStore('app', () => {
     downloadVersionServer,
     loaderVersions,
     loadLoaderVersions,
+    modApiVersions,
+    loadModApiVersions,
     dataDir,
     gameFolders,
     selectedFolderId,
