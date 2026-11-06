@@ -9,7 +9,7 @@
  *     变更时经 store.saveSettings 尽力持久化（整体 JSON 落盘，读取侧按类型回落）；
  *   - 主题模式绑 store.theme / store.setTheme（同步 data-theme 并落盘）。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { SettingsSection } from '../lib/types'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
@@ -162,14 +162,29 @@ const javaDownloadOpen = ref(false)
 const javaDistribution = ref(JAVA_DISTRIBUTION_OPTIONS[0].value)
 /** 选中的 Java 大版本。 */
 const javaMajor = ref('21')
+/** 是否正在在线安装 Java。 */
+const javaDownloading = ref(false)
 
 function openJavaDownload() {
   javaDownloadOpen.value = true
 }
 
-function downloadJava() {
-  toast.info(`已开始下载 ${javaDistribution.value} JDK ${javaMajor.value}，等待内核下载能力接入。`)
-  javaDownloadOpen.value = false
+/** 在线安装 Temurin JRE（内核下载 + 解压 + 探测），完成后写回 javaPath。 */
+async function downloadJava() {
+  if (javaDownloading.value) return
+  javaDownloading.value = true
+  try {
+    const result = await store.installJava(Number(javaMajor.value))
+    if (result) {
+      javas.value = [
+        ...javas.value.filter((j) => j.path !== result.runtime.path),
+        { major: result.runtime.major, path: result.runtime.path },
+      ]
+      javaDownloadOpen.value = false
+    }
+  } finally {
+    javaDownloading.value = false
+  }
 }
 
 /** 自定义图标选择（内核文件选择命令未接入，先提示）。 */
@@ -233,61 +248,8 @@ const autoUpdate = computed({
 
 /* ------------------------------- Java 管理 ------------------------------ */
 
-/** 演示数据：内核 Java 探测命令接入前，先用它展示列表形态。 */
-const DEMO_JAVAS: JavaEntry[] = [
-  {
-    major: 8,
-    version: 'JRE 1.8.0_411',
-    vendor: 'Oracle',
-    arch: 'x86-64',
-    path: 'C:\\Program Files\\Java\\jre1.8.0_411\\bin\\java.exe',
-  },
-  {
-    major: 11,
-    version: 'JDK 11.0.25',
-    vendor: 'Oracle',
-    arch: 'x86-64',
-    path: 'C:\\Program Files\\Java\\jdk-11.0.25\\bin\\java.exe',
-  },
-  {
-    major: 16,
-    version: 'JDK 16.0.2',
-    vendor: 'Oracle',
-    arch: 'x86-64',
-    path: 'C:\\Program Files\\Java\\jdk-16.0.2\\bin\\java.exe',
-  },
-  {
-    major: 17,
-    version: 'JDK 17.0.10',
-    vendor: 'Oracle',
-    arch: 'x86-64',
-    path: 'C:\\Program Files\\Java\\jdk-17.0.10\\bin\\java.exe',
-  },
-  {
-    major: 21,
-    version: 'JDK 21.0.2',
-    vendor: 'Eclipse Adoptium',
-    arch: 'x86-64',
-    path: 'C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.2\\bin\\java.exe',
-  },
-  {
-    major: 25,
-    version: 'JDK 25.0.1',
-    vendor: 'Eclipse Temurin',
-    arch: 'x86-64',
-    path: 'C:\\Program Files\\Eclipse Adoptium\\jdk-25.0.1\\bin\\java.exe',
-  },
-  {
-    major: 26,
-    version: 'JDK 26-ea',
-    vendor: 'Oracle',
-    arch: 'x86-64',
-    path: 'C:\\Program Files\\Java\\jdk-26\\bin\\java.exe',
-  },
-]
-
-/** 探测到的 Java 列表（内核探测命令接入前先展示演示数据）。 */
-const javas = ref<JavaEntry[]>(DEMO_JAVAS)
+/** 探测到的 Java 列表（来自内核 `scan_java`）。 */
+const javas = ref<JavaEntry[]>([])
 /** 探测中（刷新按钮禁用，避免重复触发）。 */
 const javaScanning = ref(false)
 
@@ -297,16 +259,26 @@ async function refreshJavaList() {
   javaScanning.value = true
   try {
     const list = await new JavaManager().allAvailable()
-    if (list.length > 0) {
-      javas.value = list.map((j) => ({ major: j.major, path: j.path }))
-      toast.success(`已找到 ${javas.value.length} 个 Java`)
-    } else {
-      toast.info('未发现已安装的 Java，可手动指定路径')
-    }
+    javas.value = list.map((j) => ({
+      major: j.major,
+      version: j.version,
+      vendor: j.vendor,
+      arch: j.arch,
+      path: j.path,
+    }))
+    if (list.length > 0) toast.success(`已找到 ${javas.value.length} 个 Java`)
+    else toast.info('未发现已安装的 Java，可手动指定路径')
   } finally {
     javaScanning.value = false
   }
 }
+
+// 首次进入设置页即扫描本机 Java（只读探测，不阻塞渲染）
+onMounted(() => {
+  void refreshJavaList()
+  // 开启「自动检查更新」时静默检查一次：有新版本才弹窗
+  if (store.settings.autoUpdate) void checkUpdates(true)
+})
 
 /** 打开 Java 所在文件夹（不修改任何配置）。 */
 function revealJava(j: JavaEntry) {
@@ -330,10 +302,32 @@ function confirmRemoveJava() {
   toast.success(`已从列表移除 Java ${target.major}（未删除本地文件）`)
 }
 
-/** 手动指定 Java 路径（内核文件选择命令未接入，先提示）。 */
-function pickJavaManually() {
-  // TODO: 接入内核文件选择后改为真实选取并写入 javaPath。
-  toast.info('手动指定 Java 路径尚未接入，等待内核文件选择命令就绪。')
+/** 手动指定 Java 路径：选择可执行文件后探测并写回全局设置。 */
+async function pickJavaManually() {
+  try {
+    const { open } = await import('@tauri-apps/plugin-dialog')
+    const picked = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: 'Java 可执行文件', extensions: ['exe'] }],
+    })
+    if (typeof picked !== 'string' || !picked) return
+    const found = await call<{
+      path: string
+      version: string
+      major: number
+      vendor: string
+      arch: string
+    }>('probe_java', { path: picked })
+    await store.saveSettings({ javaPath: found.path })
+    javas.value = [
+      ...javas.value.filter((j) => j.path !== found.path),
+      { major: found.major, version: found.version, vendor: found.vendor, arch: found.arch, path: found.path },
+    ]
+    toast.success(`已指定 Java ${found.major}`)
+  } catch (e) {
+    toast.warning(`选择 Java 失败：${(e as Error).message}`)
+  }
 }
 
 /* ------------------------------- 主题模式 ------------------------------- */
@@ -352,9 +346,38 @@ function onLanguageValue(value: string) {
   }
 }
 
-/** 手动检查更新（内核更新服务未接入，先给出反馈）。 */
-function checkUpdates() {
-  toast.info('检查更新功能尚未接入内核更新服务。')
+/** 本地更新清单（发布方写入 data/update.json，存在才代表有新版本）。 */
+interface LocalUpdateInfo {
+  version?: string
+  notes?: string
+  url?: string
+}
+
+const updateModalOpen = ref(false)
+const updateInfo = ref<(LocalUpdateInfo & { current: string }) | null>(null)
+
+/** 读取更新清单并与当前版本比对；silent 时无新版本不打扰用户。 */
+async function checkUpdates(silent = false) {
+  try {
+    const current = await call<string>('get_core_version')
+    const raw = await call<string>('read_local_update')
+    const info = raw.trim() ? (JSON.parse(raw) as LocalUpdateInfo) : null
+    if (!info?.version || info.version === current) {
+      if (!silent) toast.success(`当前已是最新版本（${current}）`)
+      return
+    }
+    updateInfo.value = { ...info, current }
+    updateModalOpen.value = true
+  } catch (e) {
+    if (!silent) toast.warning(`检查更新失败：${(e as Error).message}`)
+  }
+}
+
+/** 打开更新说明中的下载页。 */
+function openUpdateUrl() {
+  const url = updateInfo.value?.url
+  if (!url) return
+  void call('open_external', { url }).catch(() => toast.error('无法打开链接'))
 }
 
 /** 自定义主题色取色提交。 */
@@ -776,7 +799,9 @@ function clearDownloadCache() {
         <p class="modal-note">大版本列表会自动获取当前可下载的 Java 版本。</p>
         <template #actions>
           <button type="button" class="btn-sub" @click="javaDownloadOpen = false">取消</button>
-          <button type="button" class="btn-download" @click="downloadJava">下载 Java</button>
+          <button type="button" class="btn-download" :disabled="javaDownloading" @click="downloadJava">
+            {{ javaDownloading ? '正在下载…' : '下载 Java' }}
+          </button>
         </template>
       </AlxModal>
 
@@ -876,9 +901,24 @@ function clearDownloadCache() {
             手动检查更新
             <div class="setting-desc">立即向更新服务查询是否有新版本</div>
           </div>
-          <button type="button" class="setting-btn" @click="checkUpdates">检查更新</button>
+          <button type="button" class="setting-btn" @click="checkUpdates()">检查更新</button>
         </div>
       </SettingGroup>
+
+      <!-- 发现新版本：展示版本号与更新说明 -->
+      <AlxModal :open="updateModalOpen" title="发现新版本" @close="updateModalOpen = false">
+        <p class="modal-note">
+          当前版本 <strong>{{ updateInfo?.current }}</strong>，最新版本
+          <strong>{{ updateInfo?.version }}</strong>。
+        </p>
+        <p v-if="updateInfo?.notes" class="modal-note">{{ updateInfo.notes }}</p>
+        <template #actions>
+          <button type="button" class="btn-sub" @click="updateModalOpen = false">稍后</button>
+          <button v-if="updateInfo?.url" type="button" class="btn-download" @click="openUpdateUrl">
+            前往下载
+          </button>
+        </template>
+      </AlxModal>
     </template>
 
     <!-- ==================== 启动器外观设置 ==================== -->

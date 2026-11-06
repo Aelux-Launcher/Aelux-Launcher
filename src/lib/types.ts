@@ -38,11 +38,96 @@ export interface GameInstance {
   version: string
   loader: string
   loaderVersion?: string | null
+  /** 实际安装的版本目录名（加载器安装后写入） */
+  versionId?: string | null
   icon?: string | null
   createdAt: string
   lastPlayedAt?: string | null
   playtimeSecs: number
 }
+
+/** 本地内容条目（mods / resourcepacks / shaderpacks / saves / schematics）。 */
+export interface LocalContentItem {
+  /** 磁盘上的文件名或目录名（含 `.disabled` 时按原样） */
+  fileName: string
+  /** 相对实例根目录的路径 */
+  path: string
+  kind: string
+  /** 展示名（jar 元数据 / 目录名 / NBT 名称） */
+  name: string
+  enabled: boolean
+  sizeBytes: number
+  /** 文件修改时间（Unix 秒） */
+  modifiedSecs: number
+  version?: string | null
+  description?: string | null
+  loader?: string | null
+  /** 存档游戏模式（仅 saves） */
+  worldGameMode?: string | null
+  /** 存档难度（仅 saves） */
+  worldDifficulty?: string | null
+  /** 存档版本（仅 saves） */
+  worldVersion?: string | null
+}
+
+/** 版本安装结果。 */
+export interface InstallResult {
+  versionId: string
+  mcVersion: string
+  loader: string
+  loaderVersion?: string | null
+  files: number
+}
+
+/** 启动结果。 */
+export interface LaunchOutcome {
+  pid: number
+  versionId: string
+}
+
+/** 正在运行的实例。 */
+export interface RunningGame {
+  instanceId: string
+  pid: number
+}
+
+/** 一条可用的 Mod 更新。 */
+export interface ModUpdate {
+  fileName: string
+  projectId: string
+  projectTitle: string
+  currentVersion: string
+  latestVersion: string
+  downloadUrl: string
+  newFileName: string
+  sha1?: string | null
+  fileSize: number
+  changelog?: string | null
+}
+
+/** 整合包导入结果。 */
+export interface ModpackImportResult {
+  instance: GameInstance
+  files: number
+}
+
+/** 在线安装 Java 的结果。 */
+export interface JavaInstallResult {
+  runtime: {
+    path: string
+    version: string
+    major: number
+    vendor: string
+    arch: string
+  }
+  installDir: string
+}
+
+/** 内核事件（dev-path 链路经 Tauri `core-event` 转发）。 */
+export type CoreEvent =
+  | { type: 'DownloadProgress'; taskId: string; name: string; received: number; total: number }
+  | { type: 'Log'; instanceId: string; line: string }
+  | { type: 'Message'; level: string; text: string }
 
 export interface LauncherConfig {
   theme: string

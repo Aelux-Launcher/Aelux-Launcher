@@ -9,7 +9,7 @@ import { computed, ref } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { toast } from '../../lib/toast'
 import { call } from '../../lib/bridge'
-import type { GameInstance } from '../../lib/types'
+import type { GameInstance, InstallResult } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxModal from '../../components/AlxModal.vue'
 import AlxSelect from '../../components/AlxSelect.vue'
@@ -100,45 +100,23 @@ async function openSubFolder(sub: string, label: string) {
   }
 }
 
-/** 导出启动脚本：写一份可直接双击运行的批处理。 */
+/** 导出启动脚本：内核生成完整 JVM/游戏参数的可执行脚本。 */
 async function exportLaunchScript() {
   try {
-    const dir = await resolveInstanceDir(props.instance.id)
-    const java = props.settings.javaPath || 'java'
-    const content = [
-      '@echo off',
-      'rem 由 Aelux 启动器导出的启动脚本',
-      `set "GAME_DIR=%~dp0"`,
-      `cd /d "%GAME_DIR%"`,
-      `"${java}" -jar "%GAME_DIR%\\versions\\${props.instance.id}\\${props.instance.id}.jar" nogui`,
-      'pause',
-      '',
-    ].join('\r\n')
-    await call('write_text', { path: `${dir}/启动脚本.bat`, content })
-    toast.success('启动脚本已导出到版本文件夹')
+    await store.exportLaunchScript(props.instance.id)
   } catch (e) {
     toast.error(`导出启动脚本失败：${(e as Error).message}`)
   }
 }
 
-/** 补全文件：检查实例目录下应有的基础文件，缺失时提示重新安装。 */
+/** 补全文件：内核按版本清单重新校验并补齐缺失的客户端 / 库 / 资源。 */
 async function completeFiles() {
-  const expected = ['options.txt', 'servers.dat', 'optionsof.txt']
   try {
-    const dir = await resolveInstanceDir(props.instance.id)
-    const missing: string[] = []
-    for (const f of expected) {
-      // TODO: 内核尚未提供 read_text 命令，桌面端此处会走 catch 分支提示。
-      const raw = await call<string | null>('read_text', { path: `${dir}/${f}` })
-      if (raw === null) missing.push(f)
-    }
-    if (missing.length === 0) {
-      toast.success('实例文件完整，无需补全')
-    } else {
-      toast.warning(`缺少 ${missing.join('、')}，请重新安装该版本以补全文件`)
-    }
+    await call<InstallResult>('install_instance', { id: props.instance.id })
+    toast.success('已按版本清单补全缺失文件')
+    store.reloadInstanceTab('overall')
   } catch (e) {
-    toast.error(`检查失败：${(e as Error).message}`)
+    toast.error(`补全文件失败：${(e as Error).message}`)
   }
 }
 

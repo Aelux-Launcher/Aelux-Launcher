@@ -103,6 +103,13 @@ const javaListOptions = computed(() => [
   ...jres.value.map((j) => ({ value: j.path, label: `Java ${j.major} (${j.version})` })),
 ])
 
+/** 实际分配给游戏的堆内存（GB）：自定义取实例值，其余跟随全局设置。 */
+const assignedMemoryGb = computed(() => {
+  const mb =
+    props.settings.ramType === 'custom' ? props.settings.ramCustomMb : store.settings.memoryMb
+  return (Math.max(128, mb) / 1024).toFixed(1)
+})
+
 /** 滑块右侧的内存数值显示。 */
 function formatRam(v: number) {
   return `${(v / 1024).toFixed(1)} GB`
@@ -251,19 +258,10 @@ watch(
         @update:model-value="(v: string) => patch({ ramOptimize: v as InstanceSettings['ramOptimize'] })"
       />
     </div>
-    <!-- 内存概览（演示数据）：进度条 + 数值 -->
-    <div class="setting-row" style="flex-direction: column; align-items: stretch">
-      <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-sub)">
-        <span>已使用内存</span>
-        <span>游戏分配</span>
-      </div>
-      <div class="progress-track" style="margin-top: 6px">
-        <div class="progress-fill" style="width: 92%"></div>
-      </div>
-      <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px">
-        <span>12.5 GB / 13.7 GB</span>
-        <span>1.3 GB（可用 1.2 GB）</span>
-      </div>
+    <!-- 内存分配概览：显示实际会传给 JVM 的堆大小 -->
+    <div class="setting-row">
+      <div class="setting-label">游戏分配内存</div>
+      <span class="item-meta">{{ assignedMemoryGb }} GB</span>
     </div>
   </SettingGroup>
 

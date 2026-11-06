@@ -14,7 +14,7 @@ import AlxIcon from './AlxIcon.vue'
 import AuthServerModal from './AuthServerModal.vue'
 import AuthLoginModal from './AuthLoginModal.vue'
 import MicrosoftLoginModal from './MicrosoftLoginModal.vue'
-import type { AuthServer, StoredFolder } from '../lib/types'
+import type { AuthServer, StoredAccount, StoredFolder } from '../lib/types'
 
 interface NavEntry {
   key: string
@@ -316,10 +316,23 @@ function openAuthLogin(server: AuthServer) {
   authLoginOpen.value = true
 }
 
-function submitAuthLogin() {
+/** 外置登录：内核鉴权（authlib-injector / Yggdrasil），成功后落账户并切换会话。 */
+async function submitAuthLogin(payload: { username: string; password: string }) {
+  const server = authLoginServer.value
+  if (!server) return
   authLoginOpen.value = false
-  // 内核尚未提供 authlib-injector 认证接口：先保留完整前端流程
-  toast.info('外置登录认证尚未接入内核，账户暂未添加')
+  try {
+    await call<StoredAccount>('authlib_login', {
+      serverId: server.id,
+      username: payload.username,
+      password: payload.password,
+    })
+    await store.loadAccounts()
+    await store.restoreSession()
+    toast.success(`已添加外置账户「${payload.username}」`)
+  } catch (e) {
+    toast.error(`外置登录失败：${(e as Error).message}`)
+  }
 }
 
 /** 删除认证服务器（二级锁：弹窗确认）。 */

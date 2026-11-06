@@ -7,21 +7,17 @@
  */
 import { ref } from 'vue'
 import { toast } from '../../lib/toast'
+import { useAppStore } from '../../stores/app'
 import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxToggle from '../../components/AlxToggle.vue'
 import AlxSelect from '../../components/AlxSelect.vue'
 import ExportTree from './ExportTree.vue'
-import {
-  EXPORT_TREE,
-  collectCheckedPaths,
-  createExportPlan,
-  toggleTree,
-  versionSummary,
-  type ExportOption,
-} from '../instanceMeta'
+import { EXPORT_TREE, toggleTree, versionSummary, type ExportOption } from '../instanceMeta'
 
 const props = defineProps<{ instance: GameInstance }>()
+
+const store = useAppStore()
 
 const tree = ref<ExportOption[]>(EXPORT_TREE)
 const name = ref(props.instance.name)
@@ -30,6 +26,7 @@ const format = ref<'mcpack' | 'mrpack'>('mcpack')
 const includeResources = ref(true)
 const modrinthOnly = ref(false)
 const advanceOpen = ref(false)
+const exporting = ref(false)
 
 /** 整合包格式下拉选项。 */
 const FORMAT_OPTIONS = [
@@ -42,23 +39,14 @@ function onToggle(id: string, checked: boolean) {
   tree.value = toggleTree(tree.value, id, checked)
 }
 
-/** 开始导出：生成导出计划（真实打包由下载流程接手）。 */
-function startExport() {
+/** 开始导出：调用内核打包（mods / config / resourcepacks / shaderpacks / saves 快照）。 */
+async function startExport() {
+  exporting.value = true
   try {
-    const plan = createExportPlan(
-      {
-        name: name.value.trim() || props.instance.name,
-        version: version.value.trim() || '1.0.0',
-        format: format.value,
-        includeResources: includeResources.value,
-        modrinthOnly: modrinthOnly.value,
-      },
-      tree.value,
-    )
-    const paths = collectCheckedPaths(plan.options)
-    toast.success(`已生成导出计划：${plan.options.length} 项 / ${paths.length} 条文件规则`)
-  } catch (e) {
-    toast.error(`生成导出计划失败：${(e as Error).message}`)
+    const path = await store.exportModpack(props.instance.id)
+    if (path) toast.success(`导出完成：${path}`)
+  } finally {
+    exporting.value = false
   }
 }
 </script>
@@ -120,9 +108,15 @@ function startExport() {
 
   <!-- 底部：开始导出 -->
   <div style="display: flex; justify-content: center; margin-top: 4px">
-    <button type="button" class="btn-download" style="flex: none; padding: 9px 24px" @click="startExport">
+    <button
+      type="button"
+      class="btn-download"
+      style="flex: none; padding: 9px 24px"
+      :disabled="exporting"
+      @click="startExport"
+    >
       <AlxIcon name="package" :size="15" style="vertical-align: -2px; margin-right: 6px" />
-      开始导出
+      {{ exporting ? '正在导出…' : '开始导出' }}
     </button>
   </div>
 </template>

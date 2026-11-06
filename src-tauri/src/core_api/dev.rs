@@ -8,8 +8,9 @@ use serde_json::Value;
 use tauri::Emitter;
 
 use crate::dto::{
-    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, JavaRuntime, LauncherConfig,
-    LocalContentItem, OsInfo, StoredAccount, VersionManifest,
+    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, InstallResult,
+    JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem, ModUpdate,
+    ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
 };
 
 use super::CoreError;
@@ -120,9 +121,14 @@ pub fn list_instances() -> Result<Vec<GameInstance>, CoreError> {
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
-pub fn create_instance(name: String, version: String, loader: Option<String>) -> Result<GameInstance, CoreError> {
+pub fn create_instance(
+    name: String,
+    version: String,
+    loader: Option<String>,
+    loader_version: Option<String>,
+) -> Result<GameInstance, CoreError> {
     let inst = core()
-        .create_instance(&name, &version, loader.as_deref())
+        .create_instance(&name, &version, loader.as_deref(), loader_version.as_deref())
         .map_err(|e| e.to_string())?;
     serde_json::from_value(serde_json::to_value(inst).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
 }
@@ -286,4 +292,146 @@ pub fn delete_path(path: String) -> Result<(), CoreError> {
 
 pub fn rename_path(from: String, to: String) -> Result<(), CoreError> {
     core().rename_path(&from, &to).map_err(|e| e.to_string())
+}
+
+/* ---------------------------- 安装 / 启动 / 市场 ---------------------------- */
+
+/// 内核类型 → 壳层 DTO（JSON 中转，保持三链路一致）。
+fn to_dto<T: serde::de::DeserializeOwned, S: serde::Serialize>(value: S) -> Result<T, CoreError> {
+    let json = serde_json::to_value(value).map_err(|e| e.to_string())?;
+    serde_json::from_value(json).map_err(|e| e.to_string())
+}
+
+pub async fn install_version(
+    mc_version: String,
+    loader: String,
+    loader_version: Option<String>,
+) -> Result<InstallResult, CoreError> {
+    let result = core()
+        .install_version(&mc_version, &loader, loader_version.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+    to_dto(result)
+}
+
+pub async fn install_instance(id: String) -> Result<InstallResult, CoreError> {
+    let result = core().install_instance(&id).await.map_err(|e| e.to_string())?;
+    to_dto(result)
+}
+
+pub async fn set_instance_loader(
+    id: String,
+    loader: String,
+    loader_version: Option<String>,
+) -> Result<InstallResult, CoreError> {
+    let result = core()
+        .set_instance_loader(&id, &loader, loader_version.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+    to_dto(result)
+}
+
+pub async fn launch_instance(id: String) -> Result<LaunchOutcome, CoreError> {
+    let result = core().launch_instance(&id).await.map_err(|e| e.to_string())?;
+    to_dto(result)
+}
+
+pub fn kill_instance(id: String) -> bool {
+    core().kill_instance(&id)
+}
+
+pub fn running_instances() -> Result<Vec<RunningGame>, CoreError> {
+    to_dto(core().running_instances())
+}
+
+pub async fn export_launch_script(id: String) -> Result<String, CoreError> {
+    core().export_launch_script(&id).await.map_err(|e| e.to_string())
+}
+
+pub fn backup_world(instance_id: String, file_name: String) -> Result<String, CoreError> {
+    core()
+        .backup_world(&instance_id, &file_name)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn authlib_login(
+    server_id: String,
+    username: String,
+    password: String,
+) -> Result<StoredAccount, CoreError> {
+    let account = core()
+        .authlib_login(&server_id, &username, &password)
+        .await
+        .map_err(|e| e.to_string())?;
+    to_dto(account)
+}
+
+pub async fn authlib_refresh(account_id: String) -> Result<StoredAccount, CoreError> {
+    let account = core()
+        .authlib_refresh(&account_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    to_dto(account)
+}
+
+pub async fn install_resource(
+    instance_id: String,
+    kind: String,
+    url: String,
+    file_name: String,
+    sha1: Option<String>,
+) -> Result<LocalContentItem, CoreError> {
+    let item = core()
+        .install_resource(&instance_id, &kind, &url, &file_name, sha1.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+    to_dto(item)
+}
+
+pub async fn check_mod_updates(instance_id: String) -> Result<Vec<ModUpdate>, CoreError> {
+    let updates = core()
+        .check_mod_updates(&instance_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    to_dto(updates)
+}
+
+pub async fn install_mod_api(
+    instance_id: String,
+    api: String,
+    mc_version: String,
+    version: Option<String>,
+) -> Result<LocalContentItem, CoreError> {
+    let item = core()
+        .install_mod_api(&instance_id, &api, &mc_version, version.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+    to_dto(item)
+}
+
+pub fn export_modpack(instance_id: String) -> Result<String, CoreError> {
+    core()
+        .export_modpack(&instance_id)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn import_modpack(
+    source: String,
+    name: Option<String>,
+) -> Result<ModpackImportResult, CoreError> {
+    let result = core()
+        .import_modpack(&source, name.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+    to_dto(result)
+}
+
+pub async fn install_java(major: u32) -> Result<JavaInstallResult, CoreError> {
+    let result = core().install_java(major).await.map_err(|e| e.to_string())?;
+    to_dto(result)
+}
+
+pub fn probe_java(path: String) -> Result<JavaRuntime, CoreError> {
+    let runtime = core().probe_java(&path).map_err(|e| e.to_string())?;
+    to_dto(runtime)
 }

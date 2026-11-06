@@ -80,13 +80,14 @@ const PREVIEW_VERSIONS = [
   sha1: null,
 }))
 
-const previewInstances: unknown[] = [
+const previewInstances: Array<Record<string, unknown>> = [
   {
     id: 'preview-1',
     name: '1.21.4 原版',
     version: '1.21.4',
     loader: 'vanilla',
     loaderVersion: null,
+    versionId: '1.21.4',
     icon: null,
     createdAt: '2026-01-01T00:00:00Z',
     lastPlayedAt: '2026-01-02T00:00:00Z',
@@ -98,12 +99,72 @@ const previewInstances: unknown[] = [
     version: '1.20.1',
     loader: 'fabric',
     loaderVersion: '0.16.0',
+    versionId: 'fabric-loader-0.16.0-1.20.1',
     icon: null,
     createdAt: '2025-12-01T00:00:00Z',
     lastPlayedAt: null,
     playtimeSecs: 0,
   },
 ]
+
+/** 预览环境的内容列表（各类型固定几条，带存档元数据）。 */
+function previewContent(kind: string): Array<Record<string, unknown>> {
+  if (kind === 'saves') {
+    return [
+      {
+        fileName: 'Demo World',
+        path: 'saves/Demo World',
+        kind,
+        name: 'Demo World',
+        enabled: true,
+        sizeBytes: 18_400_000,
+        modifiedSecs: 1_760_000_000,
+        version: null,
+        description: null,
+        loader: null,
+        worldGameMode: '生存模式',
+        worldDifficulty: '普通',
+        worldVersion: '1.21.4',
+      },
+    ]
+  }
+  if (kind === 'schematics') {
+    return [
+      {
+        fileName: 'demo.litematic',
+        path: 'schematics/demo.litematic',
+        kind,
+        name: '演示塔楼',
+        enabled: true,
+        sizeBytes: 42_000,
+        modifiedSecs: 1_760_000_000,
+        version: null,
+        description: '尺寸 12×9×10',
+        loader: null,
+        worldGameMode: null,
+        worldDifficulty: null,
+        worldVersion: null,
+      },
+    ]
+  }
+  return [
+    {
+      fileName: 'demo.jar',
+      path: `${kind}/demo.jar`,
+      kind,
+      name: '演示条目',
+      enabled: true,
+      sizeBytes: 1_024_000,
+      modifiedSecs: 1_760_000_000,
+      version: '1.0.0',
+      description: null,
+      loader: 'fabric',
+      worldGameMode: null,
+      worldDifficulty: null,
+      worldVersion: null,
+    },
+  ]
+}
 
 /* ================== 资源预览数据（六类社区资源，本地测试用） ================== */
 
@@ -436,6 +497,136 @@ async function mockCall<T>(command: string, args?: Record<string, unknown>): Pro
       if (!(api in list)) throw new Error(`未知前置 API: ${api}`)
       return list[api] as T
     }
+    case 'scan_java':
+      return [
+        { path: 'C:\\Program Files\\Java\\jdk-21\\bin\\java.exe', version: '21.0.5', major: 21, vendor: 'Eclipse Adoptium', arch: 'x86_64' },
+        { path: 'C:\\Program Files\\Java\\jdk-17\\bin\\java.exe', version: '17.0.13', major: 17, vendor: 'Eclipse Adoptium', arch: 'x86_64' },
+        { path: 'C:\\Program Files\\Java\\jre1.8.0_431\\bin\\java.exe', version: '1.8.0_431', major: 8, vendor: 'Oracle', arch: 'x86_64' },
+      ] as T
+    case 'required_java': {
+      const mc = String(args?.mcVersion ?? '1.21.4')
+      const major = mc.startsWith('1.21') ? 21 : mc.startsWith('1.20') || mc.startsWith('1.19') ? 17 : 8
+      return major as T
+    }
+    case 'probe_java':
+      return {
+        path: String(args?.path ?? ''),
+        version: '21.0.mock',
+        major: 21,
+        vendor: 'Temurin',
+        arch: 'x86_64',
+      } as T
+    case 'get_instance_dir':
+      return `/preview/instances/${String(args?.id ?? '')}` as T
+    case 'list_content':
+      return previewContent(String(args?.kind ?? '')) as T
+    case 'import_content':
+      return previewContent(String(args?.kind ?? ''))[0] as T
+    case 'install_version': {
+      const mc = String(args?.mcVersion ?? '1.21.4')
+      const loader = String(args?.loader ?? 'vanilla')
+      const lv = args?.loaderVersion ? String(args.loaderVersion) : null
+      await new Promise((r) => setTimeout(r, 800))
+      return {
+        versionId: loader === 'vanilla' ? mc : `${loader}-${lv ?? 'latest'}-${mc}`,
+        mcVersion: mc,
+        loader,
+        loaderVersion: lv,
+        files: 128,
+      } as T
+    }
+    case 'install_instance':
+      await new Promise((r) => setTimeout(r, 800))
+      return { versionId: 'mock-install', mcVersion: '1.21.4', loader: 'vanilla', loaderVersion: null, files: 128 } as T
+    case 'set_instance_loader': {
+      const loader = String(args?.loader ?? 'vanilla')
+      const lv = args?.loaderVersion ? String(args.loaderVersion) : null
+      await new Promise((r) => setTimeout(r, 800))
+      return {
+        versionId: loader === 'vanilla' ? '1.21.4' : `${loader}-${lv ?? 'latest'}-1.21.4`,
+        mcVersion: '1.21.4',
+        loader,
+        loaderVersion: lv,
+        files: 64,
+      } as T
+    }
+    case 'launch_instance':
+      await new Promise((r) => setTimeout(r, 400))
+      return { pid: 4242, versionId: 'mock-launch' } as T
+    case 'kill_instance':
+      return true as T
+    case 'running_instances':
+      return [] as T
+    case 'export_launch_script':
+      return '/preview/launch.bat' as T
+    case 'backup_world':
+      return `backups/worlds/${String(args?.fileName ?? 'world')}-preview` as T
+    case 'authlib_login': {
+      const name = String(args?.username ?? '').trim()
+      if (!name) throw new Error('用户名不能为空')
+      const uuid = previewOfflineUuid(name)
+      const account: PreviewAccount = {
+        id: uuid,
+        type: 'third',
+        username: name,
+        uuid,
+        loggedInAt: String(Math.floor(Date.now() / 1000)),
+      }
+      const list = readPreviewList<PreviewAccount>('accounts')
+      const idx = list.findIndex((a) => a.id === account.id)
+      if (idx >= 0) list[idx] = account
+      else list.push(account)
+      previewKvSet('accounts', JSON.stringify(list))
+      previewKvSet('session', JSON.stringify({ type: 'third', username: name, uuid }))
+      return account as T
+    }
+    case 'authlib_refresh':
+      return readPreviewList<PreviewAccount>('accounts')[0] as T
+    case 'install_resource':
+      await new Promise((r) => setTimeout(r, 600))
+      return {
+        ...previewContent(String(args?.kind ?? 'mods'))[0],
+        fileName: String(args?.fileName ?? 'demo.jar'),
+        name: String(args?.fileName ?? 'demo.jar'),
+      } as T
+    case 'check_mod_updates':
+      return [] as T
+    case 'install_mod_api':
+      await new Promise((r) => setTimeout(r, 600))
+      return previewContent('mods')[0] as T
+    case 'export_modpack':
+      return '/preview/exports/modpack.zip' as T
+    case 'import_modpack':
+      await new Promise((r) => setTimeout(r, 800))
+      return {
+        instance: {
+          id: `preview-${Date.now()}`,
+          name: String(args?.name ?? '导入的整合包'),
+          version: '1.21.4',
+          loader: 'fabric',
+          loaderVersion: '0.16.0',
+          versionId: 'fabric-loader-0.16.0-1.21.4',
+          icon: null,
+          createdAt: new Date().toISOString(),
+          lastPlayedAt: null,
+          playtimeSecs: 0,
+        },
+        files: 42,
+      } as T
+    case 'install_java': {
+      const major = Number(args?.major ?? 21)
+      await new Promise((r) => setTimeout(r, 800))
+      return {
+        runtime: {
+          path: `/preview/java/temurin-${major}/bin/java.exe`,
+          version: `${major}.0.mock`,
+          major,
+          vendor: 'Temurin',
+          arch: 'x86_64',
+        },
+        installDir: `/preview/java/temurin-${major}`,
+      } as T
+    }
     case 'accounts_list':
       return readPreviewList<PreviewAccount>('accounts') as T
     case 'accounts_upsert': {
@@ -544,7 +735,8 @@ async function mockCall<T>(command: string, args?: Record<string, unknown>): Pro
         name: String(args?.name ?? 'preview'),
         version: String(args?.version ?? '1.21.4'),
         loader: String(args?.loader ?? 'vanilla'),
-        loaderVersion: null,
+        loaderVersion: args?.loaderVersion ? String(args.loaderVersion) : null,
+        versionId: String(args?.version ?? '1.21.4'),
         icon: null,
         createdAt: new Date().toISOString(),
         lastPlayedAt: null,

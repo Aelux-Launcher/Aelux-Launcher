@@ -35,6 +35,7 @@ import {
 } from '../lib/mcVersion'
 import PageHeader from '../components/PageHeader.vue'
 import AlxIcon from '../components/AlxIcon.vue'
+import AlxModal from '../components/AlxModal.vue'
 /* 版本发布类型图标（素材取自 PCL 的 ReleaseTypes：Alpha / Beta / Release）。 */
 import ALPHA_ICON from '../assets/release-types/alpha.png'
 import BETA_ICON from '../assets/release-types/beta.png'
@@ -562,6 +563,47 @@ function openDependency(dep: ResourceProject) {
 /** 正在下载的版本 id。 */
 const downloadingIds = ref(new Set<string>())
 
+/** 资源类型 → 可安装的内核内容目录（不含整合包 / 数据包）。 */
+const INSTALL_KIND: Record<string, string> = {
+  mod: 'mods',
+  resourcepack: 'resourcepacks',
+  shader: 'shaderpacks',
+  world: 'saves',
+}
+
+/** 待安装版本 + 目标实例选择弹窗。 */
+const installTarget = ref<ResourceVersion | null>(null)
+const installing = ref(false)
+
+/** 是否支持一键安装进实例。 */
+function canInstall(): boolean {
+  return !!INSTALL_KIND[props.resourceKind]
+}
+
+function requestInstall(v: ResourceVersion) {
+  if (!v.fileUrl) return
+  installTarget.value = v
+}
+
+/** 安装到所选实例（内核下载并落盘到对应目录）。 */
+async function installTo(instanceId: string) {
+  const version = installTarget.value
+  if (!version) return
+  installing.value = true
+  try {
+    await store.installResource(
+      instanceId,
+      INSTALL_KIND[props.resourceKind],
+      version.fileUrl,
+      version.fileName,
+      null,
+    )
+    installTarget.value = null
+  } finally {
+    installing.value = false
+  }
+}
+
 /** 保存版本文件（Tauri 下弹出保存对话框）。 */
 async function downloadVersion(v: ResourceVersion) {
   if (!v.fileUrl || downloadingIds.value.has(v.id)) return
@@ -801,6 +843,15 @@ watch(
                 <div class="version-file-info">{{ versionInfo(v) }}</div>
               </div>
               <button
+                v-if="canInstall()"
+                type="button"
+                class="icon-btn version-file-download"
+                :title="`安装到实例（${v.fileName}）`"
+                @click.stop="requestInstall(v)"
+              >
+                <AlxIcon name="plus" :size="16" />
+              </button>
+              <button
                 type="button"
                 class="icon-btn version-file-download"
                 :title="`另存为 ${v.fileName}`"
@@ -814,5 +865,38 @@ watch(
         </div>
       </section>
     </template>
+
+    <!-- 安装到实例：选择目标实例 -->
+    <AlxModal
+      :open="installTarget !== null"
+      :title="`安装 ${installTarget?.fileName ?? ''}`"
+      @close="installTarget = null"
+    >
+      <p class="mod-update-lead">选择要安装到的实例：</p>
+      <div v-if="store.instances.length === 0" class="empty-state">
+        <AlxIcon name="info" :size="28" />
+        <span>还没有实例，请先创建一个版本</span>
+      </div>
+      <div v-else class="loader-picker-list">
+        <button
+          v-for="inst in store.instances"
+          :key="inst.id"
+          type="button"
+          class="list-item loader-picker-item"
+          :disabled="installing"
+          @click="installTo(inst.id)"
+        >
+          <div class="item-info">
+            <AlxIcon name="minecraft" :size="20" />
+            <div class="item-title">{{ inst.name }}</div>
+            <span class="item-meta">{{ inst.version }} · {{ inst.loader }}</span>
+          </div>
+          <AlxIcon name="chevron-right" :size="16" />
+        </button>
+      </div>
+      <template #actions>
+        <button type="button" class="btn-sub" @click="installTarget = null">取消</button>
+      </template>
+    </AlxModal>
   </div>
 </template>

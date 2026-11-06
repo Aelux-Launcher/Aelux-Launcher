@@ -8,7 +8,7 @@
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { toast } from '../../lib/toast'
-import type { GameInstance } from '../../lib/types'
+import type { GameInstance, ModUpdate } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxModal from '../../components/AlxModal.vue'
 import AlxSearchBar from '../../components/AlxSearchBar.vue'
@@ -49,6 +49,23 @@ const query = ref('')
 const mods = ref<LocalMod[]>([])
 /** 多选：id → 是否选中。 */
 const selected = ref<Record<string, boolean>>({})
+/** Modrinth 更新结果：本地文件名 → 更新信息。 */
+const updates = ref<Record<string, ModUpdate>>({})
+const checking = ref(false)
+
+/** 检查 Mod 更新（按文件哈希反查 Modrinth）。 */
+async function checkUpdates() {
+  if (checking.value) return
+  checking.value = true
+  try {
+    const list = await store.checkModUpdates(props.instance.id)
+    updates.value = Object.fromEntries(list.map((u) => [u.fileName, u]))
+    if (list.length === 0) toast.info('没有检测到可用更新（或本地 Mod 未收录到 Modrinth）')
+    else toast.success(`发现 ${list.length} 个可更新的 Mod`)
+  } finally {
+    checking.value = false
+  }
+}
 
 /** 读取该实例的本地 Mod 清单。 */
 async function loadMods() {
@@ -99,7 +116,7 @@ const allRows = computed<ModRow[]>(() =>
     desc: m.description || m.fileName,
     tags: [m.loader ?? props.instance.loader].filter(Boolean),
     version: m.version || '—',
-    newVersion: '',
+    newVersion: updates.value[m.fileName]?.latestVersion ?? '',
     size: formatContentSize(m.sizeBytes),
     updated: formatModifiedAgo(m.modifiedSecs),
     source: '本地',
@@ -250,12 +267,21 @@ function closeUpdate() {
 }
 
 function viewChangelog() {
-  toast.info('更新日志尚未接入内核，请前往 Mod 发布页查看')
+  const first = updateTargets.value[0]
+  const changelog = first ? updates.value[first.fileName]?.changelog : null
+  toast.info(changelog ? `更新日志：${changelog.slice(0, 400)}` : '该版本未提供更新日志')
 }
 
-function confirmUpdate() {
-  toast.info('Mod 更新需要资源市场（Modrinth）接口接入，当前版本暂未支持自动更新')
+/** 依次应用更新（下载新文件 → 删除旧文件）。 */
+async function confirmUpdate() {
+  const targets = updateTargets.value
   closeUpdate()
+  for (const target of targets) {
+    const update = updates.value[target.fileName]
+    if (update) await store.applyModUpdate(props.instance.id, update)
+  }
+  updates.value = {}
+  await loadMods()
 }
 
 /* ------------------------- 删除（二级确认） ------------------------- */
@@ -328,6 +354,9 @@ async function installFromFile() {
     <div class="panel-actions">
       <button type="button" class="btn-sub" @click="openModsFolder">打开文件夹</button>
       <button type="button" class="btn-sub" @click="installFromFile">从文件安装</button>
+      <button type="button" class="btn-sub" :disabled="checking" @click="checkUpdates">
+        {{ checking ? '检查中…' : '检查更新' }}
+      </button>
       <button type="button" class="btn-sub" @click="store.routerPush('/download/mod')">
         下载新 Mod
       </button>

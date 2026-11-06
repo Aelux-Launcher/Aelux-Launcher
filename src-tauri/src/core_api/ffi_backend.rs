@@ -13,7 +13,9 @@ use serde_json::Value;
 use tauri::Manager;
 
 use crate::dto::{
-    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, LauncherConfig, OsInfo, StoredAccount, VersionManifest,
+    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, InstallResult,
+    JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem, ModUpdate,
+    ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
 };
 
 use super::CoreError;
@@ -303,10 +305,20 @@ pub fn list_instances() -> Result<Vec<GameInstance>, CoreError> {
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
-pub fn create_instance(name: String, version: String, loader: Option<String>) -> Result<GameInstance, CoreError> {
+pub fn create_instance(
+    name: String,
+    version: String,
+    loader: Option<String>,
+    loader_version: Option<String>,
+) -> Result<GameInstance, CoreError> {
     let value = invoke_sync(
         "instances.create",
-        &serde_json::json!({ "name": name, "version": version, "loader": loader }),
+        &serde_json::json!({
+            "name": name,
+            "version": version,
+            "loader": loader,
+            "loader_version": loader_version,
+        }),
     )?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
@@ -389,4 +401,247 @@ pub fn save_config(config: LauncherConfig) -> Result<(), CoreError> {
     let value = serde_json::to_value(config).map_err(|e| e.to_string())?;
     invoke_sync("config.save", &value)?;
     Ok(())
+}
+
+/* --------------------------- Java / 本地内容 --------------------------- */
+
+pub fn scan_java() -> Result<Vec<JavaRuntime>, CoreError> {
+    let value = invoke_sync("java.scan", &Value::Null)?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn required_java(mc_version: String) -> u32 {
+    invoke_sync("java.required_major", &serde_json::json!({ "mc_version": mc_version }))
+        .ok()
+        .and_then(|v| v.as_u64())
+        .and_then(|v| u32::try_from(v).ok())
+        .unwrap_or(17)
+}
+
+pub fn get_instance_dir(id: String) -> Result<String, CoreError> {
+    let value = invoke_sync("instance.dir", &serde_json::json!({ "id": id }))?;
+    value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
+}
+
+pub fn list_content(instance_id: String, kind: String) -> Result<Vec<LocalContentItem>, CoreError> {
+    let value = invoke_sync(
+        "content.list",
+        &serde_json::json!({ "instance_id": instance_id, "kind": kind }),
+    )?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn set_content_enabled(
+    instance_id: String,
+    kind: String,
+    file_name: String,
+    enabled: bool,
+) -> Result<(), CoreError> {
+    invoke_sync(
+        "content.set_enabled",
+        &serde_json::json!({
+            "instance_id": instance_id,
+            "kind": kind,
+            "file_name": file_name,
+            "enabled": enabled,
+        }),
+    )?;
+    Ok(())
+}
+
+pub fn delete_content(instance_id: String, kind: String, file_name: String) -> Result<(), CoreError> {
+    invoke_sync(
+        "content.delete",
+        &serde_json::json!({ "instance_id": instance_id, "kind": kind, "file_name": file_name }),
+    )?;
+    Ok(())
+}
+
+pub fn import_content(
+    instance_id: String,
+    kind: String,
+    source: String,
+) -> Result<LocalContentItem, CoreError> {
+    let value = invoke_sync(
+        "content.import",
+        &serde_json::json!({ "instance_id": instance_id, "kind": kind, "source": source }),
+    )?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn read_text(path: String) -> Result<Option<String>, CoreError> {
+    let value = invoke_sync("files.read_text", &serde_json::json!({ "path": path }))?;
+    if value.is_null() {
+        Ok(None)
+    } else {
+        serde_json::from_value(value).map_err(|e| e.to_string())
+    }
+}
+
+pub fn write_text(path: String, content: String) -> Result<(), CoreError> {
+    invoke_sync("files.write_text", &serde_json::json!({ "path": path, "content": content }))?;
+    Ok(())
+}
+
+pub fn delete_path(path: String) -> Result<(), CoreError> {
+    invoke_sync("files.delete", &serde_json::json!({ "path": path }))?;
+    Ok(())
+}
+
+pub fn rename_path(from: String, to: String) -> Result<(), CoreError> {
+    invoke_sync("files.rename", &serde_json::json!({ "from": from, "to": to }))?;
+    Ok(())
+}
+
+/* ---------------------------- 安装 / 启动 / 市场 ---------------------------- */
+
+pub async fn install_version(
+    mc_version: String,
+    loader: String,
+    loader_version: Option<String>,
+) -> Result<InstallResult, CoreError> {
+    let value = invoke(
+        "installer.version",
+        &serde_json::json!({
+            "mc_version": mc_version,
+            "loader": loader,
+            "loader_version": loader_version,
+        }),
+    )
+    .await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn install_instance(id: String) -> Result<InstallResult, CoreError> {
+    let value = invoke("installer.instance", &serde_json::json!({ "id": id })).await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn set_instance_loader(
+    id: String,
+    loader: String,
+    loader_version: Option<String>,
+) -> Result<InstallResult, CoreError> {
+    let value = invoke(
+        "installer.set_loader",
+        &serde_json::json!({ "id": id, "loader": loader, "loader_version": loader_version }),
+    )
+    .await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn launch_instance(id: String) -> Result<LaunchOutcome, CoreError> {
+    let value = invoke("launch.start", &serde_json::json!({ "id": id })).await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn kill_instance(id: String) -> bool {
+    invoke_sync("launch.kill", &serde_json::json!({ "id": id }))
+        .ok()
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+pub fn running_instances() -> Result<Vec<RunningGame>, CoreError> {
+    let value = invoke_sync("launch.running", &Value::Null)?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn export_launch_script(id: String) -> Result<String, CoreError> {
+    let value = invoke("launch.export_script", &serde_json::json!({ "id": id })).await?;
+    value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
+}
+
+pub fn backup_world(instance_id: String, file_name: String) -> Result<String, CoreError> {
+    let value = invoke_sync(
+        "content.backup_world",
+        &serde_json::json!({ "instance_id": instance_id, "file_name": file_name }),
+    )?;
+    value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
+}
+
+pub async fn authlib_login(
+    server_id: String,
+    username: String,
+    password: String,
+) -> Result<StoredAccount, CoreError> {
+    let value = invoke(
+        "authlib.login",
+        &serde_json::json!({ "server_id": server_id, "username": username, "password": password }),
+    )
+    .await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn authlib_refresh(account_id: String) -> Result<StoredAccount, CoreError> {
+    let value = invoke("authlib.refresh", &serde_json::json!({ "account_id": account_id })).await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn install_resource(
+    instance_id: String,
+    kind: String,
+    url: String,
+    file_name: String,
+    sha1: Option<String>,
+) -> Result<LocalContentItem, CoreError> {
+    let value = invoke(
+        "market.install_resource",
+        &serde_json::json!({
+            "instance_id": instance_id,
+            "kind": kind,
+            "url": url,
+            "file_name": file_name,
+            "sha1": sha1,
+        }),
+    )
+    .await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn check_mod_updates(instance_id: String) -> Result<Vec<ModUpdate>, CoreError> {
+    let value = invoke("market.check_updates", &serde_json::json!({ "instance_id": instance_id })).await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn install_mod_api(
+    instance_id: String,
+    api: String,
+    mc_version: String,
+    version: Option<String>,
+) -> Result<LocalContentItem, CoreError> {
+    let value = invoke(
+        "market.install_mod_api",
+        &serde_json::json!({
+            "instance_id": instance_id,
+            "api": api,
+            "mc_version": mc_version,
+            "version": version,
+        }),
+    )
+    .await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn export_modpack(instance_id: String) -> Result<String, CoreError> {
+    let value = invoke_sync("modpack.export", &serde_json::json!({ "instance_id": instance_id }))?;
+    value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
+}
+
+pub async fn import_modpack(
+    source: String,
+    name: Option<String>,
+) -> Result<ModpackImportResult, CoreError> {
+    let value = invoke("modpack.import", &serde_json::json!({ "source": source, "name": name })).await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn install_java(major: u32) -> Result<JavaInstallResult, CoreError> {
+    let value = invoke("java.install", &serde_json::json!({ "major": major })).await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn probe_java(path: String) -> Result<JavaRuntime, CoreError> {
+    let value = invoke_sync("java.probe", &serde_json::json!({ "path": path }))?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
 }

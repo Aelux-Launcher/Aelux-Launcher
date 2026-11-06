@@ -6,8 +6,9 @@
 
 use crate::core_api;
 use crate::dto::{
-    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, JavaRuntime, LauncherConfig,
-    LocalContentItem, OsInfo, StoredAccount, VersionManifest,
+    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, InstallResult,
+    JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem, ModUpdate,
+    ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
 };
 
 /* ------------------------------ 内核命令 ------------------------------ */
@@ -144,8 +145,13 @@ pub fn get_instances() -> Result<Vec<GameInstance>, String> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn create_instance(name: String, version: String, loader: Option<String>) -> Result<GameInstance, String> {
-    core_api::create_instance(name, version, loader)
+pub fn create_instance(
+    name: String,
+    version: String,
+    loader: Option<String>,
+    loader_version: Option<String>,
+) -> Result<GameInstance, String> {
+    core_api::create_instance(name, version, loader, loader_version)
 }
 
 #[tauri::command]
@@ -249,6 +255,133 @@ pub fn delete_path(path: String) -> Result<(), String> {
 #[specta::specta]
 pub fn rename_path(from: String, to: String) -> Result<(), String> {
     crate::core_api::rename_path(from, to)
+}
+
+/* ---------------------------- 安装 / 启动 / 市场 ---------------------------- */
+
+#[tauri::command]
+#[specta::specta]
+pub async fn install_version(
+    mc_version: String,
+    loader: String,
+    loader_version: Option<String>,
+) -> Result<InstallResult, String> {
+    core_api::install_version(mc_version, loader, loader_version).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn install_instance(id: String) -> Result<InstallResult, String> {
+    core_api::install_instance(id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_instance_loader(
+    id: String,
+    loader: String,
+    loader_version: Option<String>,
+) -> Result<InstallResult, String> {
+    core_api::set_instance_loader(id, loader, loader_version).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn launch_instance(id: String) -> Result<LaunchOutcome, String> {
+    core_api::launch_instance(id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn kill_instance(id: String) -> bool {
+    core_api::kill_instance(id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn running_instances() -> Result<Vec<RunningGame>, String> {
+    core_api::running_instances()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn export_launch_script(id: String) -> Result<String, String> {
+    core_api::export_launch_script(id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn backup_world(instance_id: String, file_name: String) -> Result<String, String> {
+    core_api::backup_world(instance_id, file_name)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn authlib_login(
+    server_id: String,
+    username: String,
+    password: String,
+) -> Result<StoredAccount, String> {
+    core_api::authlib_login(server_id, username, password).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn authlib_refresh(account_id: String) -> Result<StoredAccount, String> {
+    core_api::authlib_refresh(account_id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn install_resource(
+    instance_id: String,
+    kind: String,
+    url: String,
+    file_name: String,
+    sha1: Option<String>,
+) -> Result<LocalContentItem, String> {
+    core_api::install_resource(instance_id, kind, url, file_name, sha1).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn check_mod_updates(instance_id: String) -> Result<Vec<ModUpdate>, String> {
+    core_api::check_mod_updates(instance_id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn install_mod_api(
+    instance_id: String,
+    api: String,
+    mc_version: String,
+    version: Option<String>,
+) -> Result<LocalContentItem, String> {
+    core_api::install_mod_api(instance_id, api, mc_version, version).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn export_modpack(instance_id: String) -> Result<String, String> {
+    core_api::export_modpack(instance_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn import_modpack(source: String, name: Option<String>) -> Result<ModpackImportResult, String> {
+    core_api::import_modpack(source, name).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn install_java(major: u32) -> Result<JavaInstallResult, String> {
+    core_api::install_java(major).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn probe_java(path: String) -> Result<JavaRuntime, String> {
+    core_api::probe_java(path)
 }
 
 /* ------------------------------ 窗口命令 ------------------------------ */

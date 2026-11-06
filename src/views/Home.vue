@@ -9,6 +9,7 @@ import { computed, ref } from 'vue'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import { promptDialog } from '../lib/dialog'
+import { call } from '../lib/bridge'
 import AlxIcon from '../components/AlxIcon.vue'
 import MicrosoftLoginModal from '../components/MicrosoftLoginModal.vue'
 
@@ -90,9 +91,42 @@ async function handleLaunch() {
   }
 }
 
-/** 第三方登录：外置登录服务器（如 LittleSkin）接入前提示。 */
-function handleThirdLogin() {
-  toast.info(`${thirdLabel.value} 登录尚未接入内核，请使用离线或微软登录。`)
+/** 第三方登录：用已添加的认证服务器（默认第一个）完成外置鉴权。 */
+async function handleThirdLogin() {
+  if (store.authServers.length === 0) {
+    try {
+      await store.loadAuthServers()
+    } catch {
+      /* 列表加载失败时由下方提示 */
+    }
+  }
+  const server = store.authServers[0]
+  if (!server) {
+    toast.warning('还没有外置登录服务器，请先在账户页添加')
+    return
+  }
+  const input = await promptDialog({
+    title: `登录 ${server.name}`,
+    message: '使用该认证服务器的账号密码登录。',
+    fields: [
+      { key: 'username', label: '用户名', placeholder: '游戏账号' },
+      { key: 'password', label: '密码', placeholder: '账号密码' },
+    ],
+    confirmText: '登录',
+  })
+  if (!input) return
+  try {
+    await call('authlib_login', {
+      serverId: server.id,
+      username: input.username,
+      password: input.password,
+    })
+    await store.loadAccounts()
+    await store.restoreSession()
+    toast.success(`已使用 ${server.name} 账号登录`)
+  } catch (e) {
+    toast.error(`外置登录失败：${(e as Error).message}`)
+  }
 }
 
 /** 正版登录：先弹窗确认，再走设备码流（避免一点就跳浏览器）。 */

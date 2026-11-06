@@ -25,7 +25,7 @@ export const commands = {
 	authServerAdd: (name: string | null, url: string) => typedError<AuthServer, string>(__TAURI_INVOKE("auth_server_add", { name, url })),
 	authServerRemove: (id: string) => typedError<null, string>(__TAURI_INVOKE("auth_server_remove", { id })),
 	getInstances: () => typedError<GameInstance_Serialize[], string>(__TAURI_INVOKE("get_instances")),
-	createInstance: (name: string, version: string, loader: string | null) => typedError<GameInstance_Serialize, string>(__TAURI_INVOKE("create_instance", { name, version, loader })),
+	createInstance: (name: string, version: string, loader: string | null, loaderVersion: string | null) => typedError<GameInstance_Serialize, string>(__TAURI_INVOKE("create_instance", { name, version, loader, loaderVersion })),
 	deleteInstance: (id: string) => typedError<null, string>(__TAURI_INVOKE("delete_instance", { id })),
 	kvGet: (key: string) => __TAURI_INVOKE<string | null>("kv_get", { key }),
 	kvSet: (key: string, value: string) => typedError<null, string>(__TAURI_INVOKE("kv_set", { key, value })),
@@ -34,6 +34,7 @@ export const commands = {
 	saveConfig: (config: LauncherConfig_Deserialize) => typedError<null, string>(__TAURI_INVOKE("save_config", { config })),
 	scanJava: () => typedError<JavaRuntime[], string>(__TAURI_INVOKE("scan_java")),
 	requiredJava: (mcVersion: string) => __TAURI_INVOKE<number>("required_java", { mcVersion }),
+	probeJava: (path: string) => typedError<JavaRuntime, string>(__TAURI_INVOKE("probe_java", { path })),
 	getInstanceDir: (id: string) => typedError<string, string>(__TAURI_INVOKE("get_instance_dir", { id })),
 	listContent: (instanceId: string, kind: string) => typedError<LocalContentItem[], string>(__TAURI_INVOKE("list_content", { instanceId, kind })),
 	setContentEnabled: (instanceId: string, kind: string, fileName: string, enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_content_enabled", { instanceId, kind, fileName, enabled })),
@@ -42,6 +43,22 @@ export const commands = {
 	readText: (path: string) => typedError<string | null, string>(__TAURI_INVOKE("read_text", { path })),
 	deletePath: (path: string) => typedError<null, string>(__TAURI_INVOKE("delete_path", { path })),
 	renamePath: (from: string, to: string) => typedError<null, string>(__TAURI_INVOKE("rename_path", { from, to })),
+	installVersion: (mcVersion: string, loader: string, loaderVersion: string | null) => typedError<InstallResult, string>(__TAURI_INVOKE("install_version", { mcVersion, loader, loaderVersion })),
+	installInstance: (id: string) => typedError<InstallResult, string>(__TAURI_INVOKE("install_instance", { id })),
+	setInstanceLoader: (id: string, loader: string, loaderVersion: string | null) => typedError<InstallResult, string>(__TAURI_INVOKE("set_instance_loader", { id, loader, loaderVersion })),
+	launchInstance: (id: string) => typedError<LaunchOutcome, string>(__TAURI_INVOKE("launch_instance", { id })),
+	killInstance: (id: string) => __TAURI_INVOKE<boolean>("kill_instance", { id }),
+	runningInstances: () => typedError<RunningGame[], string>(__TAURI_INVOKE("running_instances")),
+	exportLaunchScript: (id: string) => typedError<string, string>(__TAURI_INVOKE("export_launch_script", { id })),
+	backupWorld: (instanceId: string, fileName: string) => typedError<string, string>(__TAURI_INVOKE("backup_world", { instanceId, fileName })),
+	authlibLogin: (serverId: string, username: string, password: string) => typedError<StoredAccount, string>(__TAURI_INVOKE("authlib_login", { serverId, username, password })),
+	authlibRefresh: (accountId: string) => typedError<StoredAccount, string>(__TAURI_INVOKE("authlib_refresh", { accountId })),
+	installResource: (instanceId: string, kind: string, url: string, fileName: string, sha1: string | null) => typedError<LocalContentItem, string>(__TAURI_INVOKE("install_resource", { instanceId, kind, url, fileName, sha1 })),
+	checkModUpdates: (instanceId: string) => typedError<ModUpdate[], string>(__TAURI_INVOKE("check_mod_updates", { instanceId })),
+	installModApi: (instanceId: string, api: string, mcVersion: string, version: string | null) => typedError<LocalContentItem, string>(__TAURI_INVOKE("install_mod_api", { instanceId, api, mcVersion, version })),
+	exportModpack: (instanceId: string) => typedError<string, string>(__TAURI_INVOKE("export_modpack", { instanceId })),
+	importModpack: (source: string, name: string | null) => typedError<ModpackImportResult, string>(__TAURI_INVOKE("import_modpack", { source, name })),
+	installJava: (major: number) => typedError<JavaInstallResult, string>(__TAURI_INVOKE("install_java", { major })),
 	minimizeWindow: () => __TAURI_INVOKE<void>("minimize_window"),
 	closeWindow: () => __TAURI_INVOKE<void>("close_window"),
 	openExternal: (url: string) => typedError<null, string>(__TAURI_INVOKE("open_external", { url })),
@@ -98,6 +115,8 @@ export type GameInstance_Deserialize = {
 	version: string,
 	loader: string,
 	loaderVersion?: string | null,
+	/**  实际安装的版本目录名 */
+	versionId?: string | null,
 	icon?: string | null,
 	createdAt: string,
 	lastPlayedAt?: string | null,
@@ -112,6 +131,8 @@ export type GameInstance_Serialize = {
 	version: string,
 	loader: string,
 	loaderVersion?: string,
+	/**  实际安装的版本目录名 */
+	versionId?: string,
 	icon?: string,
 	createdAt: string,
 	lastPlayedAt?: string,
@@ -188,6 +209,60 @@ export type LocalContentItem = {
 	version?: string,
 	description?: string,
 	loader?: string,
+	/**  存档游戏模式（仅 saves） */
+	worldGameMode?: string,
+	/**  存档难度（仅 saves） */
+	worldDifficulty?: string,
+	/**  存档版本（仅 saves） */
+	worldVersion?: string,
+};
+
+/**  版本安装结果。 */
+export type InstallResult = {
+	versionId: string,
+	mcVersion: string,
+	loader: string,
+	loaderVersion?: string,
+	/**  安装的文件数 */
+	files: number,
+};
+
+/**  启动结果。 */
+export type LaunchOutcome = {
+	pid: number,
+	versionId: string,
+};
+
+/**  正在运行的实例。 */
+export type RunningGame = {
+	instanceId: string,
+	pid: number,
+};
+
+/**  一条可用的 Mod 更新。 */
+export type ModUpdate = {
+	fileName: string,
+	projectId: string,
+	projectTitle: string,
+	currentVersion: string,
+	latestVersion: string,
+	downloadUrl: string,
+	newFileName: string,
+	sha1?: string,
+	fileSize: number,
+	changelog?: string,
+};
+
+/**  整合包导入结果。 */
+export type ModpackImportResult = {
+	instance: GameInstance_Serialize,
+	files: number,
+};
+
+/**  在线安装 Java 的结果。 */
+export type JavaInstallResult = {
+	runtime: JavaRuntime,
+	installDir: string,
 };
 
 /**  运行环境信息。 */

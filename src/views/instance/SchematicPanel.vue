@@ -1,14 +1,15 @@
 <script setup lang="ts">
 /**
  * 原理图管理（参考 HMCL 的原理图页）：
- * 搜索 + 工具行 + 原理图列表（尺寸 / 方块数 / 文件格式）。
+ * 搜索 + 工具行 + 原理图列表（尺寸 / 文件格式）。
  *
- * 本地清单尚未接入内核目录列举（同 ModPanel，读不到时用演示数据撑起界面）。
+ * 数据来自内核 `content.list`（schematics），尺寸由 NBT 解析得到。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
+import { call } from '../../lib/bridge'
 import { toast } from '../../lib/toast'
-import type { GameInstance } from '../../lib/types'
+import type { GameInstance, LocalContentItem } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxModal from '../../components/AlxModal.vue'
 import AlxSearchBar from '../../components/AlxSearchBar.vue'
@@ -19,37 +20,35 @@ const props = defineProps<{ instance: GameInstance }>()
 
 const store = useAppStore()
 
-interface SchematicEntry {
-  id: string
-  name: string
-  desc: string
-  format: string
-}
-
-/** 演示原理图（本地清单为空时撑起界面；刷新时重新取一份）。 */
-function demoSchematics(): SchematicEntry[] {
-  return [
-    { id: 's0', name: '小型农舍', desc: '12×9×10 · 1,204 方块', format: '.litematic' },
-    { id: 's1', name: '刷怪塔', desc: '9×9×24 · 1,860 方块', format: '.schematic' },
-    { id: 's2', name: '红石电梯', desc: '5×5×18 · 412 方块', format: '.litematic' },
-    { id: 's3', name: '城堡主塔', desc: '24×24×48 · 15,320 方块', format: '.schematic' },
-  ]
-}
-
-const schematics = ref<SchematicEntry[]>(demoSchematics())
-
+const schematics = ref<LocalContentItem[]>([])
 const query = ref('')
 /** 待移除原理图（移除走弹窗确认）。 */
-const removeTarget = ref<SchematicEntry | null>(null)
+const removeTarget = ref<LocalContentItem | null>(null)
+const loading = ref(false)
+
+async function load() {
+  loading.value = true
+  try {
+    schematics.value = await call<LocalContentItem[]>('list_content', {
+      instanceId: props.instance.id,
+      kind: 'schematics',
+    })
+  } catch (e) {
+    toast.warning(`读取原理图列表失败：${(e as Error).message}`)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(load)
 
 // 侧栏「刷新」：重新载入原理图清单并清空搜索。
 watch(
   () => store.instanceReloads.schematic ?? 0,
   (tick) => {
     if (!tick) return
-    schematics.value = demoSchematics()
     query.value = ''
-    toast.success('原理图列表已重新加载')
+    void load().then(() => toast.success('原理图列表已重新加载'))
   },
 )
 
@@ -57,9 +56,18 @@ watch(
 const rows = computed(() => {
   const keyword = query.value.trim().toLowerCase()
   return schematics.value.filter(
-    (s) => !keyword || s.name.toLowerCase().includes(keyword) || s.format.toLowerCase().includes(keyword),
+    (s) =>
+      !keyword ||
+      s.name.toLowerCase().includes(keyword) ||
+      s.fileName.toLowerCase().includes(keyword),
   )
 })
+
+/** 文件格式（取扩展名）。 */
+function formatOf(item: LocalContentItem): string {
+  const idx = item.fileName.lastIndexOf('.')
+  return idx >= 0 ? item.fileName.slice(idx) : '未知'
+}
 
 /** 打开实例的 schematics 目录。 */
 async function openSchematicFolder() {
@@ -81,19 +89,37 @@ async function importSchematic() {
     })
     const files = Array.isArray(picked) ? picked : picked ? [picked] : []
     if (files.length === 0) return
-    toast.info(`已选择 ${files.length} 个原理图，请放入 schematics 文件夹`)
+    for (const path of files) {
+      await call('import_content', {
+        instanceId: props.instance.id,
+        kind: 'schematics',
+        source: path,
+      })
+    }
+    await load()
+    toast.success(`已导入 ${files.length} 个原理图`)
   } catch (e) {
-    toast.warning(`选择文件失败：${(e as Error).message}`)
+    toast.warning(`导入原理图失败：${(e as Error).message}`)
   }
 }
 
-/** 确认移除原理图（仅移出列表的占位实现，不删除磁盘文件）。 */
-function confirmRemove() {
+/** 确认移除原理图（内核删除磁盘文件）。 */
+async function confirmRemove() {
   const target = removeTarget.value
   if (!target) return
-  schematics.value = schematics.value.filter((s) => s.id !== target.id)
-  removeTarget.value = null
-  toast.success(`已移除原理图「${target.name}」（未删除本地文件）`)
+  try {
+    await call('delete_content', {
+      instanceId: props.instance.id,
+      kind: 'schematics',
+      fileName: target.fileName,
+    })
+    schematics.value = schematics.value.filter((s) => s.path !== target.path)
+    toast.success(`已移除原理图「${target.name}」`)
+  } catch (e) {
+    toast.error(`删除失败：${(e as Error).message}`)
+  } finally {
+    removeTarget.value = null
+  }
 }
 </script>
 
@@ -111,19 +137,19 @@ function confirmRemove() {
   <SettingGroup title="原理图列表" :collapsible="false" :extra="`共 ${schematics.length} 个`">
     <div v-if="rows.length === 0" class="empty-state">
       <AlxIcon name="grid" :size="32" />
-      <span>没有符合条件的原理图</span>
+      <span>{{ loading ? '正在读取原理图…' : '还没有原理图，导入后出现在这里' }}</span>
     </div>
     <template v-else>
-      <div v-for="s in rows" :key="s.id" class="list-item">
+      <div v-for="s in rows" :key="s.path" class="list-item">
         <div class="item-left">
           <div class="item-icon"><AlxIcon name="grid" :size="20" /></div>
           <div class="item-info">
             <div class="item-title">{{ s.name }}</div>
-            <div class="item-desc">{{ s.desc }}</div>
+            <div class="item-desc">{{ s.description ?? '未解析到尺寸信息' }}</div>
           </div>
         </div>
         <div class="item-right">
-          <span class="item-meta">{{ s.format }}</span>
+          <span class="item-meta">{{ formatOf(s) }}</span>
           <button type="button" class="icon-btn" title="移除" @click="removeTarget = s">
             <AlxIcon name="trash" :size="16" />
           </button>

@@ -16,17 +16,25 @@ import type {
   Announcement,
   AppModuleKey,
   AuthServer,
+  CoreEvent,
   DeviceFlowState,
   DownloadManagerState,
   DownloadTaskState,
   GameInstance,
+  InstallResult,
   InstanceTab,
+  JavaInstallResult,
+  LaunchOutcome,
   LaunchResult,
+  LocalContentItem,
+  ModUpdate,
+  ModpackImportResult,
   ResourceDetailData,
   ResourceKind,
   ResourceProject,
   ResourceQuery,
   ResourceVersion,
+  RunningGame,
   Session,
   Settings,
   StoredAccount,
@@ -224,6 +232,9 @@ export const useAppStore = defineStore('app', () => {
     finished: true,
   })
 
+  /** 正在运行的游戏进程（内核 running_instances 的缓存）。 */
+  const runningInstances = ref<RunningGame[]>([])
+
   /* --------------------------------- 联机 --------------------------------- */
   interface Server {
     id: string
@@ -293,6 +304,59 @@ export const useAppStore = defineStore('app', () => {
     if (theme.value === 'system') applyTheme('system', false)
   })
 
+  /* --------------------------- 内核事件订阅 --------------------------- */
+
+  /** 重新计算下载状态计数（任务页 / 首页进度共用）。 */
+  function recomputeDownloadState() {
+    const ds = downloadState.value
+    const tasks = ds.tasks
+    ds.active = tasks.filter((t) => t.status === 'downloading').length
+    ds.done = tasks.filter((t) => t.status === 'done').length
+    ds.failed = tasks.filter((t) => t.status === 'failed').length
+    ds.pending = tasks.filter((t) => t.status === 'pending').length
+    ds.finished = tasks.length > 0 && ds.pending === 0 && ds.active === 0
+  }
+
+  /** 内核下载进度 → 任务列表（同 taskId 覆盖，未知则追加）。 */
+  function upsertDownloadTask(ev: Extract<CoreEvent, { type: 'DownloadProgress' }>) {
+    const ds = downloadState.value
+    const tasks = ds.tasks.slice()
+    const idx = tasks.findIndex((t) => t.id === ev.taskId)
+    const next: DownloadTaskState = {
+      id: ev.taskId,
+      name: ev.name,
+      url: '',
+      received: ev.received,
+      total: ev.total,
+      status: 'downloading',
+    }
+    if (idx >= 0) tasks[idx] = { ...tasks[idx], ...next, url: tasks[idx].url }
+    else tasks.push(next)
+    downloadState.value = { ...ds, tasks }
+    recomputeDownloadState()
+  }
+
+  /** 订阅内核事件（下载进度 / 游戏日志 / 提示）。 */
+  async function subscribeCoreEvents() {
+    if (!isTauri) return
+    try {
+      const { listen } = await import('@tauri-apps/api/event')
+      await listen<CoreEvent>('core-event', (event) => {
+        const ev = event.payload
+        if (ev.type === 'DownloadProgress') {
+          upsertDownloadTask(ev)
+        } else if (ev.type === 'Log') {
+          pushLaunchLog(ev.line)
+        } else if (ev.type === 'Message') {
+          pushLaunchLog(`[${ev.level}] ${ev.text}`)
+          if (ev.level === 'error') toast.error(ev.text)
+        }
+      })
+    } catch {
+      /* 浏览器预览环境没有 Tauri 事件总线 */
+    }
+  }
+
   async function init() {
     const savedTheme = await kvGet('theme')
     applyTheme(
@@ -301,6 +365,9 @@ export const useAppStore = defineStore('app', () => {
     )
     initError.value = null
     browserMode.value = !('__TAURI_INTERNALS__' in window)
+
+    // 内核事件订阅（下载进度 / 启动日志），失败不影响启动
+    void subscribeCoreEvents()
 
     // 版本信息：启动器版本来自 Tauri 运行时，内核版本来自内核命令
     try {
@@ -403,8 +470,18 @@ export const useAppStore = defineStore('app', () => {
     instances.value = list ?? []
   }
 
-  async function createInstance(name: string, version: string, loader?: string): Promise<GameInstance> {
-    const inst = await call<GameInstance>('create_instance', { name, version, loader: loader ?? null })
+  async function createInstance(
+    name: string,
+    version: string,
+    loader?: string,
+    loaderVersion?: string,
+  ): Promise<GameInstance> {
+    const inst = await call<GameInstance>('create_instance', {
+      name,
+      version,
+      loader: loader ?? null,
+      loaderVersion: loaderVersion ?? null,
+    })
     instances.value = [...instances.value, inst]
     return inst
   }
@@ -414,117 +491,111 @@ export const useAppStore = defineStore('app', () => {
     instances.value = instances.value.filter((i) => i.id !== id)
   }
 
-  /** 启动实例（进程拉起属内核 launch 模块，接入前给出明确提示）。 */
+  /** 启动实例：内核拉起进程并回传 pid，日志经 core-event 流入任务页。 */
   async function launchInstance(id: string): Promise<LaunchResult | null> {
     const inst = instances.value.find((i) => i.id === id)
     if (!inst) return null
-    // TODO: 内核 launch 模块就绪后改为 call('launch_instance', { id })
-    return { ok: false, error: `启动功能尚未接入内核（${inst.name}）。请等待 aelux-core launch 模块。` }
+    pushLaunchLog(`正在启动 ${inst.name}…`)
+    try {
+      const outcome = await call<LaunchOutcome>('launch_instance', { id })
+      runningInstances.value = [
+        ...runningInstances.value.filter((r) => r.instanceId !== id),
+        { instanceId: id, pid: outcome.pid },
+      ]
+      // 内核回写游玩时长，刷新列表让首页显示最新状态
+      void refreshInstances().catch(() => {})
+      return { ok: true, pid: outcome.pid }
+    } catch (e) {
+      const message = (e as Error).message
+      pushLaunchLog(`启动失败：${message}`)
+      return { ok: false, error: message }
+    }
+  }
+
+  /** 结束实例进程。 */
+  async function killInstance(id: string): Promise<boolean> {
+    try {
+      const ok = await call<boolean>('kill_instance', { id })
+      if (ok) {
+        runningInstances.value = runningInstances.value.filter((r) => r.instanceId !== id)
+        pushLaunchLog('已请求结束游戏进程')
+      }
+      return ok
+    } catch (e) {
+      toast.error(`结束进程失败：${(e as Error).message}`)
+      return false
+    }
+  }
+
+  /** 刷新运行中列表（任务页进入时调用）。 */
+  async function refreshRunningInstances() {
+    try {
+      runningInstances.value = await call<RunningGame[]>('running_instances')
+    } catch {
+      runningInstances.value = []
+    }
   }
 
   /* ------------------------------- 安装版本 ------------------------------- */
 
   /**
-   * 安装版本：版本 JSON → 客户端 jar → 依赖库 → 资源索引 → 资源对象。
-   * 进度写入 downloadState，任务管理页实时可见。
-   * meta 用于登记实例：name 为包名（如 `1.21.4-Forge_54.1.17`），loader 为加载器标识。
+   * 安装版本（全部交给内核安装器）：
+   *   1. 建立实例（记录加载器与加载器版本）
+   *   2. `install_instance` 下载版本 JSON / 客户端 / 依赖库 / 资源并解压 natives
+   *   3. 可选安装前置 API（Fabric API / QSL）
+   * 进度经 `core-event` 实时写入 downloadState，任务管理页可见。
    */
-  async function installVersion(id: string, meta?: { name?: string; loader?: string }) {
+  async function installVersion(
+    id: string,
+    meta?: {
+      name?: string
+      loader?: string
+      loaderVersion?: string
+      modApi?: { api: 'fabric-api' | 'qsl'; version?: string }
+    },
+  ) {
     if (installing.value) return
     installing.value = id
     installError.value = null
-    const tasks: DownloadTaskState[] = []
-    const ds = downloadState.value
-
-    const reset = () => {
-      ds.tasks = tasks
-      ds.done = tasks.filter((t) => t.status === 'done').length
-      ds.failed = tasks.filter((t) => t.status === 'failed').length
-      ds.pending = tasks.filter((t) => t.status === 'pending').length
-      ds.active = tasks.filter((t) => t.status === 'downloading').length
-      ds.finished = ds.pending === 0 && ds.active === 0
-    }
-
-    const addTask = (t: Omit<DownloadTaskState, 'status'>): DownloadTaskState => {
-      const task: DownloadTaskState = { ...t, status: 'pending' }
-      tasks.push(task)
-      reset()
-      return task
+    downloadState.value = {
+      tasks: [],
+      active: 0,
+      done: 0,
+      failed: 0,
+      pending: 0,
+      finished: false,
     }
 
     try {
-      // 1. 版本 JSON
-      const entry = versions.value.find((v) => v.id === id)
-      if (!entry) throw new Error('版本不存在')
-      const rawJson = await call<string>('fetch_json', { url: entry.url })
-      const verJson = JSON.parse(rawJson) as VersionJson
-
-      const tJson = addTask({ id: `${id}-json`, name: `${id}.json`, url: entry.url, received: 0, total: 0 })
-      tJson.status = 'downloading'
-      await call('write_text', { path: `minecraft/versions/${id}/${id}.json`, content: rawJson })
-      tJson.status = 'done'
-      reset()
-
-      // 2. 客户端 jar
-      const client = verJson.downloads?.client
-      if (client) {
-        const t = addTask({
-          id: `${id}-client`,
-          name: `${id}.jar`,
-          url: client.url,
-          received: 0,
-          total: client.size,
+      const loader = meta?.loader ?? 'vanilla'
+      const inst = await createInstance(
+        meta?.name?.trim() || id,
+        id,
+        loader,
+        meta?.loaderVersion,
+      )
+      await call<InstallResult>('install_instance', { id: inst.id })
+      if (meta?.modApi) {
+        await call('install_mod_api', {
+          instanceId: inst.id,
+          api: meta.modApi.api,
+          mcVersion: id,
+          version: meta.modApi.version ?? null,
         })
-        await runTask(t, { url: client.url, dest: `minecraft/versions/${id}/${id}.jar`, sha1: client.sha1 })
-        reset()
       }
-
-      // 3. 依赖库（os rules 不匹配的跳过）
-      const libItems: Array<{ task: DownloadTaskState; input: TaskInput }> = []
-      for (const lib of verJson.libraries ?? []) {
-        if (!rulesAllow(lib.rules)) continue
-        const artifact = lib.downloads?.artifact
-        if (artifact) {
-          libItems.push({
-            task: addTask({
-              id: `lib-${artifact.path}`,
-              name: artifact.path.split('/').pop() ?? artifact.path,
-              url: artifact.url,
-              received: 0,
-              total: artifact.size,
-            }),
-            input: { url: artifact.url, dest: `minecraft/libraries/${artifact.path}`, sha1: artifact.sha1 },
-          })
-        }
+      downloadState.value = {
+        ...downloadState.value,
+        tasks: downloadState.value.tasks.map((t) =>
+          t.status === 'downloading' ? { ...t, status: 'done' as const } : t,
+        ),
       }
-      await runPool(libItems, 8)
-      reset()
-
-      // 4. 资源索引 + 资源对象
-      if (verJson.assetIndex) {
-        const indexId = verJson.assetIndex.id
-        const indexRaw = await call<string>('fetch_json', { url: verJson.assetIndex.url })
-        await call('write_text', { path: `minecraft/assets/indexes/${indexId}.json`, content: indexRaw })
-        const assets = JSON.parse(indexRaw) as { objects: Record<string, { hash: string; size: number }> }
-        const assetItems = Object.entries(assets.objects).map(([name, obj]) => {
-          const url = `https://resources.download.minecraft.net/${obj.hash.slice(0, 2)}/${obj.hash}`
-          return {
-            task: addTask({ id: `asset-${obj.hash}`, name, url, received: 0, total: obj.size }),
-            input: { url, dest: `minecraft/assets/objects/${obj.hash.slice(0, 2)}/${obj.hash}`, sha1: obj.hash },
-          }
-        })
-        await runPool(assetItems, 16)
-        reset()
-      }
-
-      if (ds.failed > 0) throw new Error(`${ds.failed} 个文件下载失败，安装未完成`)
-
-      // 5. 登记为实例，主页即可一键启动（包名 = 版本号-加载器_加载器版本）
-      await createInstance(meta?.name?.trim() || id, id, meta?.loader ?? 'vanilla')
+      recomputeDownloadState()
+      await refreshInstances()
     } catch (e) {
       installError.value = (e as Error).message
+      downloadState.value = { ...downloadState.value }
+      recomputeDownloadState()
     } finally {
-      reset()
       installing.value = null
     }
   }
@@ -696,23 +767,148 @@ export const useAppStore = defineStore('app', () => {
     await persistAddedFolders()
   }
 
-  /** 导入整合包（.mrpack）：内核整合包管线接入前提示。 */
-  async function importModpack(): Promise<void> {
+  /** 导入整合包（.mrpack / 自导出 ZIP）：内核创建实例并落盘内容。 */
+  async function importModpack(): Promise<GameInstance | null> {
+    if (installing.value) return null
+    let picked: string | null = null
     if (isTauri) {
       const { open } = await import('@tauri-apps/plugin-dialog')
-      const picked = await open({
+      const selected = await open({
         multiple: false,
         filters: [{ name: '整合包', extensions: ['mrpack', 'zip'] }],
       })
-      if (!picked) return
+      if (typeof selected !== 'string' || !selected) return null
+      picked = selected
+    } else {
+      toast.info('浏览器预览环境不支持导入整合包')
+      return null
     }
-    toast.info('整合包导入将在内核安装管线就绪后开放')
+
+    installing.value = picked
+    installError.value = null
+    try {
+      const result = await call<ModpackImportResult>('import_modpack', {
+        source: picked,
+        name: null,
+      })
+      instances.value = [...instances.value, result.instance]
+      toast.success(`整合包已导入：${result.instance.name}（${result.files} 个文件）`)
+      return result.instance
+    } catch (e) {
+      installError.value = (e as Error).message
+      toast.error(`导入整合包失败：${(e as Error).message}`)
+      return null
+    } finally {
+      installing.value = null
+    }
   }
 
-  interface TaskInput {
-    url: string
-    dest: string
-    sha1?: string
+  /* ----------------------------- 资源安装 / 更新 ----------------------------- */
+
+  /** 把 Modrinth 资源直接安装进实例目录（同名覆盖）。 */
+  async function installResource(
+    instanceId: string,
+    kind: string,
+    url: string,
+    fileName: string,
+    sha1?: string | null,
+  ): Promise<LocalContentItem | null> {
+    try {
+      const item = await call<LocalContentItem>('install_resource', {
+        instanceId,
+        kind,
+        url,
+        fileName,
+        sha1: sha1 ?? null,
+      })
+      toast.success(`已安装 ${item.name}`)
+      const TAB_BY_KIND: Record<string, string> = {
+        mods: 'mod',
+        resourcepacks: 'resourcepack',
+        shaderpacks: 'resourcepack',
+        saves: 'world',
+        schematics: 'schematic',
+      }
+      const tab = TAB_BY_KIND[kind]
+      if (tab) reloadInstanceTab(tab)
+      return item
+    } catch (e) {
+      toast.error(`安装失败：${(e as Error).message}`)
+      return null
+    }
+  }
+
+  /** 检查 Mod 更新（Modrinth 哈希反查）。 */
+  async function checkModUpdates(instanceId: string): Promise<ModUpdate[]> {
+    try {
+      return await call<ModUpdate[]>('check_mod_updates', { instanceId })
+    } catch (e) {
+      toast.error(`检查更新失败：${(e as Error).message}`)
+      return []
+    }
+  }
+
+  /** 应用单条 Mod 更新：下载新文件并删除旧文件。 */
+  async function applyModUpdate(instanceId: string, update: ModUpdate): Promise<boolean> {
+    try {
+      await call('install_resource', {
+        instanceId,
+        kind: 'mods',
+        url: update.downloadUrl,
+        fileName: update.newFileName,
+        sha1: update.sha1 ?? null,
+      })
+      if (update.newFileName !== update.fileName) {
+        await call('delete_content', {
+          instanceId,
+          kind: 'mods',
+          fileName: update.fileName,
+        })
+      }
+      toast.success(`已更新 ${update.projectTitle} → ${update.latestVersion}`)
+      reloadInstanceTab('mod')
+      return true
+    } catch (e) {
+      toast.error(`更新 ${update.projectTitle} 失败：${(e as Error).message}`)
+      return false
+    }
+  }
+
+  /** 导出启动脚本（.bat / .sh），返回落盘路径。 */
+  async function exportLaunchScript(instanceId: string): Promise<string | null> {
+    try {
+      const path = await call<string>('export_launch_script', { id: instanceId })
+      toast.success(`启动脚本已导出：${path}`)
+      return path
+    } catch (e) {
+      toast.error(`导出启动脚本失败：${(e as Error).message}`)
+      return null
+    }
+  }
+
+  /** 导出整合包（ZIP 快照），返回落盘路径。 */
+  async function exportModpack(instanceId: string): Promise<string | null> {
+    try {
+      const path = await call<string>('export_modpack', { instanceId })
+      toast.success(`整合包已导出：${path}`)
+      return path
+    } catch (e) {
+      toast.error(`导出整合包失败：${(e as Error).message}`)
+      return null
+    }
+  }
+
+  /** 在线安装 Temurin JRE，并写回 javaPath 设置。 */
+  async function installJava(major: number): Promise<JavaInstallResult | null> {
+    try {
+      const result = await call<JavaInstallResult>('install_java', { major })
+      await saveSettings({ javaPath: result.runtime.path })
+      toast.success(`Java ${major} 已安装：${result.runtime.path}`)
+      return result
+    } catch (e) {
+      toast.error(`安装 Java 失败：${(e as Error).message}`)
+      return null
+    }
   }
 
   interface VersionJson {
@@ -725,38 +921,6 @@ export const useAppStore = defineStore('app', () => {
       rules?: Array<{ action: string; os?: { name?: string } }>
     }>
     assetIndex?: { id: string; url: string; size: number; sha1: string }
-  }
-
-  async function runTask(task: DownloadTaskState, input: TaskInput) {
-    task.status = 'downloading'
-    downloadState.value.active += 1
-    try {
-      await call('download_file', { url: input.url, dest: input.dest, sha1: input.sha1 ?? null })
-      task.status = 'done'
-    } catch (e) {
-      task.status = 'failed'
-      task.error = (e as Error).message
-    } finally {
-      downloadState.value.active -= 1
-      resetCounts()
-    }
-  }
-
-  function resetCounts() {
-    const ds = downloadState.value
-    ds.done = ds.tasks.filter((t) => t.status === 'done').length
-    ds.failed = ds.tasks.filter((t) => t.status === 'failed').length
-  }
-
-  async function runPool(items: Array<{ task: DownloadTaskState; input: TaskInput }>, concurrency: number) {
-    let idx = 0
-    const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-      while (idx < items.length) {
-        const item = items[idx++]
-        await runTask(item.task, item.input)
-      }
-    })
-    await Promise.all(workers)
   }
 
   /* --------------------------------- 会话 --------------------------------- */
@@ -929,11 +1093,37 @@ export const useAppStore = defineStore('app', () => {
     settings.value = raw
       ? { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) }
       : { ...DEFAULT_SETTINGS }
+    // 启动时把界面设置回写内核配置，保证内存 / Java 路径与界面一致
+    await saveSettings({})
   }
 
+  /**
+   * 保存设置：界面层写 kv（供各页面读取），同时把启动相关字段同步到内核
+   * `data/config/launcher.json` —— 启动器读取的是内核配置，不写这里会不生效。
+   */
   async function saveSettings(patch: Partial<Settings>) {
     settings.value = { ...settings.value, ...patch }
-    await call('kv_set', { key: 'settings', value: JSON.stringify(settings.value) })
+    const next = settings.value
+    await Promise.all([
+      call('kv_set', { key: 'settings', value: JSON.stringify(next) }),
+      call('save_config', {
+        config: {
+          theme: 'light',
+          language: 'zh-CN',
+          javaPath: next.javaPath,
+          memoryMinMb: Math.min(512, Math.max(128, next.memoryMb)),
+          memoryMaxMb: Math.max(512, next.memoryMb),
+          jvmArgs: [],
+          gameArgs: [],
+          gameWidth: 854,
+          gameHeight: 480,
+          downloadConcurrency: 8,
+          hideOnLaunch: false,
+        },
+      }).catch(() => {
+        /* 预览环境没有 save_config */
+      }),
+    ])
   }
 
   /* --------------------------------- 联机 --------------------------------- */
@@ -1373,6 +1563,9 @@ export const useAppStore = defineStore('app', () => {
     createInstance,
     deleteInstance,
     launchInstance,
+    killInstance,
+    runningInstances,
+    refreshRunningInstances,
     loadVersions,
     installVersion,
     saveVersionClient,
@@ -1389,10 +1582,17 @@ export const useAppStore = defineStore('app', () => {
     addGameFolder,
     removeGameFolder,
     importModpack,
+    installResource,
+    checkModUpdates,
+    applyModUpdate,
+    exportLaunchScript,
+    exportModpack,
+    installJava,
     restoreSession,
     accounts,
     loadAccounts,
     authServers,
+    loadAuthServers,
     addAuthServer,
     removeAuthServer,
     deviceFlow,
@@ -1449,23 +1649,4 @@ function subPath(p: SubPage): string {
 }
 
 /** MC os rules 求值（仅当前平台是否允许）。 */
-function rulesAllow(rules?: Array<{ action: string; os?: { name?: string } }>): boolean {
-  if (!rules || rules.length === 0) return true
-  const os = mapOs()
-  let allowed = false
-  for (const rule of rules) {
-    if (!rule.os || rule.os.name === os) {
-      if (rule.action === 'disallow' && rule.os?.name === os) return false
-      allowed = rule.action === 'allow'
-    }
-  }
-  return allowed
-}
-
-function mapOs(): string {
-  const ua = navigator.userAgent.toLowerCase()
-  if (ua.includes('win')) return 'windows'
-  if (ua.includes('mac')) return 'osx'
-  return 'linux'
-}
 

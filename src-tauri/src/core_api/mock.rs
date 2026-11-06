@@ -14,8 +14,10 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::dto::{
-    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, JavaRuntime, LatestVersions,
-    LauncherConfig, LocalContentItem, OsInfo, StoredAccount, VersionEntry, VersionManifest,
+    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, InstallResult,
+    JavaInstallResult, JavaRuntime, LaunchOutcome, LatestVersions, LauncherConfig,
+    LocalContentItem, ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount,
+    VersionEntry, VersionManifest,
 };
 
 use super::CoreError;
@@ -134,6 +136,7 @@ pub fn list_instances() -> Result<Vec<GameInstance>, CoreError> {
             version: "1.21.4".into(),
             loader: "vanilla".into(),
             loader_version: None,
+            version_id: Some("1.21.4".into()),
             icon: None,
             created_at: "2026-01-01T00:00:00Z".into(),
             last_played_at: Some("2026-01-02T00:00:00Z".into()),
@@ -145,6 +148,7 @@ pub fn list_instances() -> Result<Vec<GameInstance>, CoreError> {
             version: "1.20.1".into(),
             loader: "fabric".into(),
             loader_version: Some("0.16.0".into()),
+            version_id: Some("fabric-loader-0.16.0-1.20.1".into()),
             icon: None,
             created_at: "2025-12-01T00:00:00Z".into(),
             last_played_at: None,
@@ -153,13 +157,19 @@ pub fn list_instances() -> Result<Vec<GameInstance>, CoreError> {
     ])
 }
 
-pub fn create_instance(name: String, version: String, loader: Option<String>) -> Result<GameInstance, CoreError> {
+pub fn create_instance(
+    name: String,
+    version: String,
+    loader: Option<String>,
+    loader_version: Option<String>,
+) -> Result<GameInstance, CoreError> {
     Ok(GameInstance {
         id: format!("mock-{}", rand_suffix()),
         name,
-        version,
-        loader: loader.unwrap_or_else(|| "vanilla".into()),
-        loader_version: None,
+        version: version.clone(),
+        loader: loader.clone().unwrap_or_else(|| "vanilla".into()),
+        loader_version,
+        version_id: Some(version),
         icon: None,
         created_at: "2026-01-01T00:00:00Z".into(),
         last_played_at: None,
@@ -516,6 +526,211 @@ pub fn get_config() -> Result<LauncherConfig, CoreError> {
 
 pub fn save_config(_config: LauncherConfig) -> Result<(), CoreError> {
     Ok(())
+}
+
+/* ---------------------------- 安装 / 启动 / 市场 ---------------------------- */
+
+/// mock 安装结果：按命名规则拼出与内核一致的版本目录名。
+fn mock_install(mc_version: &str, loader: &str, loader_version: Option<&str>) -> InstallResult {
+    let version_id = match (loader, loader_version) {
+        ("vanilla", _) | ("", _) => mc_version.to_string(),
+        ("fabric", Some(v)) => format!("fabric-loader-{v}-{mc_version}"),
+        ("quilt", Some(v)) => format!("quilt-loader-{v}-{mc_version}"),
+        ("forge", Some(v)) => format!("{mc_version}-forge-{v}"),
+        ("neoforge", Some(v)) => format!("neoforge-{v}"),
+        (other, _) => format!("{other}-{mc_version}"),
+    };
+    InstallResult {
+        version_id,
+        mc_version: mc_version.to_string(),
+        loader: loader.to_string(),
+        loader_version: loader_version.map(str::to_string),
+        files: 128,
+    }
+}
+
+pub async fn install_version(
+    mc_version: String,
+    loader: String,
+    loader_version: Option<String>,
+) -> Result<InstallResult, CoreError> {
+    tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+    Ok(mock_install(&mc_version, &loader, loader_version.as_deref()))
+}
+
+pub async fn install_instance(id: String) -> Result<InstallResult, CoreError> {
+    tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+    Ok(mock_install("1.21.4", "vanilla", None).with_id(&id))
+}
+
+pub async fn set_instance_loader(
+    id: String,
+    loader: String,
+    loader_version: Option<String>,
+) -> Result<InstallResult, CoreError> {
+    let _ = id;
+    tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+    Ok(mock_install("1.21.4", &loader, loader_version.as_deref()))
+}
+
+impl InstallResult {
+    /// mock 专用：保留调用方实例 id 的版本目录名。
+    fn with_id(mut self, id: &str) -> Self {
+        self.version_id = id.to_string();
+        self
+    }
+}
+
+pub async fn launch_instance(_id: String) -> Result<LaunchOutcome, CoreError> {
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    Ok(LaunchOutcome {
+        pid: 4242,
+        version_id: "mock-launch".into(),
+    })
+}
+
+pub fn kill_instance(_id: String) -> bool {
+    true
+}
+
+pub fn running_instances() -> Result<Vec<RunningGame>, CoreError> {
+    Ok(Vec::new())
+}
+
+pub async fn export_launch_script(_id: String) -> Result<String, CoreError> {
+    Ok(format!("{}/mock-launch.bat", get_data_dir()))
+}
+
+pub fn backup_world(_instance_id: String, file_name: String) -> Result<String, CoreError> {
+    Ok(format!("backups/worlds/{file_name}-mock"))
+}
+
+pub async fn authlib_login(
+    server_id: String,
+    username: String,
+    _password: String,
+) -> Result<StoredAccount, CoreError> {
+    let uuid = offline_uuid(&username);
+    let account = StoredAccount {
+        id: uuid.clone(),
+        kind: "third".into(),
+        username: username.clone(),
+        uuid: uuid.clone(),
+        logged_in_at: now_secs(),
+    };
+    accounts_upsert(account.clone())?;
+    account_session_set(Some(AccountSession {
+        kind: "third".into(),
+        username,
+        uuid,
+    }))?;
+    let _ = server_id;
+    Ok(account)
+}
+
+pub async fn authlib_refresh(account_id: String) -> Result<StoredAccount, CoreError> {
+    auth_servers_list()?;
+    accounts_list()?
+        .into_iter()
+        .find(|a| a.id == account_id)
+        .ok_or_else(|| "账户不存在".to_string())
+}
+
+pub async fn install_resource(
+    _instance_id: String,
+    kind: String,
+    _url: String,
+    file_name: String,
+    _sha1: Option<String>,
+) -> Result<LocalContentItem, CoreError> {
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    Ok(LocalContentItem {
+        file_name: file_name.clone(),
+        path: format!("{kind}/{file_name}"),
+        kind,
+        name: file_name,
+        enabled: true,
+        size_bytes: 1024,
+        modified_secs: 0,
+        version: Some("mock-1.0".into()),
+        description: None,
+        loader: None,
+        world_game_mode: None,
+        world_difficulty: None,
+        world_version: None,
+    })
+}
+
+pub async fn check_mod_updates(_instance_id: String) -> Result<Vec<ModUpdate>, CoreError> {
+    Ok(Vec::new())
+}
+
+pub async fn install_mod_api(
+    _instance_id: String,
+    api: String,
+    _mc_version: String,
+    _version: Option<String>,
+) -> Result<LocalContentItem, CoreError> {
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let file_name = format!("{api}-mock.jar");
+    Ok(LocalContentItem {
+        file_name: file_name.clone(),
+        path: format!("mods/{file_name}"),
+        kind: "mods".into(),
+        name: api,
+        enabled: true,
+        size_bytes: 1024,
+        modified_secs: 0,
+        version: Some("mock-1.0".into()),
+        description: None,
+        loader: None,
+        world_game_mode: None,
+        world_difficulty: None,
+        world_version: None,
+    })
+}
+
+pub fn export_modpack(_instance_id: String) -> Result<String, CoreError> {
+    Ok(format!("{}/mock-modpack.zip", get_data_dir()))
+}
+
+pub async fn import_modpack(
+    source: String,
+    name: Option<String>,
+) -> Result<ModpackImportResult, CoreError> {
+    tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+    let instance = create_instance(
+        name.unwrap_or_else(|| "导入的整合包".into()),
+        "1.21.4".into(),
+        Some("fabric".into()),
+        Some("0.16.0".into()),
+    )?;
+    let _ = source;
+    Ok(ModpackImportResult { instance, files: 42 })
+}
+
+pub async fn install_java(major: u32) -> Result<JavaInstallResult, CoreError> {
+    tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+    Ok(JavaInstallResult {
+        runtime: JavaRuntime {
+            path: format!("{}/java/mock-{major}/bin/java.exe", get_data_dir()),
+            version: format!("{major}.0.mock"),
+            major,
+            vendor: "Temurin".into(),
+            arch: std::env::consts::ARCH.into(),
+        },
+        install_dir: format!("{}/java/mock-{major}", get_data_dir()),
+    })
+}
+
+pub fn probe_java(path: String) -> Result<JavaRuntime, CoreError> {
+    Ok(JavaRuntime {
+        path,
+        version: "21.0.mock".into(),
+        major: 21,
+        vendor: "Temurin".into(),
+        arch: std::env::consts::ARCH.into(),
+    })
 }
 
 fn rand_suffix() -> u32 {

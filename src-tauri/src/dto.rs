@@ -59,6 +59,9 @@ pub struct GameInstance {
     pub loader: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub loader_version: Option<String>,
+    /// 实际安装的版本目录名（加载器安装后可能与 `version` 不同）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     pub created_at: String,
@@ -189,4 +192,79 @@ pub struct LocalContentItem {
     pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub loader: Option<String>,
+    /// 存档游戏模式（仅 saves 有值）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_game_mode: Option<String>,
+    /// 存档难度（仅 saves 有值）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_difficulty: Option<String>,
+    /// 存档版本（仅 saves 有值）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_version: Option<String>,
+}
+
+/* ---------------------------- 安装 / 启动 / 市场 ---------------------------- */
+
+/// 版本安装结果。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallResult {
+    /// 版本目录名（启动时按此解析）
+    pub version_id: String,
+    pub mc_version: String,
+    pub loader: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loader_version: Option<String>,
+    /// 安装的文件数
+    pub files: u32,
+}
+
+/// 启动结果。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchOutcome {
+    pub pid: u32,
+    pub version_id: String,
+}
+
+/// 正在运行的实例。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RunningGame {
+    pub instance_id: String,
+    pub pid: u32,
+}
+
+/// 一条可用的 Mod 更新。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ModUpdate {
+    pub file_name: String,
+    pub project_id: String,
+    pub project_title: String,
+    pub current_version: String,
+    pub latest_version: String,
+    pub download_url: String,
+    pub new_file_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha1: Option<String>,
+    pub file_size: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changelog: Option<String>,
+}
+
+/// 整合包导入结果。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ModpackImportResult {
+    pub instance: GameInstance,
+    pub files: u32,
+}
+
+/// 在线安装 Java 的结果。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct JavaInstallResult {
+    pub runtime: JavaRuntime,
+    pub install_dir: String,
 }

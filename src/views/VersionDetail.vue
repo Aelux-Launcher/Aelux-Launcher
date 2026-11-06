@@ -221,10 +221,26 @@ function goBack() {
   store.pageBack()
 }
 
-/** 开始下载：安装原版核心后立即跳到下载状态页；结果在任务页可见。 */
+/** 开始下载：交给内核安装器（实例 + 版本文件 + 可选前置 API），结果在任务页可见。 */
 async function startDownload() {
-  const loader = primarySelection.value ?? (selectedVersions.value.optifine ? 'optifine' : 'vanilla')
-  const job = store.installVersion(props.versionId, { name: packageName.value, loader })
+  const primary = primarySelection.value
+  const loader = primary ?? (selectedVersions.value.optifine ? 'optifine' : 'vanilla')
+  const loaderVersion = primary
+    ? selectedVersions.value[primary]
+    : selectedVersions.value.optifine
+  const modApi =
+    (loader === 'fabric' || loader === 'quilt') && modApiSelection.value[loader]
+      ? {
+          api: modApiKey(loader),
+          version: modApiSelection.value[loader],
+        }
+      : undefined
+  const job = store.installVersion(props.versionId, {
+    name: packageName.value,
+    loader,
+    loaderVersion,
+    modApi,
+  })
   // 不等下载完成：先进下载状态页看进度，安装结束后再补一条反馈。
   store.openSubPage({ kind: 'tasks' })
   await job

@@ -61,7 +61,16 @@ function pct(t: DownloadTaskState): number {
 const speed = ref(0)
 let speedTimer: ReturnType<typeof setInterval> | null = null
 
+/** 运行中的游戏：实例名 + pid（内核运行表）。 */
+const runningRows = computed(() =>
+  store.runningInstances.map((r) => ({
+    ...r,
+    name: store.instances.find((i) => i.id === r.instanceId)?.name ?? r.instanceId,
+  })),
+)
+
 onMounted(() => {
+  void store.refreshRunningInstances()
   let lastReceived = receivedBytes.value
   let lastAt = performance.now()
   speedTimer = setInterval(() => {
@@ -144,6 +153,24 @@ const speedLabel = computed(() => (speed.value > 0 ? `${human(speed.value)}/s` :
         </div>
       </section>
     </div>
+
+    <template v-if="runningRows.length > 0">
+      <div class="section-title">运行中的游戏</div>
+      <div class="setting-group">
+        <div v-for="row in runningRows" :key="row.instanceId" class="list-item">
+          <div class="item-left">
+            <div class="item-icon"><AlxIcon name="play" :size="18" /></div>
+            <div class="item-info">
+              <div class="item-title">{{ row.name }}</div>
+              <div class="item-desc">进程 PID {{ row.pid }}</div>
+            </div>
+          </div>
+          <button type="button" class="btn-sub" @click="store.killInstance(row.instanceId)">
+            结束进程
+          </button>
+        </div>
+      </div>
+    </template>
 
     <div class="section-title">启动日志</div>
 
