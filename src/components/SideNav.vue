@@ -136,8 +136,8 @@ async function refreshCategory(key: string) {
   try {
     if (key === 'original') {
       await store.loadVersions()
-      if (store.versionsError) toast.error(`版本清单刷新失败：${store.versionsError}`)
-      else toast.success('版本清单已刷新')
+      if (store.versionsError) toast.error(`版本列表刷新失败：${store.versionsError}`)
+      else toast.success('版本列表已刷新')
     } else {
       // 社区资源：按当前筛选条件重查，页码归 0（等价 PCL 清 Storage + PageRestart）
       await store.searchResources()

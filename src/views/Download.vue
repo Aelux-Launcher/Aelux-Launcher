@@ -117,8 +117,8 @@ const GROUP_DEFS: Array<{ key: string; title: string; match: (v: { id: string; k
   },
 ]
 
-/** 折叠组展开状态（默认展开正式版，避免首屏空荡） */
-const expandedGroups = ref(new Set<string>(['release']))
+/** 折叠组展开状态（默认全部折叠，点击分组标题再展开） */
+const expandedGroups = ref(new Set<string>())
 
 function isGroupOpen(key: string): boolean {
   return expandedGroups.value.has(key)
@@ -380,14 +380,6 @@ function retrySearch() {
         >
           <button type="button" class="version-group-header" @click="toggleGroup(g.key)">
             <span class="version-group-title">
-              <img
-                v-if="versionIcon(g.key)"
-                :src="versionIcon(g.key) ?? undefined"
-                width="18"
-                height="18"
-                alt=""
-                class="version-group-icon"
-              />
               {{ g.title }}
               <span class="version-group-count">{{ g.items.length }}</span>
             </span>

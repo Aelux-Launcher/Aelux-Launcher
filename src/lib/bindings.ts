@@ -13,16 +13,16 @@ export const commands = {
 	loaderVersions: (loader: string, mcVersion: string) => typedError<string[], string>(__TAURI_INVOKE("loader_versions", { loader, mcVersion })),
 	modApiVersions: (api: string, mcVersion: string) => typedError<string[], string>(__TAURI_INVOKE("mod_api_versions", { api, mcVersion })),
 	authStartDeviceFlow: () => typedError<DeviceCodeSession, string>(__TAURI_INVOKE("auth_start_device_flow")),
-	authPollDeviceFlow: (session: DeviceCodeSession_Deserialize) => typedError<Account_Serialize, string>(__TAURI_INVOKE("auth_poll_device_flow", { session })),
+	authPollDeviceFlow: (session: DeviceCodeSession) => typedError<Account, string>(__TAURI_INVOKE("auth_poll_device_flow", { session })),
 	authLogout: (msaId: string) => typedError<null, string>(__TAURI_INVOKE("auth_logout", { msaId })),
-	accountsList: () => typedError<StoredAccount_Serialize[], string>(__TAURI_INVOKE("accounts_list")),
-	accountsUpsert: (account: StoredAccount_Deserialize) => typedError<null, string>(__TAURI_INVOKE("accounts_upsert", { account })),
+	accountsList: () => typedError<StoredAccount[], string>(__TAURI_INVOKE("accounts_list")),
+	accountsUpsert: (account: StoredAccount) => typedError<null, string>(__TAURI_INVOKE("accounts_upsert", { account })),
 	accountsRemove: (id: string) => typedError<null, string>(__TAURI_INVOKE("accounts_remove", { id })),
-	accountSessionGet: () => typedError<AccountSession_Serialize | null, string>(__TAURI_INVOKE("account_session_get")),
-	accountSessionSet: (session: AccountSession_Deserialize | null) => typedError<null, string>(__TAURI_INVOKE("account_session_set", { session })),
-	accountLoginOffline: (username: string) => typedError<StoredAccount_Serialize, string>(__TAURI_INVOKE("account_login_offline", { username })),
-	authServersList: () => typedError<AuthServer_Serialize[], string>(__TAURI_INVOKE("auth_servers_list")),
-	authServerAdd: (name: string | null, url: string) => typedError<AuthServer_Serialize, string>(__TAURI_INVOKE("auth_server_add", { name, url })),
+	accountSessionGet: () => typedError<AccountSession | null, string>(__TAURI_INVOKE("account_session_get")),
+	accountSessionSet: (session: AccountSession | null) => typedError<null, string>(__TAURI_INVOKE("account_session_set", { session })),
+	accountLoginOffline: (username: string) => typedError<StoredAccount, string>(__TAURI_INVOKE("account_login_offline", { username })),
+	authServersList: () => typedError<AuthServer[], string>(__TAURI_INVOKE("auth_servers_list")),
+	authServerAdd: (name: string | null, url: string) => typedError<AuthServer, string>(__TAURI_INVOKE("auth_server_add", { name, url })),
 	authServerRemove: (id: string) => typedError<null, string>(__TAURI_INVOKE("auth_server_remove", { id })),
 	getInstances: () => typedError<GameInstance_Serialize[], string>(__TAURI_INVOKE("get_instances")),
 	createInstance: (name: string, version: string, loader: string | null) => typedError<GameInstance_Serialize, string>(__TAURI_INVOKE("create_instance", { name, version, loader })),
@@ -45,38 +45,32 @@ export const commands = {
 
 /* Types */
 /**  已登录的微软 Minecraft 账户。 */
-export type Account = Account_Serialize | Account_Deserialize;
-
-/**  已登录的微软 Minecraft 账户。 */
-export type Account_Deserialize = {
+export type Account = {
+	/**  微软账户标识（XBL user hash，多账户主键） */
 	msaId: string,
 	username: string,
+	/**  Minecraft UUID（无横线） */
 	uuid: string,
+	/**  登录时间（Unix 秒，仅展示） */
 	loggedInAt: string,
 };
 
-/**  已登录的微软 Minecraft 账户。 */
-export type Account_Serialize = {
-	msaId: string,
+/**  当前登录会话。 */
+export type AccountSession = {
+	type: string,
 	username: string,
 	uuid: string,
-	loggedInAt: string,
+};
+
+/**  外置登录认证服务器（authlib-injector）。 */
+export type AuthServer = {
+	id: string,
+	name: string,
+	url: string,
 };
 
 /**  设备码登录会话（轮询时原样回传）。 */
-export type DeviceCodeSession = DeviceCodeSession_Serialize | DeviceCodeSession_Deserialize;
-
-/**  设备码登录会话（轮询时原样回传）。 */
-export type DeviceCodeSession_Deserialize = {
-	userCode: string,
-	verificationUri: string,
-	interval: number,
-	expiresIn: number,
-	deviceCode: string,
-};
-
-/**  设备码登录会话（轮询时原样回传）。 */
-export type DeviceCodeSession_Serialize = {
+export type DeviceCodeSession = {
 	userCode: string,
 	verificationUri: string,
 	interval: number,
@@ -170,6 +164,17 @@ export type OsInfo = {
 	arch: string,
 };
 
+/**  本地账户列表条目（微软 / 离线多账户并存）。 */
+export type StoredAccount = {
+	/**  微软账户为 msaId，离线账户为离线 UUID */
+	id: string,
+	type: string,
+	username: string,
+	uuid: string,
+	/**  登录时间（Unix 秒，仅展示） */
+	loggedInAt: string,
+};
+
 /**  Minecraft 版本清单里的一条版本。 */
 export type VersionEntry = VersionEntry_Serialize | VersionEntry_Deserialize;
 
@@ -206,65 +211,6 @@ export type VersionManifest_Deserialize = {
 export type VersionManifest_Serialize = {
 	latest: LatestVersions_Serialize,
 	versions: VersionEntry_Serialize[],
-};
-
-/**  当前登录会话。 */
-export type AccountSession = AccountSession_Serialize | AccountSession_Deserialize;
-
-/**  当前登录会话。 */
-export type AccountSession_Deserialize = {
-	type: string,
-	username: string,
-	uuid: string,
-};
-
-/**  当前登录会话。 */
-export type AccountSession_Serialize = {
-	type: string,
-	username: string,
-	uuid: string,
-};
-
-/**  外置登录认证服务器（authlib-injector）。 */
-export type AuthServer = AuthServer_Serialize | AuthServer_Deserialize;
-
-/**  外置登录认证服务器（authlib-injector）。 */
-export type AuthServer_Deserialize = {
-	id: string,
-	name: string,
-	url: string,
-};
-
-/**  外置登录认证服务器（authlib-injector）。 */
-export type AuthServer_Serialize = {
-	id: string,
-	name: string,
-	url: string,
-};
-
-/**  本地账户列表条目（微软 / 离线多账户并存）。 */
-export type StoredAccount = StoredAccount_Serialize | StoredAccount_Deserialize;
-
-/**  本地账户列表条目（微软 / 离线多账户并存）。 */
-export type StoredAccount_Deserialize = {
-	/**  微软账户为 msaId，离线账户为离线 UUID */
-	id: string,
-	type: string,
-	username: string,
-	uuid: string,
-	/**  登录时间（Unix 秒，仅展示） */
-	loggedInAt: string,
-};
-
-/**  本地账户列表条目（微软 / 离线多账户并存）。 */
-export type StoredAccount_Serialize = {
-	/**  微软账户为 msaId，离线账户为离线 UUID */
-	id: string,
-	type: string,
-	username: string,
-	uuid: string,
-	/**  登录时间（Unix 秒，仅展示） */
-	loggedInAt: string,
 };
 
 /* Tauri Specta runtime */
