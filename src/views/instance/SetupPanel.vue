@@ -323,12 +323,13 @@ watch(
   </div>
 
   <!-- ---------------------- 高级选项（手风琴） ---------------------- -->
-  <div class="accordion-item" :class="advanceOpen ? 'active' : ''" @click="advanceOpen = !advanceOpen">
-    <div class="accordion-header">
-      高级选项
-      <AlxIcon name="chevron-down" :size="16" />
-    </div>
-    <div class="accordion-content" style="color: var(--text-main)" @click.stop>
+  <div class="setting-group">
+    <div class="accordion-item" :class="advanceOpen ? 'active' : ''" @click="advanceOpen = !advanceOpen">
+      <div class="accordion-header">
+        高级选项
+        <AlxIcon name="chevron-down" :size="16" />
+      </div>
+      <div class="accordion-content" style="color: var(--text-main)" @click.stop>
       <div class="setting-row" style="padding-left: 0; padding-right: 0">
         <div class="setting-label">Java 虚拟机参数</div>
         <input
@@ -389,6 +390,7 @@ watch(
           <span style="font-size: 14px">使用高性能显卡</span>
           <AlxToggle :model-value="ui.highPerf !== false" @update:model-value="setUi({ highPerf: $event })" />
         </div>
+      </div>
       </div>
     </div>
   </div>

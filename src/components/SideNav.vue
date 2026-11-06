@@ -507,8 +507,8 @@ function selectFolder(f: StoredFolder) {
       </button>
     </div>
 
-    <!-- 底部账户区：只在启动页显示；其它页面的侧栏不占这块高度。 -->
-    <div v-else-if="sideModule === 'home'" class="account-section">
+    <!-- 底部账户区：只在启动页（无子页）显示；子页与其它模块的侧栏不占这块高度。 -->
+    <div v-else-if="sideModule === 'home' && !store.subPage" class="account-section">
       <div class="account-title">账户</div>
       <button type="button" class="account-card" @click="openAccounts">
         <div class="account-avatar">

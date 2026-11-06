@@ -509,6 +509,9 @@ svg {
  * 二级页面通用构件
  * ========================================================================== */
 .sub-page { padding: 32px 40px; }
+/* 版本设置页：父容器是 flex 列，卡片必须禁止收缩，
+   否则内容超过可视高度时卡片会被压扁（配合 overflow:hidden 直接裁掉内容）。 */
+.page-view.active.instance-page > * { flex-shrink: 0; }
 /* 设置页：父容器是 flex 列时卡片会被压缩，配合卡片的 overflow:hidden 会裁掉内容；
    禁止直接子元素收缩即可完整展示（仅限设置页，避免影响版本详情等自带滚动区的页面）。 */
 .page-view.active.settings-page > * { flex-shrink: 0; }
@@ -859,6 +862,15 @@ svg {
   padding: 0;
   font-size: 15px;
   font-weight: 700;
+}
+/* 直接写在卡片里的分节标题（不走 SettingGroup 组件头部时）：
+   自己补上左右与顶部留白，右侧可放计数等次要信息。 */
+.setting-group > .setting-group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 0;
 }
 .setting-chevron { flex: none; color: var(--text-sub); transition: transform 0.18s; }
 .setting-chevron.open { transform: rotate(180deg); }
@@ -1287,11 +1299,14 @@ svg {
   gap: 8px;
 }
 .panel-counter {
-  float: right;
+  margin-left: auto;
   font-weight: 400;
   font-size: 12px;
   color: var(--text-sub);
 }
+/* 面板卡片内的列表：左右留出与 setting-row 相同的视觉边距。 */
+.setting-group > .list-item { margin: 0 8px; }
+.setting-group > .list-item:last-child { margin-bottom: 8px; }
 .item-meta {
   font-size: 12px;
   color: var(--text-sub);

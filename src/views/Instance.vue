@@ -79,7 +79,7 @@ function setUi(p: InstanceUi) {
 </script>
 
 <template>
-  <div class="page-view active sub-page">
+  <div class="page-view active sub-page instance-page">
     <!-- 页头：标题（分类切换在左侧栏） -->
     <PageHeader :title="instance ? `版本设置 - ${instance.name}` : '版本设置'" />
 
