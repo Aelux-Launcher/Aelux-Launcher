@@ -44,6 +44,10 @@ export type UpdateChannel = 'release' | 'dev'
 export type AccentColorMode = 'default' | 'system' | 'custom' | 'wallpaper'
 /** 背景图片来源 */
 export type BackgroundMode = 'default' | 'builtin' | 'follow' | 'custom' | 'solid'
+/** 网络代理方式 */
+export type ProxyMode = 'system' | 'none' | 'http' | 'socks'
+/** 下载缓存目录来源 */
+export type CacheFolderMode = 'default' | 'custom'
 
 /** 界面层偏好（核心 Settings 暂未覆盖的字段）。 */
 export interface SettingsExtras {
@@ -75,6 +79,22 @@ export interface SettingsExtras {
   accentColorHex: string
   /** 背景图片来源 */
   backgroundMode: BackgroundMode
+  /** 下载缓存目录来源 */
+  cacheFolderMode: CacheFolderMode
+  /** 自定义缓存目录（cacheFolderMode 为 custom 时生效） */
+  cacheFolderPath: string
+  /** 网络代理方式 */
+  proxyMode: ProxyMode
+  /** 代理主机（HTTP / SOCKS） */
+  proxyHost: string
+  /** 代理端口（HTTP / SOCKS） */
+  proxyPort: string
+  /** 是否启用代理身份验证 */
+  proxyAuth: boolean
+  /** 代理账户 */
+  proxyUser: string
+  /** 代理密码 */
+  proxyPassword: string
   /** 最大并行下载线程数（1–256，默认 64） */
   maxParallel: number
   /** 文件下载源（游戏文件、资源等） */
@@ -139,6 +159,14 @@ const DEFAULT_EXTRAS: SettingsExtras = {
   accentColor: 'default',
   accentColorHex: '#111111',
   backgroundMode: 'default',
+  cacheFolderMode: 'default',
+  cacheFolderPath: '',
+  proxyMode: 'system',
+  proxyHost: '',
+  proxyPort: '0',
+  proxyAuth: false,
+  proxyUser: '',
+  proxyPassword: '',
   maxParallel: 64,
   fileSource: 'auto',
   versionSource: 'auto',
@@ -260,6 +288,8 @@ export const GC_MODE_VALUES = ['zgc', 'generational-zgc', 'g1', 'tuned-g1', 'non
 export const UPDATE_CHANNEL_VALUES = ['release', 'dev'] as const
 export const ACCENT_COLOR_VALUES = ['default', 'system', 'custom', 'wallpaper'] as const
 export const BACKGROUND_MODE_VALUES = ['default', 'builtin', 'follow', 'custom', 'solid'] as const
+export const PROXY_MODE_VALUES = ['system', 'none', 'http', 'socks'] as const
+export const CACHE_FOLDER_VALUES = ['default', 'custom'] as const
 
 export const GC_MODE_OPTIONS: Array<{ value: GcMode; label: string }> = [
   { value: 'zgc', label: '尽量使用 ZGC' },
@@ -351,6 +381,14 @@ export function readExtras(raw: unknown): SettingsExtras {
   out.updateChannel = pick(obj.updateChannel, UPDATE_CHANNEL_VALUES, out.updateChannel)
   out.accentColor = pick(obj.accentColor, ACCENT_COLOR_VALUES, out.accentColor)
   out.backgroundMode = pick(obj.backgroundMode, BACKGROUND_MODE_VALUES, out.backgroundMode)
+  out.cacheFolderMode = pick(obj.cacheFolderMode, CACHE_FOLDER_VALUES, out.cacheFolderMode)
+  out.proxyMode = pick(obj.proxyMode, PROXY_MODE_VALUES, out.proxyMode)
+  if (typeof obj.cacheFolderPath === 'string') out.cacheFolderPath = obj.cacheFolderPath
+  if (typeof obj.proxyHost === 'string') out.proxyHost = obj.proxyHost
+  if (typeof obj.proxyPort === 'string') out.proxyPort = obj.proxyPort
+  if (typeof obj.proxyUser === 'string') out.proxyUser = obj.proxyUser
+  if (typeof obj.proxyPassword === 'string') out.proxyPassword = obj.proxyPassword
+  if (typeof obj.proxyAuth === 'boolean') out.proxyAuth = obj.proxyAuth
 
   out.versionIsolation = pick(obj.versionIsolation, VERSION_ISOLATION_VALUES, out.versionIsolation)
   out.launcherVisibility = pick(obj.launcherVisibility, LAUNCHER_VISIBILITY_VALUES, out.launcherVisibility)
@@ -441,6 +479,20 @@ export const BACKGROUND_MODE_OPTIONS: Array<{ value: BackgroundMode; label: stri
   { value: 'follow', label: '跟随主题色' },
   { value: 'custom', label: '自定义' },
   { value: 'solid', label: '纯色' },
+]
+
+/** 下载缓存目录来源选项 */
+export const CACHE_FOLDER_OPTIONS: Array<{ value: CacheFolderMode; label: string }> = [
+  { value: 'default', label: '默认（.minecraft）' },
+  { value: 'custom', label: '自定义目录' },
+]
+
+/** 网络代理方式选项 */
+export const PROXY_MODE_OPTIONS: Array<{ value: ProxyMode; label: string }> = [
+  { value: 'system', label: '使用系统代理' },
+  { value: 'none', label: '不使用代理' },
+  { value: 'http', label: 'HTTP' },
+  { value: 'socks', label: 'SOCKS' },
 ]
 
 /* ============================== Java 管理 ============================== */

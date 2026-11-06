@@ -1073,6 +1073,26 @@ svg {
   background: var(--bg-color);
   cursor: pointer;
 }
+
+/* 设置页小号按钮（检查更新 / 清理缓存 / 选择图片等） */
+.setting-btn {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-main);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--alx-dur-in) linear, background-color var(--alx-dur-in) linear;
+}
+.setting-btn:hover { border-color: var(--text-sub); background: var(--hover-bg); }
+.setting-btn:active { background: var(--icon-bg); }
+
+/* 端口等窄输入框 */
+.setting-input-sm { width: 120px; }
+.setting-input:disabled { opacity: 0.5; cursor: not-allowed; }
 .setting-input:focus,
 .setting-select:focus { border-color: var(--text-sub); }
 .setting-input::placeholder { color: var(--text-sub); }

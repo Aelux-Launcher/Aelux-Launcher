@@ -24,6 +24,7 @@ import { JavaManager } from './instanceMeta'
 import {
   ACCENT_COLOR_OPTIONS,
   BACKGROUND_MODE_OPTIONS,
+  CACHE_FOLDER_OPTIONS,
   DOWNLOAD_SOURCE_OPTIONS,
   GC_MODE_OPTIONS,
   JAVA_DISTRIBUTION_OPTIONS,
@@ -35,6 +36,7 @@ import {
   PARALLEL_WARN_THRESHOLD,
   PRESET_INHERIT_OPTIONS,
   PROCESS_PRIORITY_OPTIONS,
+  PROXY_MODE_OPTIONS,
   QUICK_PLAY_OPTIONS,
   SPEED_LIMIT_RANGE,
   THEME_OPTIONS,
@@ -358,6 +360,29 @@ function checkUpdates() {
 /** 自定义主题色取色提交。 */
 function onAccentColorHex(e: Event) {
   setExtra('accentColorHex', (e.target as HTMLInputElement).value)
+}
+
+/** 代理与缓存目录的文本输入提交。 */
+function onProxyInput(
+  key: 'proxyHost' | 'proxyPort' | 'proxyUser' | 'proxyPassword' | 'cacheFolderPath',
+  e: Event,
+) {
+  setExtra(key, (e.target as HTMLInputElement).value)
+}
+
+/** 选择背景图片（内核文件选择命令未接入，先提示）。 */
+function pickBackground() {
+  toast.info('背景图片选择尚未接入内核文件选择命令。')
+}
+
+/** 选择缓存目录（内核文件选择命令未接入，先提示）。 */
+function pickCacheFolder() {
+  toast.info('缓存目录选择尚未接入内核文件选择命令。')
+}
+
+/** 清理下载缓存（内核文件命令未接入，先提示）。 */
+function clearDownloadCache() {
+  toast.info('清理缓存尚未接入内核文件命令。')
 }
 </script>
 
@@ -851,7 +876,7 @@ function onAccentColorHex(e: Event) {
             手动检查更新
             <div class="setting-desc">立即向更新服务查询是否有新版本</div>
           </div>
-          <button type="button" class="btn-sub" @click="checkUpdates">检查更新</button>
+          <button type="button" class="setting-btn" @click="checkUpdates">检查更新</button>
         </div>
       </SettingGroup>
     </template>
@@ -877,17 +902,17 @@ function onAccentColorHex(e: Event) {
             <div class="setting-desc">自定义时可选任意颜色</div>
           </div>
           <div class="setting-controls">
-            <AlxSelect
-              :model-value="extras.accentColor"
-              :options="ACCENT_COLOR_OPTIONS"
-              @update:model-value="(v: string) => setExtra('accentColor', v as SettingsExtras['accentColor'])"
-            />
             <input
               v-if="extras.accentColor === 'custom'"
               type="color"
               class="setting-color"
               :value="extras.accentColorHex"
               @change="onAccentColorHex"
+            />
+            <AlxSelect
+              :model-value="extras.accentColor"
+              :options="ACCENT_COLOR_OPTIONS"
+              @update:model-value="(v: string) => setExtra('accentColor', v as SettingsExtras['accentColor'])"
             />
           </div>
         </div>
@@ -896,11 +921,21 @@ function onAccentColorHex(e: Event) {
             背景图片
             <div class="setting-desc">内置 / 自定义 / 纯色等来源</div>
           </div>
-          <AlxSelect
-            :model-value="extras.backgroundMode"
-            :options="BACKGROUND_MODE_OPTIONS"
-            @update:model-value="(v: string) => setExtra('backgroundMode', v as SettingsExtras['backgroundMode'])"
-          />
+          <div class="setting-controls">
+            <button
+              v-if="extras.backgroundMode === 'custom'"
+              type="button"
+              class="setting-btn"
+              @click="pickBackground"
+            >
+              选择图片
+            </button>
+            <AlxSelect
+              :model-value="extras.backgroundMode"
+              :options="BACKGROUND_MODE_OPTIONS"
+              @update:model-value="(v: string) => setExtra('backgroundMode', v as SettingsExtras['backgroundMode'])"
+            />
+          </div>
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -997,10 +1032,110 @@ function onAccentColorHex(e: Event) {
         <div class="setting-row">
           <div class="setting-label">
             下载缓存文件夹
-            <div class="setting-desc">位于启动器根目录生成的 .minecraft 内，用于存放下载中的临时文件</div>
+            <div class="setting-desc">
+              {{
+                extras.cacheFolderMode === 'default'
+                  ? '.minecraft（启动器根目录），存放下载中的临时文件'
+                  : extras.cacheFolderPath || '未选择目录'
+              }}
+            </div>
           </div>
-          <span class="setting-path">.minecraft</span>
+          <div class="setting-controls">
+            <button
+              v-if="extras.cacheFolderMode === 'custom'"
+              type="button"
+              class="setting-btn"
+              @click="pickCacheFolder"
+            >
+              选择文件夹
+            </button>
+            <AlxSelect
+              :model-value="extras.cacheFolderMode"
+              :options="CACHE_FOLDER_OPTIONS"
+              @update:model-value="(v: string) => setExtra('cacheFolderMode', v as SettingsExtras['cacheFolderMode'])"
+            />
+            <button type="button" class="setting-btn" @click="clearDownloadCache">清理缓存</button>
+          </div>
         </div>
+      </SettingGroup>
+
+      <SettingGroup title="代理">
+        <div class="setting-row">
+          <div class="setting-label">
+            代理方式
+            <div class="setting-desc">HTTP / SOCKS 需要填写主机与端口</div>
+          </div>
+          <AlxSelect
+            :model-value="extras.proxyMode"
+            :options="PROXY_MODE_OPTIONS"
+            @update:model-value="(v: string) => setExtra('proxyMode', v as SettingsExtras['proxyMode'])"
+          />
+        </div>
+
+        <template v-if="extras.proxyMode === 'http' || extras.proxyMode === 'socks'">
+          <div class="setting-row">
+            <div class="setting-label">
+              主机
+              <div class="setting-desc">代理服务器地址，例如 127.0.0.1</div>
+            </div>
+            <input
+              class="setting-input"
+              :value="extras.proxyHost"
+              placeholder="127.0.0.1"
+              @change="onProxyInput('proxyHost', $event)"
+            />
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              端口
+              <div class="setting-desc">代理服务器端口</div>
+            </div>
+            <input
+              class="setting-input setting-input-sm"
+              :value="extras.proxyPort"
+              placeholder="0"
+              inputmode="numeric"
+              @change="onProxyInput('proxyPort', $event)"
+            />
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              身份验证
+              <div class="setting-desc">代理需要账号密码时开启</div>
+            </div>
+            <AlxToggle
+              :model-value="extras.proxyAuth"
+              @update:model-value="(v: boolean) => setExtra('proxyAuth', v)"
+            />
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              账户
+              <div class="setting-desc">未开启身份验证时不可填写</div>
+            </div>
+            <input
+              class="setting-input"
+              :value="extras.proxyUser"
+              placeholder="用户名"
+              :disabled="!extras.proxyAuth"
+              @change="onProxyInput('proxyUser', $event)"
+            />
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              密码
+              <div class="setting-desc">未开启身份验证时不可填写</div>
+            </div>
+            <input
+              type="password"
+              class="setting-input"
+              :value="extras.proxyPassword"
+              placeholder="密码"
+              :disabled="!extras.proxyAuth"
+              @change="onProxyInput('proxyPassword', $event)"
+            />
+          </div>
+        </template>
       </SettingGroup>
     </template>
   </div>
