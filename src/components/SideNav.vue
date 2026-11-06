@@ -90,7 +90,7 @@ const BASE_GROUP: Array<{ title: string; items: NavEntry[] }> = [
     items: [
       { key: 'download', label: '下载', icon: 'download' },
       { key: 'settings', label: '设置', icon: 'settings' },
-      { key: 'more', label: '更多', icon: 'more-horizontal' },
+      { key: 'more', label: '更多', icon: 'apps' },
     ],
   },
 ]

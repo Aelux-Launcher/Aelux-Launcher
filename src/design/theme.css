@@ -2218,12 +2218,18 @@ select.filter-control { cursor: pointer; }
   width: 28px;
   height: 28px;
   border-radius: 7px;
-  background: var(--icon-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   flex: none;
   color: var(--text-sub);
+}
+/* 发布类型图标（Alpha / Beta / Release）为 64px 像素素材，按整数倍缩小保持锐利。 */
+.version-file-icon img {
+  width: 32px;
+  height: 32px;
+  display: block;
+  image-rendering: pixelated;
 }
 .version-file-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .version-file-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; font-weight: 600; }

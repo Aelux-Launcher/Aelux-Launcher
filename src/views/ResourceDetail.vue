@@ -35,6 +35,10 @@ import {
 } from '../lib/mcVersion'
 import PageHeader from '../components/PageHeader.vue'
 import AlxIcon from '../components/AlxIcon.vue'
+/* 版本发布类型图标（素材取自 PCL 的 ReleaseTypes：Alpha / Beta / Release）。 */
+import ALPHA_ICON from '../assets/release-types/alpha.png'
+import BETA_ICON from '../assets/release-types/beta.png'
+import RELEASE_ICON from '../assets/release-types/release.png'
 
 const props = defineProps<{
   resourceKind: string
@@ -450,10 +454,11 @@ function releaseLabel(v: ResourceVersion): string {
   return ''
 }
 
+/** 版本发布类型图标（Alpha / Beta / Release 各一种）。 */
 function releaseIcon(v: ResourceVersion): string {
-  if (v.releaseType === 'beta') return 'info'
-  if (v.releaseType === 'alpha') return 'alert-circle'
-  return 'package'
+  if (v.releaseType === 'beta') return BETA_ICON
+  if (v.releaseType === 'alpha') return ALPHA_ICON
+  return RELEASE_ICON
 }
 
 /** 非标准游戏版本判定（快照 / pre / rc 等）。 */
@@ -782,7 +787,12 @@ watch(
               @click="downloadVersion(v)"
             >
               <div class="version-file-icon">
-                <AlxIcon :name="releaseIcon(v)" :size="16" />
+                <img
+                  :src="releaseIcon(v)"
+                  :alt="releaseLabel(v) || '正式版'"
+                  :title="releaseLabel(v) || '正式版'"
+                  loading="lazy"
+                />
               </div>
               <div class="version-file-main">
                 <div class="version-file-title">

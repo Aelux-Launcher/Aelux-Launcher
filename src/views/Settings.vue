@@ -797,7 +797,7 @@ function clearDownloadCache() {
     <!-- ==================== 启动器通用设置 ==================== -->
     <template v-else-if="section === 'general'">
 
-      <SettingGroup title="基础">
+      <SettingGroup title="基础" :collapsible="false">
         <div class="setting-row">
           <div class="setting-label">
             启动器语言
@@ -822,7 +822,7 @@ function clearDownloadCache() {
         </div>
       </SettingGroup>
 
-      <SettingGroup title="启动器更新">
+      <SettingGroup title="启动器更新" :collapsible="false">
         <div class="setting-row">
           <div class="setting-label">
             启动器更新版本
@@ -968,7 +968,7 @@ function clearDownloadCache() {
     <!-- ==================== 下载设置 ==================== -->
     <template v-else-if="section === 'download'">
 
-      <SettingGroup title="下载源">
+      <SettingGroup title="下载源" :collapsible="false">
         <div class="setting-row">
           <div class="setting-label">
             文件下载源
@@ -993,7 +993,7 @@ function clearDownloadCache() {
         </div>
       </SettingGroup>
 
-      <SettingGroup title="下载性能">
+      <SettingGroup title="下载性能" :collapsible="false">
         <div class="setting-row stacked">
           <div class="setting-label">
             最大线程数
@@ -1059,7 +1059,7 @@ function clearDownloadCache() {
         </div>
       </SettingGroup>
 
-      <SettingGroup title="代理">
+      <SettingGroup title="代理" :collapsible="false">
         <div class="setting-row">
           <div class="setting-label">
             代理方式
