@@ -3,8 +3,8 @@
  * 下载页（极简黑白主题）：
  *   cat 由外壳路由参数传入（original / modpack / mod / world / resourcepack / datapack / shader）。
  *     · original：版本清单列表（分组折叠 + 一键进入版本详情）。
- *     · 其余六类：Modrinth 社区资源检索（PCL 式筛选卡片 + 分页 + 详情副页面）。
- * 布局与交互参考 PCL2 的 PageDownload / PageResource：
+ *     · 其余六类：Modrinth 社区资源检索（筛选卡片 + 分页 + 详情副页面）。
+ * 布局与交互参考同类启动器的下载页：
  *   名称 / 来源 / 游戏版本 / 加载器 / 类型 → 检索 → 结果列表 → 翻页。
  */
 import { computed, ref, watch } from 'vue'
@@ -18,7 +18,7 @@ import { ensureMcmod, mcmodInfo } from '../lib/mcmod'
 import type { McmodInfo } from '../lib/mcmod'
 import AlxIcon from '../components/AlxIcon.vue'
 import VersionRowActions from '../components/VersionRowActions.vue'
-import { versionIcon, versionRowIcon } from '../lib/versionIcons'
+import { versionRowIcon } from '../lib/versionIcons'
 
 /** 分类 → 页头标题（与侧栏文案一致） */
 const CAT_TITLE: Record<string, string> = {
@@ -42,7 +42,7 @@ const CAT_ICON: Record<string, string> = {
   shader: 'sun',
 }
 
-/** 加载器筛选选项（PCL 只在 Mod 页、且选了具体游戏版本时显示该行）。 */
+/** 加载器筛选选项（只在 Mod 页、且选了具体游戏版本时显示该行）。 */
 const LOADER_OPTIONS: Partial<Record<ResourceKind, string[]>> = {
   mod: ['forge', 'neoforge', 'fabric', 'quilt'],
 }
@@ -197,12 +197,12 @@ function sourceLabel(p: ResourceProject): string {
 /** 当前类型可用的加载器选项 */
 const loaderOptions = computed(() => LOADER_OPTIONS[currentKind.value] ?? [])
 
-/** PCL：加载器只在 Mod 页、且已选择具体游戏版本时显示 */
+/** 加载器只在 Mod 页、且已选择具体游戏版本时显示 */
 const showLoaderFilter = computed(
   () => currentKind.value === 'mod' && Boolean(store.resourceQuery.gameVersion),
 )
 
-/** 当前类型可用的分类标签（PCL 静态列表，中文文案 + Modrinth slug） */
+/** 当前类型可用的分类标签（静态列表，中文文案 + Modrinth slug） */
 const categoryOptions = computed(() => RESOURCE_CATEGORIES[currentKind.value] ?? [])
 
 /** 游戏版本下拉选项（正式版清单，最新在前；首项是「全部版本」） */
@@ -223,12 +223,12 @@ const hasActiveFilters = computed(
     store.resourceQuery.source !== 'all',
 )
 
-/** 执行检索（点击「搜索」或名称框回车，PCL 不随输入自动检索） */
+/** 执行检索（点击「搜索」或名称框回车，输入变化不自动检索） */
 function applyFilters() {
   void store.searchResources()
 }
 
-/** 重置条件：只清空输入，不自动检索（PCL 行为） */
+/** 重置条件：只清空输入，不自动检索 */
 function resetFilters() {
   store.resetResourceFilters()
 }
@@ -316,7 +316,7 @@ function markIconFailed(id: string) {
   failedIcons.value = next
 }
 
-/** 点击条目 → 资源详情副页面（把当前筛选条件带过去，PCL 同款预设） */
+/** 点击条目 → 资源详情副页面（把当前筛选条件带过去） */
 function openResource(p: ResourceProject) {
   store.openSubPage({
     kind: 'resource',
@@ -328,7 +328,7 @@ function openResource(p: ResourceProject) {
   })
 }
 
-/** 翻页（PCL 只有首页 / 上一页 / 页码 / 下一页四个元素）。 */
+/** 翻页（只有首页 / 上一页 / 页码 / 下一页四个元素）。 */
 const canPrev = computed(() => store.resourcePage > 0)
 const canNext = computed(
   () => (store.resourcePage + 1) * store.resourcePageSize < store.resourceTotal,
@@ -407,14 +407,6 @@ function retrySearch() {
         >
           <button type="button" class="version-group-header" @click="toggleGroup(g.key)">
             <span class="version-group-title">
-              <img
-                v-if="versionIcon(g.key)"
-                :src="versionIcon(g.key) ?? undefined"
-                width="18"
-                height="18"
-                alt=""
-                class="version-group-icon"
-              />
               {{ g.title }}
               <span class="version-group-count">{{ g.items.length }}</span>
             </span>
@@ -464,7 +456,7 @@ function retrySearch() {
       </div>
 
       <template v-else>
-        <!-- PCL 式筛选卡片：名称 + 来源 / 游戏版本 + 加载器 + 类型 / 按钮行 -->
+        <!-- 筛选卡片：名称 + 来源 / 游戏版本 + 加载器 + 类型 / 按钮行 -->
         <section class="resource-search-card">
           <div class="resource-filter-row">
             <div class="filter-field filter-field-name">
@@ -563,7 +555,7 @@ function retrySearch() {
           </button>
         </div>
 
-        <!-- 资源结果列表（PCL MyResourceItem：标题 + 标签 + 描述 / 版本范围 / 下载量 / 时间 / 来源） -->
+        <!-- 资源结果列表（标题 + 标签 + 描述 / 版本范围 / 下载量 / 时间 / 来源） -->
         <template v-else>
           <div class="resource-results-card">
             <article
@@ -639,7 +631,7 @@ function retrySearch() {
             </article>
           </div>
 
-          <!-- 翻页（PCL 式：首页 / 上一页 / 页码 / 下一页） -->
+          <!-- 翻页（首页 / 上一页 / 页码 / 下一页） -->
           <div v-if="store.resourceTotal > store.resourcePageSize" class="resource-pager">
             <button
               type="button"

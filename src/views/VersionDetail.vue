@@ -28,7 +28,7 @@ const LOADERS = [
 
 type LoaderKey = (typeof LOADERS)[number]['key']
 
-/** 展开状态（PCL 式：点击加载器行展开其版本列表）。 */
+/** 展开状态（点击加载器行展开其版本列表）。 */
 const expandedLoaders = ref(new Set<string>())
 const selectedVersions = ref<Partial<Record<LoaderKey, string>>>({})
 /** 前置 API（Fabric API / QSL）的选中版本；空 = 不安装。 */

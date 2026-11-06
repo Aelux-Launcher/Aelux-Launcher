@@ -60,7 +60,7 @@ svg {
 
 /* ============================================================================
  * 窗口外壳（视觉；尺寸与平台适配见 styles.css）
- *   窗口铺满不透明（PCL 形态）：内容 100% 填充，无悬浮边距。
+ *   窗口铺满不透明：内容 100% 填充，无悬浮边距。
  * ========================================================================== */
 .aelux-app {
   display: flex;
@@ -94,18 +94,21 @@ svg {
 }
 
 .back-btn {
-  font-size: 20px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0 16px 0 0;
-  color: var(--text-sub);
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-sub);
   border: none;
+  border-radius: 6px;
   background: transparent;
   font-family: inherit;
   animation: alx-subbar-in 200ms var(--alx-ease-out-fluent) both;
 }
+.back-btn svg { display: block; stroke-width: 2.4; }
 .back-btn:hover { color: var(--text-main); }
 .back-btn:active { color: var(--text-main); opacity: 0.7; }
 
@@ -123,15 +126,21 @@ svg {
   color: var(--text-sub);
 }
 .window-controls button {
+  width: 30px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: none;
   background: transparent;
   color: inherit;
   font: inherit;
   cursor: pointer;
-  padding: 2px 4px;
   border-radius: 4px;
   transition: color var(--alx-dur-in) linear;
 }
+.window-controls button svg { display: block; stroke-width: 2.4; }
 .window-controls button:hover { color: var(--text-main); }
 .window-controls button:active { background-color: var(--icon-bg); color: var(--text-main); }
 .window-controls button.win-close:hover { color: var(--danger); }
@@ -227,7 +236,7 @@ svg {
   pointer-events: none;
 }
 
-/* 分类行末的刷新按钮：默认隐藏，hover / focus 时淡入（PCL 同款） */
+/* 分类行末的刷新按钮：默认隐藏，hover / focus 时淡入 */
 .nav-item-action {
   margin-left: auto;
   width: 26px;
@@ -630,7 +639,7 @@ svg {
 .version-row:hover .item-right,
 .version-row:focus-within .item-right { opacity: 1; }
 
-/* 分类折叠组：PCL2 式平滑展开（grid-rows 0fr→1fr 过渡，双向动画） */
+/* 分类折叠组：平滑展开（grid-rows 0fr→1fr 过渡，双向动画） */
 .version-group-header {
   width: 100%;
   display: flex;
@@ -1250,7 +1259,7 @@ svg {
 }
 .account-remove:hover { color: var(--danger); background: var(--hover-bg); }
 
-/* 子页侧栏面板（PCL 式：版本选择 → 文件夹列表；账户管理 → 添加账户） */
+/* 子页侧栏面板（版本选择 → 文件夹列表；账户管理 → 添加账户） */
 .folder-panel { padding: 4px 10px 12px; }
 .folder-section-title {
   font-size: 12px;
@@ -1423,10 +1432,9 @@ svg {
 .device-retry { display: flex; justify-content: flex-end; gap: 10px; }
 
 /* ============================================================================
- * 下载页：社区资源检索（PCL2 PageResource 的筛选卡 / 列表 / 翻页）
+ * 下载页：社区资源检索（筛选卡 / 列表 / 翻页）
  * ========================================================================== */
 .version-group-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.version-group-icon { width: 18px; height: 18px; object-fit: contain; flex: none; }
 .version-group-count {
   padding: 1px 7px;
   border-radius: 9px;
@@ -1503,7 +1511,7 @@ svg {
 }
 .filter-control:focus { border-color: var(--text-main); background: var(--bg-color); }
 .filter-control::placeholder { color: var(--text-sub); }
-/* 原生 select 使用系统下拉面板，与 PCL ComboBox 的交互一致 */
+/* 原生 select 使用系统下拉面板，与组合框的交互一致 */
 select.filter-control { cursor: pointer; }
 .filter-actions { display: flex; align-items: flex-end; gap: 8px; flex: none; }
 .search-submit { height: 34px; padding: 0 20px; }
@@ -1516,7 +1524,7 @@ select.filter-control { cursor: pointer; }
 }
 .resource-filter-actions .btn-download { height: 34px; padding: 0 20px; }
 
-/* 资源结果列表（单卡片 + 分隔线，PCL 列表条目的紧凑版） */
+/* 资源结果列表（单卡片 + 分隔线，紧凑列表条目） */
 .resource-results-card {
   border: 1px solid var(--border-light);
   border-radius: 10px;
@@ -1797,7 +1805,7 @@ select.filter-control { cursor: pointer; }
 .filter-chip:hover { background: var(--hover-bg); }
 .filter-chip.active { background: var(--text-main); border-color: var(--text-main); color: var(--bg-color); }
 
-/* 版本卡（PCL 的 MyCard：标题可折叠） */
+/* 版本卡（标题可折叠） */
 .version-card { padding: 0; overflow: hidden; }
 .version-card-head {
   display: flex;

@@ -2,13 +2,13 @@
 /**
  * 社区资源详情页（副页面，极简黑白主题）。
  *
- * 布局对齐 PCL2 的 PageDownloadCompDetail：
- *   信息卡（PCL CardIntro：资源条目 + 下方按钮行）
+ * 布局参考同类启动器的资源详情页：
+ *   信息卡（资源条目 + 下方按钮行）
  *   → 版本筛选 chip 卡（≥2 个版本才显示）
- *   → 版本卡（PCL PanResults，整行竖向堆叠、可折叠）：
+ *   → 版本卡（整行竖向堆叠、可折叠）：
  *       卡内先前置资源（必填依赖），再版本列表。
  *
- * 分组规则与 PCL 一致：
+ * 分组规则：
  *   - 按文件的「每一个游戏版本」建卡（不是只取第一个版本）；
  *   - 项目有多个加载器且是 Mod、版本号为标准格式时，按「加载器 + 版本」拆卡；
  *   - 从列表页带版本 / 加载器进入时，置顶一张「…（所选版本）」卡。
@@ -66,7 +66,7 @@ const KIND_ICON: Record<string, string> = {
   world: 'globe',
 }
 
-/** 加载器 → 展示名（与 PCL 的加载器文案一致）。 */
+/** 加载器 → 展示名（与加载器文案一致）。 */
 const LOADER_LABELS: Record<string, string> = {
   fabric: 'Fabric',
   forge: 'Forge',
@@ -154,7 +154,7 @@ const allGameVersions = computed(() => {
   return out
 })
 
-/** PCL 的四种分组组合：不分组 → drop 分组 → 折叠旧版 → drop + 折叠旧版。 */
+/** 四种分组组合：不分组 → drop 分组 → 折叠旧版 → drop + 折叠旧版。 */
 const grouping = computed(() => resolveVersionGrouping(allGameVersions.value))
 
 /** 版本筛选 chip（全部 / 1.21 / 26.1 / 快照版 / 远古版 …，最新在前）。 */
@@ -164,10 +164,10 @@ const versionFilterNames = computed(() =>
   ),
 )
 
-/** 只有一个版本时不显示筛选卡（PCL 行为）。 */
+/** 只有一个版本时不显示筛选卡。 */
 const showVersionFilter = computed(() => versionFilterNames.value.length >= 2)
 
-/** 项目级加载器集合（PCL 用项目级加载器数量决定卡片是否带加载器前缀）。 */
+/** 项目级加载器集合（用项目级加载器数量决定卡片是否带加载器前缀）。 */
 const projectLoaders = computed(() => {
   const out = new Set<string>()
   for (const v of versions.value) {
@@ -213,7 +213,7 @@ interface VersionCard {
   dependencies: ResourceProject[]
 }
 
-/** 标准版本号（PCL 的 McVersion.IsStandardFormat：1.21.4 / 26.1）。 */
+/** 标准版本号（1.21.4 / 26.1）。 */
 function isStandardVersion(name: string): boolean {
   return /^\d+(?:\.\d+)+$/.test(name)
 }
@@ -228,7 +228,7 @@ const dependencyById = computed(
   () => new Map(dependencies.value.map((d) => [d.projectId, d])),
 )
 
-/** 单张卡的前置资源（PCL：整合包不显示；其余按项目 ID 排序）。 */
+/** 单张卡的前置资源（整合包不显示；其余按项目 ID 排序）。 */
 function cardDependencies(card: VersionCard): ResourceProject[] {
   if (props.resourceKind === 'modpack') return []
   const ids = new Set<string>()
@@ -243,7 +243,7 @@ function cardDependencies(card: VersionCard): ResourceProject[] {
     .filter((d): d is ResourceProject => Boolean(d))
 }
 
-/** 卡片排序（PCL CardSorter：正式版降序，特殊版最后，再按标题）。 */
+/** 卡片排序（正式版降序，特殊版最后，再按标题）。 */
 function compareCards(a: VersionCard, b: VersionCard): number {
   if (a.targeted !== b.targeted) return a.targeted ? -1 : 1
   const aSpecial = isSpecialVersion(a.gameVersion)
@@ -299,7 +299,7 @@ const selectedVersion = ref('')
 /** 已展开的版本卡片 key。 */
 const openCards = ref(new Set<string>())
 
-/** 从列表页带来的「所选版本」卡片标题（PCL TargetCardName）。 */
+/** 从列表页带来的「所选版本」卡片标题。 */
 const targetCardName = computed(() => {
   if (!props.gameVersion && !props.loader) return ''
   const loader = props.loader ? LOADER_LABELS[props.loader] ?? props.loader : ''
@@ -316,7 +316,7 @@ const targetedVersions = computed(() => {
   })
 })
 
-/** 置顶卡是否可见（PCL：所选版本的分组必须命中当前筛选）。 */
+/** 置顶卡是否可见（所选版本的分组必须命中当前筛选）。 */
 const showTargeted = computed(() => {
   if (!targetCardName.value || targetedVersions.value.length === 0) return false
   if (!selectedVersion.value) return true
@@ -325,7 +325,7 @@ const showTargeted = computed(() => {
   return group.startsWith(selectedVersion.value)
 })
 
-/** 普通版本卡（按 chip 筛选；PCL 会隐藏与置顶卡同名的普通卡）。 */
+/** 普通版本卡（按 chip 筛选；隐藏与置顶卡同名的普通卡）。 */
 const normalCards = computed(() => {
   let cards = baseCards.value
   if (selectedVersion.value) {
@@ -377,7 +377,7 @@ watch(
   { immediate: true },
 )
 
-/** 详情加载完成后：自动选中目标版本 chip，并按 PCL 规则决定默认展开的卡片。 */
+/** 详情加载完成后：自动选中目标版本 chip，并按约定决定默认展开的卡片。 */
 watch(
   [sortedVersions, visibleCards],
   () => {
@@ -400,7 +400,7 @@ watch(
   },
 )
 
-/** 切换版本筛选（PCL 会重建卡片列表，全部折叠）。 */
+/** 切换版本筛选（重建卡片列表，全部折叠）。 */
 function selectVersion(name: string) {
   selectedVersion.value = name
   openCards.value = new Set()
@@ -422,12 +422,12 @@ function toggleCard(key: string) {
 
 /* ------------------------------ 版本行文案 ------------------------------ */
 
-/** 去掉资源文件后缀（PCL 标题使用的展示名）。 */
+/** 去掉资源文件后缀（标题使用的展示名）。 */
 function stripExtension(name: string): string {
   return name.replace(/\.(jar|zip|mrpack|litemod)$/i, '')
 }
 
-/** 项目内重复的展示名（PCL 的 IsBadDisplay：同名版本改用文件名）。 */
+/** 项目内重复的展示名（同名版本改用文件名）。 */
 const duplicatedDisplays = computed(() => {
   const counts = new Map<string, number>()
   for (const v of versions.value) {
@@ -437,7 +437,7 @@ const duplicatedDisplays = computed(() => {
   return new Set([...counts].filter(([, n]) => n > 1).map(([display]) => display))
 })
 
-/** 版本主标题（PCL Display = 版本 name 字段，去扩展名）。 */
+/** 版本主标题（版本 name 字段去扩展名）。 */
 function versionTitle(v: ResourceVersion): string {
   const display = stripExtension(v.name || v.versionNumber || v.fileName)
   return duplicatedDisplays.value.has(display) ? stripExtension(v.fileName) : display
@@ -456,19 +456,19 @@ function releaseIcon(v: ResourceVersion): string {
   return 'package'
 }
 
-/** PCL 的非标准游戏版本判定（快照 / pre / rc 等）。 */
+/** 非标准游戏版本判定（快照 / pre / rc 等）。 */
 function isNonStandardGameVersion(version: string): boolean {
   if (!version.includes('.')) return true
   const lower = version.toLowerCase()
   return ['w', 'snapshot', 'rc', 'pre', 'experimental', '-'].some((s) => lower.includes(s))
 }
 
-/** PCL 的下载次数文案（大于 10 万时按万取整）。 */
+/** 下载次数文案（大于 10 万时按万取整）。 */
 function downloadCount(n: number): string {
   return n > 100000 ? `${Math.round(n / 10000)} 万` : String(n)
 }
 
-/** 版本行信息（顺序与 PCL ResourceVersion.ToListItem 一致）。 */
+/** 版本行信息（顺序与版本行一致）。 */
 function versionInfo(v: ResourceVersion): string {
   const parts: string[] = []
   if (v.loaders.length > 0) {
@@ -489,7 +489,7 @@ function versionInfo(v: ResourceVersion): string {
   return parts.join('，')
 }
 
-/** 依赖条目的类型标签（PCL 只显示一个分类标签）。 */
+/** 依赖条目的类型标签（只显示一个分类标签）。 */
 function dependencyTag(dep: ResourceProject): string {
   const raw = dep.displayCategories[0] ?? dep.categories[0] ?? ''
   return raw ? categoryLabel(raw) : ''
@@ -543,7 +543,7 @@ async function copyName() {
   }
 }
 
-/** 点击前置资源 → 打开对应资源详情页（PCL 的依赖条目可交互）。 */
+/** 点击前置资源 → 打开对应资源详情页（依赖条目可交互）。 */
 function openDependency(dep: ResourceProject) {
   const kind = resourceKindForProjectType(dep.projectType ?? 'mod', dep.categories)
   store.openSubPage({
@@ -607,7 +607,7 @@ watch(
     </div>
 
     <template v-else>
-      <!-- 信息卡（PCL CardIntro：资源条目 + 按钮行） -->
+      <!-- 信息卡（资源条目 + 按钮行） -->
       <section class="resource-intro">
         <div class="resource-intro-body">
           <div class="resource-intro-icon">
@@ -677,7 +677,7 @@ watch(
         </div>
       </section>
 
-      <!-- 版本筛选卡（PCL CardFilter）：只有游戏版本一行 -->
+      <!-- 版本筛选卡：只有游戏版本一行 -->
       <section v-if="showVersionFilter" class="resource-section-card resource-filter-card">
         <div class="filter-chip-row">
           <button
@@ -708,7 +708,7 @@ watch(
         <div class="resource-state-desc">试试选择其他游戏版本。</div>
       </div>
 
-      <!-- 版本卡（PCL PanResults） -->
+      <!-- 版本卡 -->
       <section
         v-for="card in visibleCards"
         :key="card.key"
@@ -770,7 +770,7 @@ watch(
             </div>
           </div>
 
-          <!-- 版本列表标题（有前置资源时 PCL 会显示） -->
+          <!-- 版本列表标题（有前置资源时显示） -->
           <div v-if="card.dependencies.length" class="section-label">版本列表</div>
 
           <!-- 版本行 -->

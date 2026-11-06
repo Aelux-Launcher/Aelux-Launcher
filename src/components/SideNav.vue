@@ -121,7 +121,7 @@ function onNav(key: string) {
   void store.routerPush(`/${m}/${key}`)
 }
 
-/* ----- 下载分类刷新（PCL 侧栏项末尾的「刷新」按钮） ----- */
+/* ----- 下载分类刷新（侧栏项末尾的「刷新」按钮） ----- */
 
 /** 正在刷新的分类 key：null = 空闲（同时防止重复点击）。 */
 const refreshingKey = ref<string | null>(null)
@@ -139,7 +139,7 @@ async function refreshCategory(key: string) {
       if (store.versionsError) toast.error(`版本列表刷新失败：${store.versionsError}`)
       else toast.success('版本列表已刷新')
     } else {
-      // 社区资源：按当前筛选条件重查，页码归 0（等价 PCL 清 Storage + PageRestart）
+      // 社区资源：按当前筛选条件重查，并重置到第一页
       await store.searchResources()
       if (store.resourceError) toast.error(`资源列表刷新失败：${store.resourceError}`)
       else toast.success('资源列表已刷新')
@@ -152,7 +152,7 @@ async function refreshCategory(key: string) {
   }
 }
 
-/* ------------------- 子页侧栏面板（PCL 式：子页替换导航区） ------------------- */
+/* ------------------- 子页侧栏面板（子页替换导航区） ------------------- */
 
 /** 当前是否处于带侧栏面板的子页（版本选择 → 文件夹列表；账户管理 → 添加账户）。 */
 const sidePanelKind = computed(() => {
@@ -315,7 +315,7 @@ function selectFolder(f: StoredFolder) {
   <aside class="sidebar">
     <!-- 导航区：可滚动；账户区在滚动容器之外，固定于底部 -->
     <div class="sidebar-scroll">
-      <!-- 版本选择页：侧栏切换为文件夹列表（PCL 式） -->
+      <!-- 版本选择页：侧栏切换为文件夹列表（子页侧栏） -->
       <div v-if="sidePanelKind === 'select'" class="folder-panel">
         <div class="folder-section-title">文件夹列表</div>
 
@@ -376,7 +376,7 @@ function selectFolder(f: StoredFolder) {
         </button>
       </div>
 
-      <!-- 账户管理页：侧栏切换为添加账户 + 外置登录服务器（PCL 式） -->
+      <!-- 账户管理页：侧栏切换为添加账户 + 外置登录服务器（子页侧栏） -->
       <div v-else-if="sidePanelKind === 'accounts'" class="folder-panel">
         <div class="folder-section-title">添加账户</div>
         <button type="button" class="add-account-item" @click="addMicrosoft">

@@ -54,7 +54,7 @@ export interface PageStackEntry {
 /** 测试期版本基线（三处版本号统一维护：package.json / tauri.conf.json / 内核 Cargo.toml）。 */
 const APP_VERSION_FALLBACK = '0.1.0'
 
-/** PCL 在展示「前置资源」时忽略的两个基础前置（Fabric API / Quilt API）。 */
+/** 展示「前置资源」时忽略的两个基础前置（Fabric API / Quilt API）。 */
 const IGNORED_DEPENDENCIES = new Set(['P7dR8mSH', 'qvIfYCYJ'])
 
 const DEFAULT_SETTINGS: Settings = {
@@ -546,7 +546,7 @@ export const useAppStore = defineStore('app', () => {
     error: string | null
   }
 
-  /** 加载器版本列表缓存（key = `loader:mcVersion`），PCL 式展开时按需拉取。 */
+  /** 加载器版本列表缓存（key = `loader:mcVersion`），按需展开时拉取。 */
   const loaderVersions = ref<Record<string, LoaderVersionsState>>({})
 
   /** 前置 API（Fabric API / QSL）版本列表缓存（key = `api:mcVersion`）。 */
@@ -927,7 +927,7 @@ export const useAppStore = defineStore('app', () => {
 
   /* ------------------------------- 社区资源 ------------------------------- */
 
-  /** 切换资源类型（PCL 行为：类型切换后清空筛选与翻页）。 */
+  /** 切换资源类型（类型切换后清空筛选与翻页）。 */
   function setResourceKind(k: ResourceKind) {
     resourceKind.value = k
     resourceProjects.value = []
@@ -964,7 +964,7 @@ export const useAppStore = defineStore('app', () => {
       if (resourceQuery.value.source === 'curseforge') {
         throw new Error('CurseForge 源需要 API key，暂不可用；请使用 Modrinth 源')
       }
-      // 光影页的「原版可用 / Iris / OptiFine」在 PCL 里属于加载器，走 loaders facet
+      // 光影页的「原版可用 / Iris / OptiFine」属于加载器，走 loaders facet
       const selected = RESOURCE_CATEGORIES[resourceKind.value].find(
         (item) => item.slug === resourceQuery.value.category,
       )
@@ -1113,7 +1113,7 @@ export const useAppStore = defineStore('app', () => {
         }
       })
 
-      // 前置资源：只取必填依赖，排除当前项目与 Fabric API / Quilt API（PCL 行为）
+      // 前置资源：只取必填依赖，排除当前项目与 Fabric API / Quilt API
       const requiredIds: string[] = []
       for (const v of vs) {
         for (const d of v.dependencies ?? []) {
@@ -1165,14 +1165,14 @@ export const useAppStore = defineStore('app', () => {
         }
       }
 
-      // 与 PCL 一致：版本行只统计「已解析的必填前置」，未解析到的依赖不计数。
+      // 版本行只统计「已解析的必填前置」，未解析到的依赖不计数。
       const resolvedIds = new Set(dependencies.map((d) => d.projectId))
       for (const v of versions) {
         v.dependencies = (v.dependencies ?? []).filter(
           (d) => d.type === 'required' && d.projectId && resolvedIds.has(d.projectId),
         )
       }
-      // PCL 的 Distinct.Ordered：按项目 ID 排序展示前置资源。
+      // 按项目 ID 排序展示前置资源。
       dependencies = [...dependencies].sort((a, b) => a.projectId.localeCompare(b.projectId))
 
       resourceDetailData.value = {

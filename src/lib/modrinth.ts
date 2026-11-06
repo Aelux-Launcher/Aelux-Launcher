@@ -1,4 +1,4 @@
-/** Modrinth API URL 构造、PCL 分类选项与资源展示格式化（社区资源搜索 / 详情）。 */
+/** Modrinth API URL 构造、分类选项与资源展示格式化（社区资源搜索 / 详情）。 */
 import type { ResourceKind } from './types'
 
 const API = 'https://api.modrinth.com/v2'
@@ -13,7 +13,7 @@ const PROJECT_TYPE: Record<ResourceKind, string> = {
   world: 'world',
 }
 
-/** 每页结果数（Modrinth 最大 100，这里沿用 PCL 的 40 条/页）。 */
+/** 每页结果数（Modrinth 最大 100，这里默认每页 40 条）。 */
 export const RESOURCE_PAGE_SIZE = 40
 
 export interface ResourceSearchOptions {
@@ -32,7 +32,7 @@ export interface ResourceSearchOptions {
 }
 
 /**
- * 搜索 URL。筛选条件全部落在 facets 上（PCL 的「版本 / 加载器 / 类型」行）：
+ * 搜索 URL。筛选条件全部落在 facets 上（「版本 / 加载器 / 类型」三行）：
  *   versions:<mc> / loaders:<loader> / categories:<slug>
  */
 export function buildResourceSearchUrl(options: ResourceSearchOptions): string {
@@ -137,11 +137,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 export interface CategoryOption {
   slug: string
   label: string
-  /** 光影页把加载器放在「类型」里（PCL 行为），这些项走 loaders facet。 */
+  /** 光影页把加载器放在「类型」里，这些项走 loaders facet。 */
   facet?: 'category' | 'loader'
 }
 
-/** PCL 各下载页的「类型」下拉（中文文案 + Modrinth slug）。 */
+/** 各下载页的「类型」下拉（中文文案 + Modrinth slug）。 */
 export const RESOURCE_CATEGORIES: Record<ResourceKind, CategoryOption[]> = {
   mod: [
     { slug: 'worldgen', label: '世界元素' },

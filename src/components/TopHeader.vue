@@ -32,7 +32,7 @@ function onDragStart(e: MouseEvent) {
         aria-label="返回"
         @click="store.pageBack()"
       >
-        ←
+        <AlxIcon name="arrow-left" :size="18" />
       </button>
       <div class="logo">Aelux</div>
       <span v-if="store.browserMode" class="tag">预览</span>

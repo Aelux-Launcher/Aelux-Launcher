@@ -1,11 +1,11 @@
 /**
- * Minecraft 版本号归组（PCL2 的 GetGroupedVersionName / InitializeFilters 简化实现）：
+ * Minecraft 版本号归组（同类启动器分组规则的简化实现）：
  *   - 快照版：`25w45a` 这类带 w 的版本恒独立归组；
  *   - 远古版：无法解析为标准版本号的旧版本；折叠旧版本时 1.11 及更早归到这里；
  *   - 版本过多时按 drop 归组（1.21.4 → 1.21，26.1.3 → 26.1），否则保留完整版本号。
  */
 
-/** 资源版本列表通常从 9 个不同游戏版本开始折叠（PCL 同名规则）。 */
+/** 资源版本列表通常从 9 个不同游戏版本开始折叠（同名版本归组）。 */
 export const VERSION_GROUP_THRESHOLD = 9
 
 /** 折叠旧版本时保留的最低主版本（1.12 及以上保留，1.11 及更早折为「远古版」）。 */
@@ -23,7 +23,7 @@ function standardParts(id: string): { major: number; minor: number } | null {
   return { major: nums[0], minor: nums[1] ?? 0 }
 }
 
-/** 是否为快照版（含 PCL 的 `snapshot` 文案兜底）。 */
+/** 是否为快照版（含 `snapshot` 文案兜底）。 */
 function isSnapshot(id: string): boolean {
   return SNAPSHOT_RE.test(id.trim()) || /snapshot/i.test(id)
 }
@@ -78,7 +78,7 @@ export interface VersionGrouping {
 }
 
 /**
- * PCL 详情页的四种分组模式（依次尝试，取第一个使筛选名数量 < 9 的组合）：
+ * 详情页的四种分组模式（依次尝试，取第一个使筛选名数量 < 9 的组合）：
  *   不分组不折叠 → 仅按 drop 分组 → 仅折叠旧版本 → 分组 + 折叠旧版本。
  */
 export function resolveVersionGrouping(ids: string[]): VersionGrouping {
@@ -136,7 +136,7 @@ export function oldestMcVersion(ids: string[]): string {
 }
 
 /**
- * PCL 风格的版本范围摘要：
+ * 本启动器风格的版本范围摘要：
  *   - 连续段贴近全局最新版本 → `1.21+`
  *   - 连续段覆盖远古版本 → `1.12-`
  *   - 中间断档 → `1.14, 1.12` 或 `1.18~1.14`
@@ -172,7 +172,7 @@ export function versionRangeSummary(ids: string[], latestKnownId?: string): stri
       index += 1
       end = sorted[index]
     }
-    // 与 PCL ResourceProject.ToResourceItem 的分段文案保持一致：
+    // 版本范围的分段文案规则：
     //   单版本 → 原名；
     //   从最新版向下连续 → 「最低版本+」（覆盖远古版时为「全版本」）；
     //   最低段落在远古版 → 「最高版本-」；
@@ -195,7 +195,7 @@ export function versionRangeSummary(ids: string[], latestKnownId?: string): stri
     if (segments.length === 0) return '暂无版本'
     return segments.join(', ')
   }
-  // PCL 只在「起始段覆盖最新版」时追加远古版 / 快照版标记。
+  // 只在「起始段覆盖最新版」时追加远古版 / 快照版标记。
   const startsAtLatest = sorted[0] >= latestKnownDrop
   if (startsAtLatest) {
     if (hasAncient) segments.push('远古版')
