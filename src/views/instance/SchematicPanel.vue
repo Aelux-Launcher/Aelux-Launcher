@@ -90,8 +90,7 @@ function confirmRemove() {
   </div>
 
   <!-- 原理图列表 -->
-  <SettingGroup title="原理图列表" :collapsible="false">
-    <template #extra>共 {{ schematics.length }} 个</template>
+  <SettingGroup title="原理图列表" :collapsible="false" :extra="`共 ${schematics.length} 个`">
     <div v-if="rows.length === 0" class="empty-state">
       <AlxIcon name="grid" :size="32" />
       <span>没有符合条件的原理图</span>

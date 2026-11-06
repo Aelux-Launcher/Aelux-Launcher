@@ -83,8 +83,11 @@ async function importPack() {
   </div>
 
   <!-- 资源包列表 -->
-  <SettingGroup title="资源包列表" :collapsible="false">
-    <template #extra>已启用 {{ enabledCount }} / {{ DEMO_PACKS.length }}</template>
+  <SettingGroup
+    title="资源包列表"
+    :collapsible="false"
+    :extra="`已启用 ${enabledCount} / ${DEMO_PACKS.length}`"
+  >
     <div v-if="rows.length === 0" class="empty-state">
       <AlxIcon name="shirt" :size="32" />
       <span>没有符合条件的资源包</span>

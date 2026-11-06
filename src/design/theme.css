@@ -858,6 +858,13 @@ svg {
   cursor: pointer;
 }
 .setting-group-head.static { cursor: default; }
+/* 多按钮行：标签独占一行，按钮在下一行从左排列（不再挤到右侧） */
+.setting-row.actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  row-gap: 10px;
+}
+.setting-row.actions > .setting-label { flex: 0 0 100%; }
 .setting-group-extra {
   margin-left: auto;
   font-size: 12px;

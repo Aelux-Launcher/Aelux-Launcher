@@ -116,8 +116,7 @@ function selectAll() {
   </div>
 
   <!-- Mod 列表 -->
-  <SettingGroup title="模组列表" :collapsible="false">
-    <template #extra>已选 {{ selectedCount }}</template>
+  <SettingGroup title="模组列表" :collapsible="false" :extra="`已选 ${selectedCount}`">
     <div v-if="rows.length === 0" class="empty-state">
       <AlxIcon name="package" :size="32" />
       <span>没有符合条件的 Mod</span>

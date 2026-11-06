@@ -186,41 +186,34 @@ function confirmDesc() {
         @update:model-value="(v: string) => setUi({ category: v })"
       />
     </div>
-    <div class="setting-row">
+    <div class="setting-row actions">
       <div class="setting-label">名称与描述<span class="setting-desc">展示在主页与版本选择页</span></div>
-      <div class="item-right">
-        <button type="button" class="btn-sub" @click="editName = true">修改版本名</button>
-        <button type="button" class="btn-sub" @click="editDesc = true">修改版本描述</button>
-        <button type="button" class="btn-sub" @click="setUi({ favorite: !ui.favorite })">
-          <AlxIcon name="star" :size="13" />
-          {{ ui.favorite ? '取消收藏' : '加入收藏夹' }}
-        </button>
-      </div>
+      <button type="button" class="btn-sub" @click="editName = true">修改版本名</button>
+      <button type="button" class="btn-sub" @click="editDesc = true">修改版本描述</button>
+      <button type="button" class="btn-sub" @click="setUi({ favorite: !ui.favorite })">
+        {{ ui.favorite ? '取消收藏' : '加入收藏夹' }}
+      </button>
     </div>
   </SettingGroup>
 
   <!-- ---------------------- 快捷方式 ---------------------- -->
   <SettingGroup title="快捷方式" :collapsible="false">
-    <div class="setting-row">
+    <div class="setting-row actions">
       <div class="setting-label">打开文件夹</div>
-      <div class="item-right">
-        <button type="button" class="btn-sub" @click="openSubFolder('', '版本文件夹')">版本文件夹</button>
-        <button type="button" class="btn-sub" @click="openSubFolder('saves', '存档文件夹')">存档文件夹</button>
-        <button type="button" class="btn-sub" @click="openSubFolder('mods', 'Mod 文件夹')">Mod 文件夹</button>
-        <button type="button" class="btn-sub" @click="openSubFolder('screenshot', '截图文件夹')">截图文件夹</button>
-      </div>
+      <button type="button" class="btn-sub" @click="openSubFolder('', '版本文件夹')">版本文件夹</button>
+      <button type="button" class="btn-sub" @click="openSubFolder('saves', '存档文件夹')">存档文件夹</button>
+      <button type="button" class="btn-sub" @click="openSubFolder('mods', 'Mod 文件夹')">Mod 文件夹</button>
+      <button type="button" class="btn-sub" @click="openSubFolder('screenshot', '截图文件夹')">截图文件夹</button>
     </div>
   </SettingGroup>
 
   <!-- ---------------------- 高级管理 ---------------------- -->
   <SettingGroup title="高级管理" :collapsible="false">
-    <div class="setting-row">
+    <div class="setting-row actions">
       <div class="setting-label">维护<span class="setting-desc">删除操作不可撤销，请谨慎执行</span></div>
-      <div class="item-right">
-        <button type="button" class="btn-sub" @click="exportLaunchScript">导出启动脚本</button>
-        <button type="button" class="btn-sub" @click="completeFiles">补全文件</button>
-        <button type="button" class="btn-download btn-danger" @click="confirmDelete = true">删除版本</button>
-      </div>
+      <button type="button" class="btn-sub" @click="exportLaunchScript">导出启动脚本</button>
+      <button type="button" class="btn-sub" @click="completeFiles">补全文件</button>
+      <button type="button" class="btn-download btn-danger" @click="confirmDelete = true">删除版本</button>
     </div>
   </SettingGroup>
 
