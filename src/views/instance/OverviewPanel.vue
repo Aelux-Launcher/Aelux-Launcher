@@ -13,6 +13,7 @@ import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxModal from '../../components/AlxModal.vue'
 import AlxSelect from '../../components/AlxSelect.vue'
+import SettingGroup from '../../components/SettingGroup.vue'
 import {
   openFolderInExplorer,
   resolveInstanceDir,
@@ -52,6 +53,19 @@ const CATEGORY_OPTIONS = [
   { value: 'horror', label: '恐怖' },
   { value: 'server', label: '服务器' },
 ]
+
+/** 加载器 → 卡片图标（原版用方块，加载器用各自标识）。 */
+const LOADER_ICON: Record<string, string> = {
+  vanilla: 'minecraft',
+  fabric: 'fabric',
+  forge: 'forge',
+  neoforge: 'neoforge',
+  quilt: 'quilt',
+  optifine: 'optifine',
+}
+
+/** 当前实例的图标：按加载器区分，未知加载器回落到原版。 */
+const loaderIcon = computed(() => LOADER_ICON[props.instance.loader] ?? 'minecraft')
 
 const editName = ref(false)
 const editDesc = ref(false)
@@ -142,21 +156,20 @@ function confirmDesc() {
 
 <template>
   <!-- ---------------------- 版本信息 ---------------------- -->
-  <div class="setting-group">
+  <SettingGroup title="版本信息" :collapsible="false">
     <div class="setting-row">
       <div class="item-left">
-        <div class="item-icon"><AlxIcon name="package" :size="20" /></div>
+        <div class="item-icon"><AlxIcon :name="loaderIcon" :size="20" /></div>
         <div class="item-info">
           <div class="item-title">{{ displayName }}</div>
           <div class="item-desc">{{ summarizeInstance(instance, settings.serverLogin) }}</div>
         </div>
       </div>
     </div>
-  </div>
+  </SettingGroup>
 
   <!-- ---------------------- 个性化 ---------------------- -->
-  <div class="setting-group">
-    <div class="setting-group-title">个性化</div>
+  <SettingGroup title="个性化" :collapsible="false">
     <div class="setting-row">
       <div class="setting-label">图标</div>
       <AlxSelect
@@ -184,11 +197,10 @@ function confirmDesc() {
         </button>
       </div>
     </div>
-  </div>
+  </SettingGroup>
 
   <!-- ---------------------- 快捷方式 ---------------------- -->
-  <div class="setting-group">
-    <div class="setting-group-title">快捷方式</div>
+  <SettingGroup title="快捷方式" :collapsible="false">
     <div class="setting-row">
       <div class="setting-label">打开文件夹</div>
       <div class="item-right">
@@ -198,11 +210,10 @@ function confirmDesc() {
         <button type="button" class="btn-sub" @click="openSubFolder('screenshot', '截图文件夹')">截图文件夹</button>
       </div>
     </div>
-  </div>
+  </SettingGroup>
 
   <!-- ---------------------- 高级管理 ---------------------- -->
-  <div class="setting-group">
-    <div class="setting-group-title">高级管理</div>
+  <SettingGroup title="高级管理" :collapsible="false">
     <div class="setting-row">
       <div class="setting-label">维护<span class="setting-desc">删除操作不可撤销，请谨慎执行</span></div>
       <div class="item-right">
@@ -211,7 +222,7 @@ function confirmDesc() {
         <button type="button" class="btn-download btn-danger" @click="confirmDelete = true">删除版本</button>
       </div>
     </div>
-  </div>
+  </SettingGroup>
 
   <!-- ---------------------- 弹窗：修改版本名 ---------------------- -->
   <AlxModal :open="editName" title="修改版本名" @close="editName = false">

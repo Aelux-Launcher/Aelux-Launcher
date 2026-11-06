@@ -13,6 +13,7 @@ import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxSearchBar from '../../components/AlxSearchBar.vue'
 import AlxToggle from '../../components/AlxToggle.vue'
+import SettingGroup from '../../components/SettingGroup.vue'
 import { openFolderInExplorer, resolveInstanceDir } from '../instanceMeta'
 
 const props = defineProps<{ instance: GameInstance }>()
@@ -82,11 +83,8 @@ async function importPack() {
   </div>
 
   <!-- 资源包列表 -->
-  <div class="setting-group">
-    <div class="setting-group-title">
-      资源包列表
-      <span class="panel-counter">已启用 {{ enabledCount }} / {{ DEMO_PACKS.length }}</span>
-    </div>
+  <SettingGroup title="资源包列表" :collapsible="false">
+    <template #extra>已启用 {{ enabledCount }} / {{ DEMO_PACKS.length }}</template>
     <div v-if="rows.length === 0" class="empty-state">
       <AlxIcon name="shirt" :size="32" />
       <span>没有符合条件的资源包</span>
@@ -109,5 +107,5 @@ async function importPack() {
         </div>
       </div>
     </template>
-  </div>
+  </SettingGroup>
 </template>

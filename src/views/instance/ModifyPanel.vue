@@ -11,6 +11,7 @@ import { toast } from '../../lib/toast'
 import type { GameInstance } from '../../lib/types'
 import { saveInstanceUi } from '../instanceMeta'
 import AlxSelect from '../../components/AlxSelect.vue'
+import SettingGroup from '../../components/SettingGroup.vue'
 
 const props = defineProps<{ instance: GameInstance }>()
 
@@ -83,8 +84,7 @@ function startModify() {
 
 <template>
   <!-- 版本名说明 -->
-  <div class="setting-group">
-    <div class="setting-group-title">版本名</div>
+  <SettingGroup title="版本名" :collapsible="false">
     <div class="setting-row">
       <div class="setting-label">
         当前版本
@@ -94,11 +94,10 @@ function startModify() {
       </div>
       <span class="tag">{{ instance.version }}</span>
     </div>
-  </div>
+  </SettingGroup>
 
   <!-- 各加载器：当前 → 改为 -->
-  <div v-for="slot in slots" :key="slot.key" class="setting-group">
-    <div class="setting-group-title">{{ slot.label }}</div>
+  <SettingGroup v-for="slot in slots" :key="slot.key" :title="slot.label" :collapsible="false">
     <div class="setting-row">
       <div class="setting-label">当前</div>
       <span class="tag">{{ slot.current || '无' }}</span>
@@ -111,7 +110,7 @@ function startModify() {
         @update:model-value="(v: string) => (picked = { ...picked, [slot.key]: v })"
       />
     </div>
-  </div>
+  </SettingGroup>
 
   <!-- 底部：开始修改 -->
   <div style="display: flex; justify-content: center; margin-top: 4px">

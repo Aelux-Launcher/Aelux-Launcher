@@ -12,6 +12,7 @@ import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxSearchBar from '../../components/AlxSearchBar.vue'
 import AlxToggle from '../../components/AlxToggle.vue'
+import SettingGroup from '../../components/SettingGroup.vue'
 import { localModsRepo, openFolderInExplorer, resolveInstanceDir, type LocalMod } from '../instanceMeta'
 
 const props = defineProps<{ instance: GameInstance }>()
@@ -115,11 +116,8 @@ function selectAll() {
   </div>
 
   <!-- Mod 列表 -->
-  <div class="setting-group">
-    <div class="setting-group-title">
-      模组列表
-      <span class="panel-counter">已选 {{ selectedCount }}</span>
-    </div>
+  <SettingGroup title="模组列表" :collapsible="false">
+    <template #extra>已选 {{ selectedCount }}</template>
     <div v-if="rows.length === 0" class="empty-state">
       <AlxIcon name="package" :size="32" />
       <span>没有符合条件的 Mod</span>
@@ -138,5 +136,5 @@ function selectAll() {
         </div>
       </div>
     </template>
-  </div>
+  </SettingGroup>
 </template>

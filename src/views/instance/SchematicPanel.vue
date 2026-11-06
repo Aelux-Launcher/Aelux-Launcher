@@ -11,6 +11,7 @@ import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxModal from '../../components/AlxModal.vue'
 import AlxSearchBar from '../../components/AlxSearchBar.vue'
+import SettingGroup from '../../components/SettingGroup.vue'
 import { openFolderInExplorer, resolveInstanceDir } from '../instanceMeta'
 
 const props = defineProps<{ instance: GameInstance }>()
@@ -89,11 +90,8 @@ function confirmRemove() {
   </div>
 
   <!-- 原理图列表 -->
-  <div class="setting-group">
-    <div class="setting-group-title">
-      原理图列表
-      <span class="panel-counter">共 {{ schematics.length }} 个</span>
-    </div>
+  <SettingGroup title="原理图列表" :collapsible="false">
+    <template #extra>共 {{ schematics.length }} 个</template>
     <div v-if="rows.length === 0" class="empty-state">
       <AlxIcon name="grid" :size="32" />
       <span>没有符合条件的原理图</span>
@@ -115,7 +113,7 @@ function confirmRemove() {
         </div>
       </div>
     </template>
-  </div>
+  </SettingGroup>
 
   <!-- 移除确认 -->
   <AlxModal :open="removeTarget !== null" title="移除原理图" @close="removeTarget = null">

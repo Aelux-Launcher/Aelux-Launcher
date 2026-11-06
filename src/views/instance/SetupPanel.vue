@@ -13,6 +13,7 @@ import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxToggle from '../../components/AlxToggle.vue'
 import AlxSelect from '../../components/AlxSelect.vue'
+import SettingGroup from '../../components/SettingGroup.vue'
 import {
   JavaManager,
   type InstanceSettings,
@@ -78,7 +79,6 @@ const GC_OPTIONS = [
 ]
 
 const showHint = ref(true)
-const advanceOpen = ref(false)
 const javaText = ref('')
 const jres = ref<JavaRuntime[]>([])
 
@@ -160,8 +160,7 @@ watch(
   </div>
 
   <!-- ---------------------- 启动选项 ---------------------- -->
-  <div class="setting-group">
-    <div class="setting-group-title">启动选项</div>
+  <SettingGroup title="启动选项" :collapsible="false">
     <div class="setting-row">
       <div class="setting-label">版本隔离</div>
       <AlxSelect
@@ -209,11 +208,10 @@ watch(
         />
       </div>
     </div>
-  </div>
+  </SettingGroup>
 
   <!-- ---------------------- 内存分配 ---------------------- -->
-  <div class="setting-group">
-    <div class="setting-group-title">内存分配</div>
+  <SettingGroup title="内存分配" :collapsible="false">
     <div class="setting-row">
       <div class="setting-label">分配方式</div>
       <div class="item-right">
@@ -265,11 +263,10 @@ watch(
         <span>1.3 GB（可用 1.2 GB）</span>
       </div>
     </div>
-  </div>
+  </SettingGroup>
 
   <!-- ---------------------- 服务器 ---------------------- -->
-  <div class="setting-group">
-    <div class="setting-group-title">服务器</div>
+  <SettingGroup title="服务器" :collapsible="false">
     <div class="setting-row">
       <div class="setting-label">登录方式</div>
       <AlxSelect
@@ -320,80 +317,76 @@ watch(
         <button type="button" class="btn-sub" @click="applyLittleSkin">设置为 LittleSkin</button>
       </div>
     </div>
-  </div>
+  </SettingGroup>
 
-  <!-- ---------------------- 高级选项（手风琴） ---------------------- -->
-  <div class="setting-group">
-    <div class="accordion-item" :class="advanceOpen ? 'active' : ''" @click="advanceOpen = !advanceOpen">
-      <div class="accordion-header">
-        高级选项
-        <AlxIcon name="chevron-down" :size="16" />
-      </div>
-      <div class="accordion-content" style="color: var(--text-main)" @click.stop>
-      <div class="setting-row" style="padding-left: 0; padding-right: 0">
-        <div class="setting-label">Java 虚拟机参数</div>
-        <input
-          class="setting-input"
-          :value="settings.advanceJvm"
-          placeholder="跟随全局设置"
-          @input="patch({ advanceJvm: ($event.target as HTMLInputElement).value })"
-        />
-      </div>
-      <div class="setting-row" style="padding-left: 0; padding-right: 0">
-        <div class="setting-label">游戏参数</div>
-        <input
-          class="setting-input"
-          :value="settings.advanceGame"
-          placeholder="跟随全局设置"
-          @input="patch({ advanceGame: ($event.target as HTMLInputElement).value })"
-        />
-      </div>
-      <div class="setting-row" style="padding-left: 0; padding-right: 0">
-        <div class="setting-label">启动前执行命令</div>
-        <input
-          class="setting-input"
-          :value="settings.advanceRun"
-          placeholder="跟随全局设置"
-          @input="patch({ advanceRun: ($event.target as HTMLInputElement).value })"
-        />
-      </div>
-      <div class="setting-row" style="padding-left: 0; padding-right: 0">
-        <div class="setting-label">Java 列表</div>
-        <AlxSelect
-          :model-value="settings.javaPath"
-          :options="javaListOptions"
-          @update:model-value="pickJava"
-        />
-      </div>
-      <div class="setting-row" style="padding-left: 0; padding-right: 0">
-        <div class="setting-label">内存管理</div>
-        <AlxSelect
-          :model-value="settings.advanceGc"
-          :options="GC_OPTIONS"
-          @update:model-value="(v: string) => patch({ advanceGc: v as InstanceSettings['advanceGc'] })"
-        />
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 12px; padding-top: 12px">
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px">
-          <span style="font-size: 14px">禁用 Java Launch Wrapper</span>
-          <AlxToggle :model-value="settings.disableJlw" @update:model-value="patch({ disableJlw: $event })" />
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px">
-          <span style="font-size: 14px">禁用 LWJGL Unsafe Agent</span>
-          <AlxToggle :model-value="settings.disableAssetsVerify" @update:model-value="patch({ disableAssetsVerify: $event })" />
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px">
-          <span style="font-size: 14px">禁用 Mod 自动更新</span>
-          <AlxToggle :model-value="settings.disableModUpdate" @update:model-value="patch({ disableModUpdate: $event })" />
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px">
-          <span style="font-size: 14px">使用高性能显卡</span>
-          <AlxToggle :model-value="ui.highPerf !== false" @update:model-value="setUi({ highPerf: $event })" />
-        </div>
-      </div>
-      </div>
+  <!-- ---------------------- 高级选项（默认折叠） ---------------------- -->
+  <SettingGroup title="高级选项" :default-open="false">
+    <div class="setting-row">
+      <div class="setting-label">Java 虚拟机参数</div>
+      <input
+        class="setting-input"
+        :value="settings.advanceJvm"
+        placeholder="跟随全局设置"
+        @input="patch({ advanceJvm: ($event.target as HTMLInputElement).value })"
+      />
     </div>
-  </div>
+    <div class="setting-row">
+      <div class="setting-label">游戏参数</div>
+      <input
+        class="setting-input"
+        :value="settings.advanceGame"
+        placeholder="跟随全局设置"
+        @input="patch({ advanceGame: ($event.target as HTMLInputElement).value })"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">启动前执行命令</div>
+      <input
+        class="setting-input"
+        :value="settings.advanceRun"
+        placeholder="跟随全局设置"
+        @input="patch({ advanceRun: ($event.target as HTMLInputElement).value })"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">Java 列表</div>
+      <AlxSelect
+        :model-value="settings.javaPath"
+        :options="javaListOptions"
+        @update:model-value="pickJava"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">内存管理</div>
+      <AlxSelect
+        :model-value="settings.advanceGc"
+        :options="GC_OPTIONS"
+        @update:model-value="(v: string) => patch({ advanceGc: v as InstanceSettings['advanceGc'] })"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">禁用 Java Launch Wrapper</div>
+      <AlxToggle :model-value="settings.disableJlw" @update:model-value="patch({ disableJlw: $event })" />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">禁用 LWJGL Unsafe Agent</div>
+      <AlxToggle
+        :model-value="settings.disableAssetsVerify"
+        @update:model-value="patch({ disableAssetsVerify: $event })"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">禁用 Mod 自动更新</div>
+      <AlxToggle
+        :model-value="settings.disableModUpdate"
+        @update:model-value="patch({ disableModUpdate: $event })"
+      />
+    </div>
+    <div class="setting-row">
+      <div class="setting-label">使用高性能显卡</div>
+      <AlxToggle :model-value="ui.highPerf !== false" @update:model-value="setUi({ highPerf: $event })" />
+    </div>
+  </SettingGroup>
 
   <!-- 底部：跳转全局设置 -->
   <div style="display: flex; justify-content: center; margin-top: 4px">

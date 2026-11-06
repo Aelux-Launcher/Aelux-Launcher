@@ -2,7 +2,8 @@
 /**
  * 设置卡片（与版本卡片同款外观），支持折叠：
  *   collapsible=false → 标题不可点击（无法折叠）；
- *   defaultOpen=false → 默认折叠。
+ *   defaultOpen=false → 默认折叠；
+ *   #extra 插槽 → 标题右侧的次要信息（计数 / 状态文案）。
  */
 import { ref } from 'vue'
 import AlxIcon from './AlxIcon.vue'
@@ -31,10 +32,12 @@ const open = ref(props.defaultOpen)
       @click="open = !open"
     >
       <span class="setting-group-title">{{ title }}</span>
+      <span v-if="$slots.extra" class="setting-group-extra"><slot name="extra" /></span>
       <AlxIcon name="chevron-down" :size="16" :class="['setting-chevron', open ? 'open' : '']" />
     </button>
     <div v-else class="setting-group-head static">
       <span class="setting-group-title">{{ title }}</span>
+      <span v-if="$slots.extra" class="setting-group-extra"><slot name="extra" /></span>
     </div>
     <div v-show="open" class="setting-group-body">
       <slot />

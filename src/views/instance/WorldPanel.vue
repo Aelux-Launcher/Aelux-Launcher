@@ -11,6 +11,7 @@ import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxModal from '../../components/AlxModal.vue'
 import AlxSearchBar from '../../components/AlxSearchBar.vue'
+import SettingGroup from '../../components/SettingGroup.vue'
 import { openFolderInExplorer, resolveInstanceDir } from '../instanceMeta'
 
 const props = defineProps<{ instance: GameInstance }>()
@@ -95,11 +96,8 @@ function confirmRemove() {
   </div>
 
   <!-- 存档列表 -->
-  <div class="setting-group">
-    <div class="setting-group-title">
-      存档列表
-      <span class="panel-counter">共 {{ worlds.length }} 个</span>
-    </div>
+  <SettingGroup title="存档列表" :collapsible="false">
+    <template #extra>共 {{ worlds.length }} 个</template>
     <div v-if="rows.length === 0" class="empty-state">
       <AlxIcon name="globe" :size="32" />
       <span>没有符合条件的存档</span>
@@ -124,7 +122,7 @@ function confirmRemove() {
         </div>
       </div>
     </template>
-  </div>
+  </SettingGroup>
 
   <!-- 删除确认 -->
   <AlxModal :open="removeTarget !== null" title="删除存档" @close="removeTarget = null">
