@@ -343,7 +343,7 @@ function onThemeValue(value: string) {
     <!-- ==================== 全局设置 ==================== -->
     <template v-if="section === 'global'">
       <!-- 启动选项 -->
-      <SettingGroup title="启动选项">
+      <SettingGroup title="启动选项" :collapsible="false">
 
         <div class="setting-row">
           <div class="setting-label">
@@ -457,7 +457,7 @@ function onThemeValue(value: string) {
       </SettingGroup>
 
       <!-- 预设 -->
-      <SettingGroup title="预设">
+      <SettingGroup title="预设" :collapsible="false">
         <p class="setting-note">
           游戏设置预设管理着一组游戏设置，你可以在下方调整这些设置。所有实例默认继承当前预设中的游戏设置，
           也可以在实例的游戏设置页面中覆盖特定项。
@@ -490,7 +490,7 @@ function onThemeValue(value: string) {
       </SettingGroup>
 
       <!-- 内存分配 -->
-      <SettingGroup title="内存分配">
+      <SettingGroup title="内存分配" :collapsible="false">
 
         <div class="setting-row">
           <div class="setting-label">
@@ -548,7 +548,7 @@ function onThemeValue(value: string) {
       </SettingGroup>
 
       <!-- 高级选项 -->
-      <SettingGroup title="高级选项">
+      <SettingGroup title="高级选项" :default-open="false">
 
         <div class="setting-row">
           <div class="setting-label">
