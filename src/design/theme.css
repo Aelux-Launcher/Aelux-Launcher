@@ -1284,14 +1284,16 @@ svg {
   transition: width 120ms linear;
 }
 
-/* ---------------- 版本设置各管理面板（模组 / 资源包 / 世界 / 原理图） ---------------- */
+/* ---------------- 版本设置各管理面板（模组 / 资源包 / 世界 / 原理图） ----------------
+   工具行分两行：搜索独占一行，操作按钮在下一行靠右。 */
 .panel-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 12px;
   margin-bottom: 16px;
 }
+.panel-toolbar .search-bar { width: 100%; }
 .panel-actions {
   display: flex;
   flex-wrap: wrap;

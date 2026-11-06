@@ -18,37 +18,22 @@ const props = defineProps<{ instance: GameInstance }>()
 
 const store = useAppStore()
 
-/** Mod 分类（与资源页的分类保持同一套语义）。 */
-const MOD_CATEGORIES = [
-  { key: 'all', label: '全部' },
-  { key: 'technology', label: '技术' },
-  { key: 'gameplay', label: '游戏机制' },
-  { key: 'optimization', label: '优化' },
-  { key: 'decoration', label: '装饰' },
-  { key: 'animation', label: '动画' },
-  { key: 'sound', label: '音效' },
-  { key: 'texture', label: '材质' },
-  { key: 'save', label: '存档' },
-  { key: 'modpack', label: '整合包' },
-]
-
 /** 演示用 Mod 清单（本地没有安装 Mod 时用于撑起界面）。 */
-const DEMO_MODS: { name: string; desc: string; category: string }[] = [
-  { name: 'Sodium', desc: '现代化渲染引擎，大幅提升帧率并降低显存占用', category: 'optimization' },
-  { name: 'Lithium', desc: '优化游戏物理与 AI 逻辑，减少卡顿', category: 'optimization' },
-  { name: 'Iris', desc: '为 Sodium 提供光影支持的可选加载器', category: 'technology' },
-  { name: 'Mod 菜单', desc: '统一的模组配置界面，可在游戏内直接调整设置', category: 'technology' },
-  { name: '传送石', desc: '新增传送石与传送门，方便快速移动', category: 'gameplay' },
-  { name: '家具与装饰', desc: '上百种家具与装饰方块', category: 'decoration' },
-  { name: '实体动画', desc: '扩展实体模型与动画表现', category: 'animation' },
-  { name: '环境音效', desc: '为不同环境加入沉浸式环境音效', category: 'sound' },
-  { name: '高清材质', desc: '重制的高分辨率材质包', category: 'texture' },
-  { name: '自动备份', desc: '定时备份存档，避免误删进度', category: 'save' },
-  { name: '示例整合包', desc: '包含全部模组配置的整合包', category: 'modpack' },
+const DEMO_MODS: { name: string; desc: string }[] = [
+  { name: 'Sodium', desc: '现代化渲染引擎，大幅提升帧率并降低显存占用' },
+  { name: 'Lithium', desc: '优化游戏物理与 AI 逻辑，减少卡顿' },
+  { name: 'Iris', desc: '为 Sodium 提供光影支持的可选加载器' },
+  { name: 'Mod 菜单', desc: '统一的模组配置界面，可在游戏内直接调整设置' },
+  { name: '传送石', desc: '新增传送石与传送门，方便快速移动' },
+  { name: '家具与装饰', desc: '上百种家具与装饰方块' },
+  { name: '实体动画', desc: '扩展实体模型与动画表现' },
+  { name: '环境音效', desc: '为不同环境加入沉浸式环境音效' },
+  { name: '高清材质', desc: '重制的高分辨率材质包' },
+  { name: '自动备份', desc: '定时备份存档，避免误删进度' },
+  { name: '示例整合包', desc: '包含全部模组配置的整合包' },
 ]
 
 const query = ref('')
-const category = ref('all')
 const mods = ref<LocalMod[]>([])
 const selected = ref<Record<string, boolean>>({})
 
@@ -69,15 +54,12 @@ const rows = computed(() => {
           id: m.id,
           name: m.name,
           desc: m.description || m.fileName,
-          category: 'technology',
         }))
-      : DEMO_MODS.map((m, i) => ({ id: `demo-${i}`, ...m }))
-  return base.filter((m) => {
-    const matchCategory = category.value === 'all' || m.category === category.value
-    const matchKeyword =
-      !keyword || m.name.toLowerCase().includes(keyword) || m.desc.toLowerCase().includes(keyword)
-    return matchCategory && matchKeyword
-  })
+      : DEMO_MODS.map((m, i) => ({ id: `demo-${i}`, name: m.name, desc: m.desc }))
+  return base.filter(
+    (m) =>
+      !keyword || m.name.toLowerCase().includes(keyword) || m.desc.toLowerCase().includes(keyword),
+  )
 })
 
 const selectedCount = computed(() => Object.values(selected.value).filter(Boolean).length)
@@ -130,20 +112,6 @@ function selectAll() {
       <button type="button" class="btn-sub" @click="store.setView('download')">下载新 Mod</button>
       <button type="button" class="btn-sub" @click="selectAll">全选</button>
     </div>
-  </div>
-
-  <!-- 分类筛选 -->
-  <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px">
-    <button
-      v-for="c in MOD_CATEGORIES"
-      :key="c.key"
-      type="button"
-      class="tag"
-      :style="category === c.key ? { color: 'var(--text-main)', borderColor: 'var(--text-main)' } : undefined"
-      @click="category = c.key"
-    >
-      {{ c.key === 'all' ? `全部 (${mods.length || DEMO_MODS.length})` : c.label }}
-    </button>
   </div>
 
   <!-- Mod 列表 -->

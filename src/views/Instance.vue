@@ -13,7 +13,6 @@
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../stores/app'
 import type { GameInstance } from '../lib/types'
-import PageHeader from '../components/PageHeader.vue'
 import AlxIcon from '../components/AlxIcon.vue'
 import InstancePanels from './InstancePanels.vue'
 import {
@@ -80,9 +79,6 @@ function setUi(p: InstanceUi) {
 
 <template>
   <div class="page-view active sub-page instance-page">
-    <!-- 页头：标题（分类切换在左侧栏） -->
-    <PageHeader :title="instance ? `版本设置 - ${instance.name}` : '版本设置'" />
-
     <!-- 实例不存在（可能已被删除） -->
     <div v-if="!instance" class="empty-state">
       <AlxIcon name="alert-circle" :size="32" />
