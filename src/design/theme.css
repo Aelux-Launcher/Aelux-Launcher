@@ -509,9 +509,9 @@ svg {
  * 二级页面通用构件
  * ========================================================================== */
 .sub-page { padding: 32px 40px; }
-/* 子页面：父容器是 flex 列时卡片会被压缩，配合卡片的 overflow:hidden 会裁掉内容；
-   禁止直接子元素收缩即可完整展示（保留 flex 布局，避免影响依赖填充高度的子页面）。 */
-.page-view.active.sub-page > * { flex-shrink: 0; }
+/* 设置页：父容器是 flex 列时卡片会被压缩，配合卡片的 overflow:hidden 会裁掉内容；
+   禁止直接子元素收缩即可完整展示（仅限设置页，避免影响版本详情等自带滚动区的页面）。 */
+.page-view.active.settings-page > * { flex-shrink: 0; }
 
 .page-header {
   font-size: 22px;
@@ -933,8 +933,8 @@ svg {
   pointer-events: none;
 }
 
-/* 图标按钮（仅图标、无文字） */
-.icon-btn {
+/* 设置行图标按钮（仅图标、无文字） */
+.setting-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -949,16 +949,57 @@ svg {
   font-family: inherit;
   transition: color 0.15s, background 0.15s;
 }
-.icon-btn:hover { color: var(--text-main); background: var(--hover-bg); }
-.icon-btn:active { background: var(--icon-bg); }
-.icon-btn:disabled { opacity: 0.4; cursor: default; }
+.setting-icon-btn:hover { color: var(--text-main); background: var(--hover-bg); }
+.setting-icon-btn:active { background: var(--icon-bg); }
+.setting-icon-btn:disabled { opacity: 0.4; cursor: default; }
+.setting-icon-btn.danger { color: var(--danger); border-color: var(--danger); }
 
-/* 设置页底部动作（居中，与版本详情「开始下载」同款观感） */
+/* Java 列表行（参考常见 Java 管理页的信息密度） */
+.java-row { padding: 10px 8px; }
+.java-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 6px;
+  background: var(--icon-bg);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 700;
+}
+.java-row .item-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.java-row .item-desc {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-sub);
+  word-break: break-all;
+}
+.java-chip {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--icon-bg);
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 400;
+}
+.java-actions { display: flex; gap: 8px; flex: none; }
+
+/* 设置页底部动作：只有两个按钮，无分隔线、无整块背景 */
 .setting-actions {
   display: flex;
   justify-content: center;
   gap: 12px;
-  padding: 20px 0 8px;
+  margin: auto -40px -32px;
+  padding: 16px 40px 12px;
 }
 .setting-actions .btn-download {
   height: 40px;

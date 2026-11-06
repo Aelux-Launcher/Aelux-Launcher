@@ -13,6 +13,7 @@ import { computed, ref, watch } from 'vue'
 import type { SettingsSection } from '../lib/types'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
+import { call } from '../lib/bridge'
 import AlxSelect from '../components/AlxSelect.vue'
 import AlxToggle from '../components/AlxToggle.vue'
 import AlxInfoTip from '../components/AlxInfoTip.vue'
@@ -182,9 +183,40 @@ const autoUpdate = computed({
 
 /* ------------------------------- Java 管理 ------------------------------ */
 
-/** 探测到的 Java 列表（内核暂无探测命令，恒为空 → 展示空态）。 */
-// TODO: 内核 Java 探测命令就绪后在此填充（PATH 扫描 / JAVA_HOME / 注册表）。
-const javas = ref<JavaEntry[]>([])
+/** 演示数据：内核 Java 探测命令接入前，先用它展示列表形态。 */
+const DEMO_JAVAS: JavaEntry[] = [
+  {
+    major: 8,
+    version: 'JRE 1.8.0_411',
+    vendor: 'Oracle',
+    arch: 'x86-64',
+    path: 'C:\\Program Files\\Java\\jre1.8.0_411\\bin\\java.exe',
+  },
+  {
+    major: 11,
+    version: 'JDK 11.0.25',
+    vendor: 'Oracle',
+    arch: 'x86-64',
+    path: 'C:\\Program Files\\Java\\jdk-11.0.25\\bin\\java.exe',
+  },
+  {
+    major: 17,
+    version: 'JDK 17.0.10',
+    vendor: 'Oracle',
+    arch: 'x86-64',
+    path: 'C:\\Program Files\\Java\\jdk-17.0.10\\bin\\java.exe',
+  },
+  {
+    major: 21,
+    version: 'JDK 21.0.2',
+    vendor: 'Eclipse Adoptium',
+    arch: 'x86-64',
+    path: 'C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.2\\bin\\java.exe',
+  },
+]
+
+/** 探测到的 Java 列表（内核探测命令接入前先展示演示数据）。 */
+const javas = ref<JavaEntry[]>(DEMO_JAVAS)
 /** 探测中（刷新按钮禁用，避免重复触发）。 */
 const javaScanning = ref(false)
 
@@ -194,18 +226,35 @@ async function refreshJavaList() {
   javaScanning.value = true
   try {
     const list = await new JavaManager().allAvailable()
-    javas.value = list.map((j) => ({ major: j.major, path: j.path }))
-    if (javas.value.length > 0) toast.success(`已找到 ${javas.value.length} 个 Java`)
-    else toast.info('未发现已安装的 Java，可手动指定路径')
+    if (list.length > 0) {
+      javas.value = list.map((j) => ({ major: j.major, path: j.path }))
+      toast.success(`已找到 ${javas.value.length} 个 Java`)
+    } else {
+      toast.info('未发现已安装的 Java，可手动指定路径')
+    }
   } finally {
     javaScanning.value = false
   }
 }
 
-/** 把某个探测结果设为默认 Java（写核心字段 javaPath）。 */
-function setDefaultJava(j: JavaEntry) {
-  store.saveSettings({ javaPath: j.path }).catch(() => {})
-  toast.success(`已将 Java ${j.major} 设为默认`)
+/** 打开 Java 所在文件夹（不修改任何配置）。 */
+function revealJava(j: JavaEntry) {
+  void call('open_folder_in_explorer', { path: j.path }).catch(() => toast.error('无法打开所在文件夹'))
+}
+
+/** 待确认移除的 Java 路径（删除是二级确认：先点一次进入确认态，再点一次才移除）。 */
+const pendingRemove = ref('')
+
+/** 从全局 Java 列表移除（仅移出列表，不删除磁盘上的 Java）。 */
+function removeJava(j: JavaEntry) {
+  if (pendingRemove.value !== j.path) {
+    pendingRemove.value = j.path
+    toast.info(`再次点击删除按钮，确认移除 Java ${j.major}`)
+    return
+  }
+  pendingRemove.value = ''
+  javas.value = javas.value.filter((item) => item.path !== j.path)
+  toast.success(`已从列表移除 Java ${j.major}（未删除本地文件）`)
 }
 
 /** 手动指定 Java 路径（内核文件选择命令未接入，先提示）。 */
@@ -223,7 +272,7 @@ function onThemeValue(value: string) {
 </script>
 
 <template>
-  <div class="page-view active sub-page">
+  <div class="page-view active sub-page settings-page">
     <!-- ==================== 全局设置 ==================== -->
     <template v-if="section === 'global'">
       <!-- 启动选项 -->
@@ -471,7 +520,7 @@ function onThemeValue(value: string) {
           <div class="setting-controls">
             <button
               type="button"
-              class="icon-btn"
+              class="setting-icon-btn"
               title="重新获取 Java 列表"
               aria-label="重新获取 Java 列表"
               :disabled="javaScanning"
@@ -481,7 +530,7 @@ function onThemeValue(value: string) {
             </button>
             <button
               type="button"
-              class="icon-btn"
+              class="setting-icon-btn"
               title="Java 管理"
               aria-label="Java 管理"
               @click="store.routerPush('/settings/java')"
@@ -542,18 +591,39 @@ function onThemeValue(value: string) {
     <template v-else-if="section === 'java'">
 
       <SettingGroup title="已安装的 Java">
-        <!-- 探测列表：内核探测命令接入后展示（icon coffee / 标题 Java {major} / 描述路径） -->
+        <!-- Java 列表：版本徽标 + 版本名 / 架构 / 供应商 + 路径，右侧打开文件夹与移除 -->
         <template v-if="javas.length > 0">
-          <div v-for="j in javas" :key="j.path" class="list-item">
+          <div v-for="j in javas" :key="j.path" class="list-item java-row">
             <div class="item-left">
-              <div class="item-icon"><AlxIcon name="coffee" :size="20" /></div>
+              <span class="java-badge">{{ j.major }}</span>
               <div class="item-info">
-                <div class="item-title">Java {{ j.major }}</div>
+                <div class="item-title">
+                  {{ j.version ?? `Java ${j.major}` }}
+                  <span v-if="j.arch" class="java-chip">架构: {{ j.arch }}</span>
+                  <span v-if="j.vendor" class="java-chip">供应商: {{ j.vendor }}</span>
+                </div>
                 <div class="item-desc">{{ j.path }}</div>
               </div>
             </div>
-            <div class="item-right">
-              <button type="button" class="btn-download btn-ghost" @click="setDefaultJava(j)">设为默认</button>
+            <div class="item-right java-actions">
+              <button
+                type="button"
+                class="setting-icon-btn"
+                title="打开所在文件夹"
+                aria-label="打开所在文件夹"
+                @click="revealJava(j)"
+              >
+                <AlxIcon name="folder" :size="16" />
+              </button>
+              <button
+                type="button"
+                :class="['setting-icon-btn', pendingRemove === j.path ? 'danger' : '']"
+                :title="pendingRemove === j.path ? '再次点击确认从列表移除' : '从列表移除'"
+                aria-label="从列表移除"
+                @click="removeJava(j)"
+              >
+                <AlxIcon name="trash" :size="16" />
+              </button>
             </div>
           </div>
         </template>

@@ -52,7 +52,8 @@ function placePanel() {
   const above = rect.top - 12
   const upward = below < wantHeight && above > below
   const height = Math.max(96, Math.min(wantHeight, upward ? above : below))
-  const width = Math.max(rect.width, 200)
+  // 面板宽度与触发器保持一致，避免短按钮配长面板。
+  const width = Math.min(rect.width || 200, window.innerWidth - 16)
   panelStyle.value = {
     left: `${Math.min(rect.left, window.innerWidth - width - 8)}px`,
     width: `${width}px`,

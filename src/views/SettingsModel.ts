@@ -326,4 +326,10 @@ export interface JavaEntry {
   major: number
   /** 可执行文件路径 */
   path: string
+  /** 版本名（如 JDK 17.0.10 / JRE 1.8.0_411） */
+  version?: string
+  /** 供应商（如 Oracle / Eclipse Adoptium） */
+  vendor?: string
+  /** 架构（如 x86-64 / aarch64） */
+  arch?: string
 }
