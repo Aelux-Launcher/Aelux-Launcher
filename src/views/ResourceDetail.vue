@@ -59,9 +59,9 @@ const KIND_TITLE: Record<string, string> = {
 /** 资源类型 → 占位图标（见 icons.ts）。 */
 const KIND_ICON: Record<string, string> = {
   mod: 'puzzle',
-  modpack: 'package',
+  modpack: 'minecraft',
   datapack: 'grid',
-  resourcepack: 'shirt',
+  resourcepack: 'image',
   shader: 'sun',
   world: 'globe',
 }

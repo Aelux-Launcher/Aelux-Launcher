@@ -215,6 +215,8 @@ svg {
   text-align: left;
 }
 .nav-item svg { width: 16px; height: 16px; flex: none; }
+/* 导航项文字前的图标放大到 20px；行末刷新按钮（.nav-item-action）保持原尺寸。 */
+.nav-item > .nav-icon { width: 20px; height: 20px; }
 
 .nav-item:hover,
 .nav-item.active {

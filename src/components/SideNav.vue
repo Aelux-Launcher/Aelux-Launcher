@@ -35,8 +35,8 @@ const GROUPS: Record<string, Array<{ title: string; items: NavEntry[] }>> = {
     {
       title: '游戏',
       items: [
-        { key: 'original', label: '原版', icon: 'minecraft' },
-        { key: 'modpack', label: '整合包', icon: 'package' },
+        { key: 'original', label: '原版', icon: 'package' },
+        { key: 'modpack', label: '整合包', icon: 'minecraft' },
       ],
     },
     {
@@ -44,7 +44,7 @@ const GROUPS: Record<string, Array<{ title: string; items: NavEntry[] }>> = {
       items: [
         { key: 'mod', label: '模组', icon: 'puzzle' },
         { key: 'world', label: '世界', icon: 'globe' },
-        { key: 'resourcepack', label: '资源包', icon: 'shirt' },
+        { key: 'resourcepack', label: '资源包', icon: 'image' },
         { key: 'datapack', label: '数据包', icon: 'grid' },
         { key: 'shader', label: '光影包', icon: 'sun' },
       ],
@@ -62,7 +62,7 @@ const GROUPS: Record<string, Array<{ title: string; items: NavEntry[] }>> = {
       title: '启动器',
       items: [
         { key: 'general', label: '通用', icon: 'layout' },
-        { key: 'appearance', label: '外观', icon: 'aperture' },
+        { key: 'appearance', label: '外观', icon: 'shirt' },
         { key: 'download', label: '下载', icon: 'download' },
       ],
     },
@@ -434,7 +434,7 @@ function selectFolder(f: StoredFolder) {
               @keydown.enter.prevent="onNav(item.key)"
               @keydown.space.prevent="onNav(item.key)"
             >
-              <AlxIcon :name="item.icon" :size="16" />
+              <AlxIcon :name="item.icon" :size="20" class="nav-icon" />
               {{ item.label }}
               <button
                 v-if="sideModule === 'download' && activeKey === item.key"
