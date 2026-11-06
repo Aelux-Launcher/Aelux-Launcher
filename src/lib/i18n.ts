@@ -43,7 +43,7 @@ export const LOCALES: ReadonlyArray<{ code: string; label: string }> = [
 
 /** 语言下拉选项：「跟随系统」+ 全部语言（未支持的语言标注）。 */
 export const LAUNCHER_LANGUAGE_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: SYSTEM_LANGUAGE_VALUE, label: '跟随系统（简体中文）' },
+  { value: SYSTEM_LANGUAGE_VALUE, label: '跟随系统' },
   ...LOCALES.map((l) => ({
     value: l.code,
     label: SUPPORTED_LOCALES.includes(l.code) ? l.label : `${l.label}（暂未支持）`,

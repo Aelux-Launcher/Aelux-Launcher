@@ -884,7 +884,7 @@ function clearDownloadCache() {
     <!-- ==================== 启动器外观设置 ==================== -->
     <template v-else-if="section === 'appearance'">
 
-      <SettingGroup title="外观">
+      <SettingGroup title="外观" :collapsible="false">
         <div class="setting-row">
           <div class="setting-label">
             主题模式

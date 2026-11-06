@@ -2129,7 +2129,7 @@ select.filter-control { cursor: pointer; }
 }
 .version-card-chevron { color: var(--text-sub); transition: transform 0.18s; flex: none; }
 .version-card-chevron.open { transform: rotate(180deg); }
-.version-card-body { padding: 2px 18px 12px; border-top: 1px solid var(--border-light); }
+.version-card-body { padding: 8px 16px; }
 .version-card-section { padding-top: 4px; }
 .section-label {
   margin: 8px 0 4px;
@@ -2206,7 +2206,8 @@ select.filter-control { cursor: pointer; }
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 6px;
+  padding: 8px;
+  border-radius: 8px;
   border-bottom: 1px solid var(--border-light);
   cursor: pointer;
   transition: background 0.15s;
