@@ -61,6 +61,13 @@ pub async fn fetch_json(url: String) -> Result<String, CoreError> {
     core().fetch_json(&url).await.map_err(|e| e.to_string())
 }
 
+pub async fn curseforge_fetch(path: String) -> Result<String, CoreError> {
+    core()
+        .curseforge_fetch(&path)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 pub async fn download_file(url: String, dest: String, sha1: Option<String>) -> Result<String, CoreError> {
     let req = aelux_core::api::DownloadRequest { url, dest, sha1 };
     core()
@@ -107,6 +114,14 @@ pub async fn auth_poll_device_flow(session: DeviceCodeSession) -> Result<Account
 
 pub fn auth_logout(msa_id: String) -> Result<(), CoreError> {
     core().logout_microsoft(&msa_id).map_err(|e| e.to_string())
+}
+
+pub async fn refresh_microsoft_account(account_id: String) -> Result<StoredAccount, CoreError> {
+    let account = core()
+        .refresh_microsoft_account(&account_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    to_dto(account)
 }
 
 pub fn list_instances() -> Result<Vec<GameInstance>, CoreError> {
@@ -429,6 +444,17 @@ pub async fn import_modpack(
 ) -> Result<ModpackImportResult, CoreError> {
     let result = core()
         .import_modpack(&source, name.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+    to_dto(result)
+}
+
+pub async fn import_modpack_url(
+    url: String,
+    name: Option<String>,
+) -> Result<ModpackImportResult, CoreError> {
+    let result = core()
+        .import_modpack_url(&url, name.as_deref())
         .await
         .map_err(|e| e.to_string())?;
     to_dto(result)

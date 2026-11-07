@@ -51,6 +51,11 @@ import {
   RESOURCE_CATEGORIES,
   RESOURCE_PAGE_SIZE,
 } from '../lib/modrinth'
+import {
+  isCurseForgeProjectId,
+  loadCurseForgeDetail,
+  searchCurseForge,
+} from '../lib/curseforge'
 
 /** 页面栈记录：进入详情页之前待返回的位置。 */
 export interface PageStackEntry {
@@ -948,6 +953,28 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  /** 从远端直接安装整合包（Modrinth / CurseForge 下载地址）：内核下载后新建实例。 */
+  async function installModpackFromUrl(url: string, name?: string | null): Promise<GameInstance | null> {
+    if (installing.value) return null
+    installing.value = url
+    installError.value = null
+    try {
+      const result = await call<ModpackImportResult>('import_modpack_url', {
+        url,
+        name: name ?? null,
+      })
+      instances.value = [...instances.value, result.instance]
+      toast.success(`整合包已安装：${result.instance.name}（${result.files} 个文件）`)
+      return result.instance
+    } catch (e) {
+      installError.value = (e as Error).message
+      toast.error(`安装整合包失败：${(e as Error).message}`)
+      return null
+    } finally {
+      installing.value = null
+    }
+  }
+
   /** 检查 Mod 更新（Modrinth 哈希反查）。 */
   async function checkModUpdates(instanceId: string): Promise<ModUpdate[]> {
     try {
@@ -1347,34 +1374,37 @@ export const useAppStore = defineStore('app', () => {
     if (resetPage) resourcePage.value = 0
     const token = ++resourceSearchToken
     resourceError.value = null
-    // Modrinth 没有 world 项目类型：正式链路先返回空结果；预览链路用本地数据验证分页。
-    if (resourceKind.value === 'world' && isTauri) {
+    const source = resourceQuery.value.source
+    // Modrinth 没有 world 项目类型；选择 Modrinth 时直接返回空结果。
+    if (resourceKind.value === 'world' && source === 'modrinth') {
       resourceProjects.value = []
       resourceTotal.value = 0
       resourceLoading.value = false
       return
     }
     resourceLoading.value = true
-    try {
-      if (resourceQuery.value.source === 'curseforge') {
-        throw new Error('CurseForge 源需要 API key，暂不可用；请使用 Modrinth 源')
-      }
-      // 光影页的「原版可用 / Iris / OptiFine」属于加载器，走 loaders facet
-      const selected = RESOURCE_CATEGORIES[resourceKind.value].find(
-        (item) => item.slug === resourceQuery.value.category,
-      )
-      const isLoaderCategory = selected?.facet === 'loader'
+
+    // 光影页的「原版可用 / Iris / OptiFine」属于加载器，走 loaders facet
+    const selected = RESOURCE_CATEGORIES[resourceKind.value].find(
+      (item) => item.slug === resourceQuery.value.category,
+    )
+    const isLoaderCategory = selected?.facet === 'loader'
+    const loaderFilter = isLoaderCategory ? selected.slug : resourceQuery.value.loader
+    const categoryFilter = isLoaderCategory ? '' : resourceQuery.value.category
+
+    /** Modrinth 单页结果。 */
+    async function fetchModrinthPage(): Promise<{ total: number; projects: ResourceProject[] }> {
+      if (resourceKind.value === 'world') return { total: 0, projects: [] }
       const url = buildResourceSearchUrl({
         kind: resourceKind.value,
         name: resourceQuery.value.name,
         gameVersion: resourceQuery.value.gameVersion,
-        loader: isLoaderCategory ? selected.slug : resourceQuery.value.loader,
-        category: isLoaderCategory ? '' : resourceQuery.value.category,
+        loader: loaderFilter,
+        category: categoryFilter,
         page: resourcePage.value,
         pageSize: resourcePageSize,
       })
       const raw = await call<string>('fetch_json', { url })
-      if (token !== resourceSearchToken) return
       const data = JSON.parse(raw) as {
         total_hits: number
         hits: Array<{
@@ -1392,23 +1422,70 @@ export const useAppStore = defineStore('app', () => {
           versions?: string[]
         }>
       }
-      resourceTotal.value = data.total_hits
-      resourceProjects.value = data.hits.map((h) => ({
-        projectId: h.project_id,
-        slug: h.slug,
-        title: h.title,
-        description: h.description,
-        categories: h.categories,
-        displayCategories: h.display_categories,
-        downloads: h.downloads,
-        iconUrl: h.icon_url ?? '',
-        dateModified: h.date_modified,
-        author: h.author,
-        projectType: h.project_type,
-        source: 'modrinth' as const,
-        suffix: `.${resourceKind.value === 'mod' ? 'jar' : 'zip'}`,
-        versions: h.versions ?? [],
-      }))
+      return {
+        total: data.total_hits,
+        projects: data.hits.map((h) => ({
+          projectId: h.project_id,
+          slug: h.slug,
+          title: h.title,
+          description: h.description,
+          categories: h.categories,
+          displayCategories: h.display_categories,
+          downloads: h.downloads,
+          iconUrl: h.icon_url ?? '',
+          dateModified: h.date_modified,
+          author: h.author,
+          projectType: h.project_type,
+          source: 'modrinth' as const,
+          suffix: `.${resourceKind.value === 'mod' ? 'jar' : 'zip'}`,
+          versions: h.versions ?? [],
+        })),
+      }
+    }
+
+    const cfParams = {
+      kind: resourceKind.value,
+      name: resourceQuery.value.name,
+      gameVersion: resourceQuery.value.gameVersion,
+      loader: loaderFilter,
+      page: resourcePage.value,
+      pageSize: resourcePageSize,
+    }
+
+    try {
+      if (source === 'curseforge') {
+        const result = await searchCurseForge(cfParams)
+        if (token !== resourceSearchToken) return
+        resourceTotal.value = result.total
+        resourceProjects.value = result.projects
+      } else if (source === 'all') {
+        // 聚合模式：两个源并行；单源失败不影响另一个源
+        const [mr, cf] = await Promise.allSettled([
+          fetchModrinthPage(),
+          searchCurseForge(cfParams),
+        ])
+        if (token !== resourceSearchToken) return
+        const projects: ResourceProject[] = []
+        let total = 0
+        if (mr.status === 'fulfilled') {
+          projects.push(...mr.value.projects)
+          total += mr.value.total
+        }
+        if (cf.status === 'fulfilled') {
+          projects.push(...cf.value.projects)
+          total += cf.value.total
+        }
+        if (mr.status === 'rejected' && cf.status === 'rejected') {
+          throw mr.reason instanceof Error ? mr.reason : new Error(String(mr.reason))
+        }
+        resourceProjects.value = projects.sort((a, b) => b.downloads - a.downloads)
+        resourceTotal.value = total
+      } else {
+        const result = await fetchModrinthPage()
+        if (token !== resourceSearchToken) return
+        resourceTotal.value = result.total
+        resourceProjects.value = result.projects
+      }
     } catch (e) {
       if (token !== resourceSearchToken) return
       resourceError.value = (e as Error).message
@@ -1425,11 +1502,19 @@ export const useAppStore = defineStore('app', () => {
     void searchResources(false)
   }
 
-  async function loadResourceDetail(projectId: string) {
+  async function loadResourceDetail(
+    projectId: string,
+    kind: ResourceKind = resourceKind.value,
+  ) {
     resourceDetailLoading.value = true
     resourceDetailData.value = null
     resourceError.value = null
     try {
+      // CurseForge：项目信息、描述、文件、必填依赖全部由 CurseForge 模块组装
+      if (isCurseForgeProjectId(projectId)) {
+        resourceDetailData.value = await loadCurseForgeDetail(projectId, kind)
+        return
+      }
       const raw = await call<string>('fetch_json', { url: buildResourceDetailUrl(projectId) })
       const p = JSON.parse(raw) as {
         id: string
@@ -1763,6 +1848,7 @@ export const useAppStore = defineStore('app', () => {
     addGameFolder,
     removeGameFolder,
     importModpack,
+    installModpackFromUrl,
     installResource,
     checkModUpdates,
     applyModUpdate,

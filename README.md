@@ -13,40 +13,85 @@ Minecraft Java Edition 桌面启动器（公开仓库）：Tauri 2 薄壳 + Vue 
 | 状态 | Pinia |
 | 路由 | vue-router（hash 模式） |
 | 壳 | Tauri 2.x（无边框窗口，Windows / macOS / Linux） |
-| 内核接入 | dev-path（rlib 源码联调）/ release-ffi（cdylib + libloading）/ mock（默认，内置假实现） |
+| 内核接入 | dev-path（rlib 源码联调，默认）/ release-ffi（cdylib + libloading） |
 
 ## 快速开始
 
 ```bash
 npm install
-npm run dev          # cargo tauri dev（默认 mock 链路，无需内核即可跑完整 UI）
-npm run dev:core     # cargo tauri dev --features dev-path（path 依赖 Aelux-Core 源码联调）
+npm run dev          # cargo tauri dev（默认 dev-path，直调 Aelux-Core 源码）
+npm run dev:core     # 同上（显式指定 dev-path）
 npm run typecheck    # vue-tsc
 npm run build:web    # 纯前端构建
 ```
 
-> 外部贡献者：clone 后直接 `npm run dev` 即可（mock 链路）。
+> 启动器只连接真实内核，不再提供浏览器预览 / mock 假数据：直接打开网页会提示
+> 「未连接启动器内核」，请始终用 `npm run dev` 或打包后的桌面端运行。
 > 完整功能需要官方分发的内核二进制，内核源码不公开。
 > 系统要求：Windows 10 (1803+) / Windows 11（WebView2 运行时系统自带；缺失时安装微软官方 Runtime 即可）。
 
-## 内核接入（三条链路）
+## 内核接入（两条链路）
 
 ```toml
 [features]
-default = ["mock"]                    # 内置假实现，UI 正常跑
+default = ["dev-path"]                # 本地源码联调（默认）
 dev-path    = ["dep:aelux-core"]      # 本地源码联调
 release-ffi = ["dep:libloading"]      # 发布打包
 ```
 
-- **dev-path**（日常开发）：`aelux-core` 以 path 依赖参与编译，`core_api/dev.rs` 直调
+- **dev-path**（默认）：`aelux-core` 以 path 依赖参与编译，`core_api/dev.rs` 直调
   `CoreApi`；内核事件经 broadcast channel 转发为 Tauri 事件（`core-event`）。
 - **release-ffi**（发布打包）：`build.rs` 就位 cdylib（本地 `src-tauri/lib/<platform>/` 优先，
   否则 `node scripts/fetch-core.mjs` 按 manifest.json 下载 + sha256 校验），
   拷入 resources 打进安装包；运行时 `core_api/ffi_backend.rs` 用 libloading 加载，
   JSON 进出，**离线运行**。
-- **mock**（默认）：无内核依赖，数据为内置演示值。
 
-三条链路对外暴露**完全相同**的函数签名（`core_api/mod.rs` 契约），命令层零感知。
+两条链路对外暴露**完全相同**的函数签名（`core_api/mod.rs` 契约），命令层零感知。
+未选择任何链路时编译期直接 `compile_error!`，避免误用假实现。
+
+## 第三方服务配置
+
+凭据只保存在本机内核 KV（`data/kv/store.json`），不上传；设置页修改后立即生效。
+
+### CurseForge API Key
+
+1. 打开 <https://console.curseforge.com/>，用 CurseForge 账号登录；
+2. 在 **API Keys** 页申请一个 Key（个人使用即可）；
+3. 启动器「设置 → 服务与 API → CurseForge API Key」粘贴保存。
+
+未配置时 CurseForge 源不可用，搜索会自动只展示 Modrinth；配置后搜索结果
+会把两个来源合并并按下载量排序。所有请求由内核转发到
+`https://api.curseforge.com/v1`（请求头 `x-api-key`），前端不直接接触 Key。
+
+### 微软正版登录（Microsoft OAuth 设备码流）
+
+1. 打开 <https://portal.azure.com/> → **Microsoft Entra ID → 应用注册 → 新注册**；
+2. 受支持的账户类型选「**仅个人 Microsoft 账户**」；
+3. 注册后在「**身份验证 → 添加平台 → 移动和桌面应用程序**」，
+   勾选「`https://login.microsoftonline.com/common/oauth2/nativeclient`」与
+   「**允许公共客户端流 (Enable public client flow)**」；
+4. 复制概览页的「**应用程序(客户端) ID**」；
+5. 填入「设置 → 服务与 API → 微软 Client ID」，或打包时用环境变量注入：
+
+   ```powershell
+   $env:AELUX_MSA_CLIENT_ID = "<你的客户端 ID>"
+   ```
+
+解析优先级：环境变量 `AELUX_MSA_CLIENT_ID` → 内核 KV `msa_client_id` → 占位值。
+占位值状态下发起登录会直接提示「未配置微软 Client ID」。
+
+登录链路：设备码 → Xbox Live → XSTS → Minecraft 服务 → 档案；
+refresh token 按账户存入系统钥匙串，账户页「刷新」会静默续期，不再要求重新登录。
+
+### 已对接的公开 API
+
+| 服务 | 地址 | 用途 |
+| --- | --- | --- |
+| Modrinth v2 | `https://api.modrinth.com/v2` | 搜索 / 详情 / 版本 / 依赖 / 更新检查 |
+| CurseForge v1 | `https://api.curseforge.com/v1` | 搜索 / 详情 / 版本 / 依赖 / 整合包解析 |
+| Mojang 版本清单 | `https://launchermeta.mojang.com` / `piston-meta` | 游戏与资源下载 |
+| Fabric / Quilt / Forge / NeoForge | 各自官方 meta | 加载器版本与安装 |
+| MC 百科 | `https://search.mcmod.cn` | 资源中文名补充 |
 
 ## IPC 与类型同步
 
@@ -139,7 +184,7 @@ npm run build:single      # 产出 src-tauri/target/release/aelux-launcher-app.e
 CI 里的内核依赖：`aelux-core` 是 optional path 依赖，Cargo resolve 阶段要求路径存在，因此
 workflow 会先准备它——
 
-- **未配置 secrets**（外部贡献者 / fork）：生成空 stub crate 占位，mock 链路照常跑；
+- **未配置 secrets**（外部贡献者 / fork）：生成空 stub crate 占位，CI 只做前端检查；
 - **配置了 `CORE_ACCESS_TOKEN` + `CORE_REPO` secrets**：拉取私有内核仓库，并顺带执行
   `cargo check --features dev-path` 验证源码集成。
 
@@ -151,10 +196,10 @@ src/
 ├── components/      TopHeader / SideNav / 控件（极简黑白设计）+ 图标
 ├── views/           页面（启动 / 下载 / 设置 / 更多 + 详情页）
 ├── stores/app.ts    组合根：模块分组模型 + 数据缓存 + 动作
-├── lib/             bridge（IPC / 浏览器预览模拟）、bindings.ts（生成）、类型
+├── lib/             bridge（IPC）、bindings.ts（生成）、类型
 └── router/          模块页 + 详情页的路由表
 src-tauri/
-├── src/core_api/    三条内核链路（dev / ffi / mock）
+├── src/core_api/    两条内核链路（dev / ffi）
 ├── src/commands.rs  Tauri 命令层（specta 标注）
 ├── build.rs         release-ffi 内核就位 + 资源拷贝
 └── resources/       随包资源（公告等）

@@ -196,6 +196,13 @@ pub async fn fetch_json(url: String) -> Result<String, String> {
     core_api::fetch_json(url).await
 }
 
+/// CurseForge API 代理（内核读取本机配置的 API Key 后转发）。
+#[tauri::command]
+#[specta::specta]
+pub async fn curseforge_fetch(path: String) -> Result<String, String> {
+    core_api::curseforge_fetch(path).await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn download_file(url: String, dest: String, sha1: Option<String>) -> Result<String, String> {
@@ -524,6 +531,12 @@ pub async fn authlib_refresh(account_id: String) -> Result<StoredAccount, String
 
 #[tauri::command]
 #[specta::specta]
+pub async fn refresh_microsoft_account(account_id: String) -> Result<StoredAccount, String> {
+    core_api::refresh_microsoft_account(account_id).await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn install_resource(
     instance_id: String,
     kind: String,
@@ -561,6 +574,15 @@ pub fn export_modpack(instance_id: String) -> Result<String, String> {
 #[specta::specta]
 pub async fn import_modpack(source: String, name: Option<String>) -> Result<ModpackImportResult, String> {
     core_api::import_modpack(source, name).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn import_modpack_url(
+    url: String,
+    name: Option<String>,
+) -> Result<ModpackImportResult, String> {
+    core_api::import_modpack_url(url, name).await
 }
 
 #[tauri::command]

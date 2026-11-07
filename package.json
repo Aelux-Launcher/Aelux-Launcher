@@ -8,7 +8,6 @@
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
-    "dev:web": "vite",
     "dev:core": "tauri dev --features dev-path",
     "build:web": "vite build",
     "build:single": "tauri build --features dev-path --no-bundle",

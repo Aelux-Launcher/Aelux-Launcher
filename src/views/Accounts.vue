@@ -57,7 +57,7 @@ async function refreshAccount(a: StoredAccount) {
     title: '刷新账户',
     message:
       a.type === 'microsoft'
-        ? '将重新进行微软正版验证，可能需要再次在浏览器完成登录。确定继续？'
+        ? '将使用本机保存的凭证静默续期；若凭证已失效，需要重新登录微软账户。确定继续？'
         : a.type === 'third'
           ? '将通过认证服务器重新验证账户并刷新令牌。确定继续？'
           : '离线账户无需联网验证，刷新只会重新读取本地身份。确定继续？',
@@ -67,7 +67,10 @@ async function refreshAccount(a: StoredAccount) {
   refreshingId.value = a.id
   try {
     if (a.type === 'microsoft') {
-      await store.startMicrosoftLogin()
+      const refreshed = await call<StoredAccount>('refresh_microsoft_account', { accountId: a.id })
+      await store.loadAccounts()
+      await store.restoreSession()
+      toast.success(`已刷新「${refreshed.username}」`)
     } else if (a.type === 'third') {
       const refreshed = await call<StoredAccount>('authlib_refresh', { accountId: a.id })
       await store.loadAccounts()

@@ -365,10 +365,45 @@ async function refreshJavaList() {
   }
 }
 
+/* ---------------------------- 服务与 API ---------------------------- */
+
+/** 真实数据源凭据（存内核 KV，不写入 settings JSON）。 */
+const curseforgeKey = ref('')
+const msaClientId = ref('')
+
+/** 读取已保存的凭据。 */
+async function loadServiceConfig() {
+  try {
+    const [cf, msa] = await Promise.all([
+      kvGet('curseforge_api_key'),
+      kvGet('msa_client_id'),
+    ])
+    curseforgeKey.value = cf ?? ''
+    msaClientId.value = msa ?? ''
+  } catch {
+    // 未连接内核（如纯浏览器预览）时保持空值
+  }
+}
+
+/** 保存凭据到内核 KV。 */
+async function saveServiceKey(
+  key: 'curseforge_api_key' | 'msa_client_id',
+  value: string,
+  label: string,
+) {
+  try {
+    await call('kv_set', { key, value: value.trim() })
+    toast.success(`${label}已保存`)
+  } catch (e) {
+    toast.error(`保存失败：${(e as Error).message}`)
+  }
+}
+
 // 首次进入设置页即扫描本机 Java（只读探测，不阻塞渲染）
 onMounted(() => {
   void refreshJavaList()
   void loadPresets()
+  void loadServiceConfig()
   // 已保存的自定义窗口图标：进入设置页时重新应用一次
   if (isTauri && extras.value.iconPath) {
     void call('set_window_icon', { path: extras.value.iconPath }).catch(() => {})
@@ -1305,6 +1340,39 @@ async function clearDownloadCache() {
             />
           </div>
         </template>
+      </SettingGroup>
+
+      <!-- 服务与 API：真实数据源的凭据，保存在本机内核 KV -->
+      <SettingGroup title="服务与 API" :collapsible="false">
+        <div class="setting-row">
+          <div class="setting-label">
+            CurseForge API Key
+            <div class="setting-desc">用于 CurseForge 搜索与下载；留空时该源不可用</div>
+          </div>
+          <input
+            class="setting-input"
+            type="password"
+            v-model="curseforgeKey"
+            placeholder="粘贴 CurseForge API Key"
+            @change="saveServiceKey('curseforge_api_key', curseforgeKey, 'CurseForge API Key')"
+          />
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            微软 Client ID
+            <div class="setting-desc">Azure 应用注册的「应用程序(客户端) ID」，用于正版登录</div>
+          </div>
+          <input
+            class="setting-input"
+            v-model="msaClientId"
+            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            @change="saveServiceKey('msa_client_id', msaClientId, '微软 Client ID')"
+          />
+        </div>
+        <div class="setting-note">
+          凭据仅保存在本机内核 KV，不会上传。修改后重新发起搜索或登录即可生效。
+          CurseForge Key 需在 CurseForge 开发者平台申请；微软 Client ID 需在 Azure 门户注册应用并开启「允许公共客户端流」。
+        </div>
       </SettingGroup>
     </template>
   </div>

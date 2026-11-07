@@ -510,7 +510,7 @@ function retrySearch() {
                 @update:model-value="(v: string) => (loader = v)"
               />
             </div>
-            <div v-if="categoryOptions.length" class="filter-field">
+            <div v-if="categoryOptions.length && source !== 'curseforge'" class="filter-field">
               <span class="filter-label">类型</span>
               <AlxSelect
                 :model-value="category"

@@ -35,14 +35,12 @@ aelux-core = { path = "../../Aelux-Core", optional = true }
 libloading = { version = "0.8", optional = true }
 
 [features]
-# 默认 mock：外部贡献者 clone 后 `cargo tauri dev` 无需内核二进制即可跑完整 UI
-default = ["mock"]
-# 本地开发：cargo tauri dev --features dev-path（源码联调）
+# 本地开发：默认走源码联调（真实内核，无假数据）
+default = ["dev-path"]
+# 本地开发：cargo tauri dev（源码联调）
 dev-path = ["dep:aelux-core"]
 # 发布打包：cargo tauri build --features release-ffi
 release-ffi = ["dep:libloading"]
-# 内置假实现（默认启用）：UI 正常运行，数据为内置演示数据
-mock = []
 
 [profile.release]
 lto = true

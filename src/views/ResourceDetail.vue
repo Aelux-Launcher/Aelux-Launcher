@@ -17,8 +17,10 @@ import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../stores/app'
 import { call } from '../lib/bridge'
 import { toast } from '../lib/toast'
+import { confirmDialog } from '../lib/dialog'
 import { ensureMcmod, mcmodInfo } from '../lib/mcmod'
-import type { ResourceProject, ResourceVersion } from '../lib/types'
+import type { ResourceKind, ResourceProject, ResourceVersion } from '../lib/types'
+import { curseForgeProjectUrl } from '../lib/curseforge'
 import {
   categoryLabel,
   formatDownloads,
@@ -377,7 +379,7 @@ watch(
     preselectApplied = false
     selectedVersion.value = ''
     openCards.value = new Set()
-    void store.loadResourceDetail(id)
+    void store.loadResourceDetail(id, props.resourceKind as ResourceKind)
   },
   { immediate: true },
 )
@@ -503,10 +505,13 @@ function dependencyTag(dep: ResourceProject): string {
 
 /* ------------------------------ 操作 ------------------------------ */
 
-/** 打开 Modrinth 项目页。 */
+/** 打开资源项目页（Modrinth 或 CurseForge）。 */
 async function openWebsite() {
   const slug = project.value?.slug ?? props.projectId
-  const url = `https://modrinth.com/${props.resourceKind}/${encodeURIComponent(slug)}`
+  const url =
+    project.value?.source === 'curseforge'
+      ? curseForgeProjectUrl(props.resourceKind as ResourceKind, slug)
+      : `https://modrinth.com/${props.resourceKind}/${encodeURIComponent(slug)}`
   try {
     await call('open_external', { url })
   } catch (e) {
@@ -577,12 +582,37 @@ const installing = ref(false)
 
 /** 是否支持一键安装进实例。 */
 function canInstall(): boolean {
-  return !!INSTALL_KIND[props.resourceKind]
+  return props.resourceKind === 'modpack' || !!INSTALL_KIND[props.resourceKind]
 }
+
+/** 整合包安装中（新建实例，不需要选目标实例）。 */
+const installingModpack = ref(false)
 
 function requestInstall(v: ResourceVersion) {
   if (!v.fileUrl) return
+  if (props.resourceKind === 'modpack') {
+    void installModpack(v)
+    return
+  }
   installTarget.value = v
+}
+
+/** 整合包：确认后下载并按清单新建实例。 */
+async function installModpack(v: ResourceVersion) {
+  if (!v.fileUrl || installingModpack.value) return
+  const name = project.value?.title ?? ''
+  const ok = await confirmDialog({
+    title: '安装整合包',
+    message: `将下载整合包「${name}」并新建一个实例，随后可在大厅中启动。确定继续？`,
+    confirmText: '安装',
+  })
+  if (!ok) return
+  installingModpack.value = true
+  try {
+    await store.installModpackFromUrl(v.fileUrl, name || null)
+  } finally {
+    installingModpack.value = false
+  }
 }
 
 /** 安装到所选实例（内核下载并落盘到对应目录）。 */
@@ -622,7 +652,7 @@ async function downloadVersion(v: ResourceVersion) {
 
 /** 加载失败后重试。 */
 function retry() {
-  void store.loadResourceDetail(props.projectId)
+  void store.loadResourceDetail(props.projectId, props.resourceKind as ResourceKind)
 }
 
 /** 封面加载失败时回退到占位图标。 */
@@ -846,7 +876,12 @@ watch(
                 v-if="canInstall()"
                 type="button"
                 class="icon-btn version-file-download"
-                :title="`安装到实例（${v.fileName}）`"
+                :title="
+                  props.resourceKind === 'modpack'
+                    ? `安装整合包（新建实例，${v.fileName}）`
+                    : `安装到实例（${v.fileName}）`
+                "
+                :disabled="installingModpack"
                 @click.stop="requestInstall(v)"
               >
                 <AlxIcon name="plus" :size="16" />

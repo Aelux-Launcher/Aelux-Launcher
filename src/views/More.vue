@@ -756,45 +756,39 @@ function joinRoom(r: MultiplayerRoom) {
             />
           </div>
 
-          <div class="mp-field">
-            <label class="mp-label">服务器节点</label>
-            <AlxSelect v-model="roomForm.nodeId" :options="nodeOptions" />
-            <div class="mp-hint">已自动检测节点延迟，默认选中网络最优节点。</div>
-          </div>
-
-          <div class="mp-field">
-            <label class="mp-label">端口</label>
-            <div class="mp-port">{{ roomPort }}</div>
-            <div class="mp-hint">端口由系统随机分配，无需手动填写。</div>
-          </div>
-
-          <div class="mp-field">
-            <div class="mp-switch-row">
-              <div class="mp-switch-info">
-                <div class="item-title">密码房</div>
-                <div class="item-desc">开启后加入房间需要输入密码。</div>
-              </div>
-              <AlxToggle v-model="roomForm.passwordEnabled" />
+          <div class="mp-grid">
+            <div class="mp-field">
+              <label class="mp-label">服务器节点</label>
+              <AlxSelect v-model="roomForm.nodeId" :options="nodeOptions" />
             </div>
-            <input
-              v-if="roomForm.passwordEnabled"
-              v-model="roomForm.password"
-              class="setting-input mp-password"
-              type="password"
-              placeholder="设置房间密码"
-            />
-          </div>
-
-          <div class="mp-field">
-            <div class="mp-switch-row">
-              <div class="mp-switch-info">
-                <div class="item-title">退出不消失</div>
-                <div class="item-desc">
-                  退出启动器后保留房间，最多 3 天，再次启动会重新计时。
-                </div>
-              </div>
-              <AlxToggle v-model="roomForm.persist" />
+            <div class="mp-field">
+              <label class="mp-label">端口</label>
+              <div class="mp-port">{{ roomPort }}</div>
             </div>
+          </div>
+          <div class="mp-hint">节点已自动检测延迟并默认选中网络最优；端口由系统随机分配。</div>
+
+          <div class="mp-switch-row">
+            <div class="mp-switch-info">
+              <div class="item-title">密码房</div>
+              <div class="item-desc">开启后加入房间需要输入密码。</div>
+            </div>
+            <AlxToggle v-model="roomForm.passwordEnabled" />
+          </div>
+          <input
+            v-if="roomForm.passwordEnabled"
+            v-model="roomForm.password"
+            class="setting-input mp-password"
+            type="password"
+            placeholder="设置房间密码"
+          />
+
+          <div class="mp-switch-row">
+            <div class="mp-switch-info">
+              <div class="item-title">退出不消失</div>
+              <div class="item-desc">退出后保留房间，最多 3 天，再次启动会重新计时。</div>
+            </div>
+            <AlxToggle v-model="roomForm.persist" />
           </div>
         </div>
 
@@ -1038,16 +1032,25 @@ function joinRoom(r: MultiplayerRoom) {
   transform: scale(1.06);
 }
 
-/* 创建服务器弹窗 */
+/* 创建服务器弹窗（紧凑布局，避免弹窗过高） */
 .mp-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  max-height: min(58vh, 420px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.mp-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 12px;
 }
 .mp-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+  min-width: 0;
 }
 .mp-label {
   font-size: 13px;
@@ -1055,8 +1058,9 @@ function joinRoom(r: MultiplayerRoom) {
   color: var(--text-main);
 }
 .mp-hint {
+  margin-top: -4px;
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.5;
   color: var(--text-sub);
 }
 .mp-port {
@@ -1073,11 +1077,13 @@ function joinRoom(r: MultiplayerRoom) {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-light);
 }
 .mp-switch-info {
   min-width: 0;
 }
 .mp-password {
-  margin-top: 4px;
+  margin-top: -4px;
 }
 </style>

@@ -271,6 +271,11 @@ pub async fn fetch_json(url: String) -> Result<String, CoreError> {
     value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
 }
 
+pub async fn curseforge_fetch(path: String) -> Result<String, CoreError> {
+    let value = invoke("curseforge.fetch", &serde_json::json!({ "path": path })).await?;
+    value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
+}
+
 pub async fn download_file(url: String, dest: String, sha1: Option<String>) -> Result<String, CoreError> {
     let value = invoke(
         "download.file",
@@ -590,6 +595,11 @@ pub async fn authlib_refresh(account_id: String) -> Result<StoredAccount, CoreEr
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
+pub async fn refresh_microsoft_account(account_id: String) -> Result<StoredAccount, CoreError> {
+    let value = invoke("auth.ms.refresh", &serde_json::json!({ "account_id": account_id })).await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
 pub async fn install_resource(
     instance_id: String,
     kind: String,
@@ -645,6 +655,14 @@ pub async fn import_modpack(
     name: Option<String>,
 ) -> Result<ModpackImportResult, CoreError> {
     let value = invoke("modpack.import", &serde_json::json!({ "source": source, "name": name })).await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub async fn import_modpack_url(
+    url: String,
+    name: Option<String>,
+) -> Result<ModpackImportResult, CoreError> {
+    let value = invoke("modpack.import_url", &serde_json::json!({ "url": url, "name": name })).await?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 

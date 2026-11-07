@@ -6,7 +6,7 @@
  * 结果缓存到 localStorage；列表按需异步补齐，失败不影响检索本身。
  */
 import { reactive } from 'vue'
-import { call, isTauri } from './bridge'
+import { call } from './bridge'
 
 export interface McmodInfo {
   /** 主名称：有中文翻译时为中文，否则为英文。 */
@@ -95,7 +95,6 @@ async function lookup(title: string): Promise<void> {
 }
 
 async function fetchInfo(title: string): Promise<McmodInfo | null> {
-  if (!isTauri) return PREVIEW_INFO[keyOf(baseTitle(title))] ?? null
   await pace()
   const url = `https://search.mcmod.cn/s?key=${encodeURIComponent(baseTitle(title))}`
   const html = await withTimeout(call<string>('fetch_json', { url }), REQUEST_TIMEOUT)
@@ -206,16 +205,4 @@ function saveCache(): void {
   } catch {
     // 存储不可用（隐私模式等）时忽略，内存缓存仍生效。
   }
-}
-
-/** 浏览器预览用的示例数据（真实链路走 mcmod.cn 搜索）。 */
-const PREVIEW_INFO: Record<string, McmodInfo> = {
-  'just enough items': { primary: 'JEI物品管理器', secondary: 'Just Enough Items', url: 'https://search.mcmod.cn/s?key=Just%20Enough%20Items' },
-  sodium: { primary: '钠', secondary: 'Sodium', url: 'https://search.mcmod.cn/s?key=Sodium' },
-  lithium: { primary: '锂', secondary: 'Lithium', url: 'https://search.mcmod.cn/s?key=Lithium' },
-  'iris shaders': { primary: '虹膜着色器', secondary: 'Iris Shaders', url: 'https://search.mcmod.cn/s?key=Iris%20Shaders' },
-  waystones: { primary: '传送石碑', secondary: 'Waystones', url: 'https://search.mcmod.cn/s?key=Waystones' },
-  'cloth config api': { primary: '布匹配置API', secondary: 'Cloth Config API', url: 'https://search.mcmod.cn/s?key=Cloth%20Config%20API' },
-  terralith: { primary: 'Terralith', url: 'https://search.mcmod.cn/s?key=Terralith' },
-  structory: { primary: 'Structory', url: 'https://search.mcmod.cn/s?key=Structory' },
 }
