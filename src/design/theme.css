@@ -1240,6 +1240,19 @@ svg {
 .alx-select-option:hover { background: var(--hover-bg); }
 .alx-select-option.active { background: var(--hover-bg); font-weight: 600; }
 
+/* 长列表滚动优化：视口外的条目跳过布局与绘制，避免上千条时掉帧。
+   contain-intrinsic-size 里的 auto 会记住首次渲染的真实高度，
+   滚动条不会因为占位估算而跳动。 */
+.list-item,
+.install-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
+}
+.resource-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 132px;
+}
+
 /* 折叠面板 */
 .accordion-item { padding: 16px; border-radius: 8px; cursor: pointer; }
 .accordion-item:hover { background-color: var(--hover-bg); }
