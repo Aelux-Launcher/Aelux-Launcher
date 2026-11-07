@@ -24,9 +24,37 @@ const here = dirname(fileURLToPath(import.meta.url))
 const srcTauri = join(here, '..')
 
 /** 私有 Release 资产的鉴权头（可选）。 */
-function authHeaders() {
+function authHeaders(extra = {}) {
   const token = process.env.CORE_DOWNLOAD_TOKEN
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  return token ? { Authorization: `Bearer ${token}`, ...extra } : extra
+}
+
+const GITHUB_RELEASE_URL =
+  /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\/([^/?#]+)/
+
+/**
+ * 私有仓库的 Release 资产不能直接走 github.com/.../releases/download（未登录会 404），
+ * 先经 API 找到 asset id，再以 octet-stream 下载。
+ */
+async function resolveGithubAsset(url) {
+  const m = url.match(GITHUB_RELEASE_URL)
+  if (!m) return url
+  const [, owner, repo, tag, name] = m
+  const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`, {
+    headers: authHeaders({ Accept: 'application/vnd.github+json' }),
+  })
+  if (!res.ok) throw new Error(`获取 Release 失败: ${res.status} ${owner}/${repo}@${tag}`)
+  const release = await res.json()
+  const asset = release.assets?.find((item) => item.name === name)
+  if (!asset?.url) throw new Error(`Release ${tag} 缺少资产: ${name}`)
+  return asset.url
+}
+
+/** API 资产地址需要显式声明二进制响应。 */
+function assetHeaders(url) {
+  return url.startsWith('https://api.github.com/') && url.includes('/releases/assets/')
+    ? authHeaders({ Accept: 'application/octet-stream' })
+    : authHeaders()
 }
 
 /** 解析平台键（与 build.rs / manifest.json 的键一致）。 */
@@ -51,7 +79,8 @@ function libFileName() {
 
 async function fetchText(urlOrPath) {
   if (/^https?:\/\//.test(urlOrPath)) {
-    const res = await fetch(urlOrPath, { headers: authHeaders() })
+    const url = await resolveGithubAsset(urlOrPath)
+    const res = await fetch(url, { headers: assetHeaders(url) })
     if (!res.ok) throw new Error(`下载 manifest 失败: ${res.status} ${urlOrPath}`)
     return res.text()
   }
@@ -59,7 +88,8 @@ async function fetchText(urlOrPath) {
 }
 
 async function downloadTo(url, dest, expectedSha256) {
-  const res = await fetch(url, { headers: authHeaders() })
+  const target = await resolveGithubAsset(url)
+  const res = await fetch(target, { headers: assetHeaders(target) })
   if (!res.ok) throw new Error(`下载失败: ${res.status} ${url}`)
   mkdirSync(dirname(dest), { recursive: true })
   const hash = createHash('sha256')
@@ -74,6 +104,16 @@ async function downloadTo(url, dest, expectedSha256) {
     throw new Error(`sha256 校验失败: 期望 ${expectedSha256}, 实际 ${actual}`)
   }
   return actual
+}
+
+/** manifest 平台键别名：兼容内核 CI 输出的 windows / macos / linux 简写。 */
+const MANIFEST_KEYS = {
+  'windows-x64': ['windows-x64', 'windows'],
+  'windows-arm64': ['windows-arm64', 'windows'],
+  'macos-arm64': ['macos-arm64', 'macos'],
+  'macos-x64': ['macos-x64', 'macos'],
+  'linux-x64': ['linux-x64', 'linux'],
+  'linux-arm64': ['linux-arm64', 'linux'],
 }
 
 async function main() {
@@ -93,7 +133,9 @@ async function main() {
 
   const manifest = JSON.parse(await fetchText(manifestSource))
   const platform = platformKey()
-  const entry = manifest[platform]
+  const entry = (MANIFEST_KEYS[platform] ?? [platform])
+    .map((key) => manifest[key])
+    .find(Boolean)
   if (!entry?.url) throw new Error(`manifest 缺少平台条目: ${platform}`)
 
   const outDir = getArg('--out', join(srcTauri, 'lib', platform))
