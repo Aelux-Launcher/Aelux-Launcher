@@ -6,6 +6,7 @@
  *   左栏 = 总进度 / 下载速度 / 剩余文件；
  *   右栏 = 本次安装的步骤清单（已完成打勾、下载中显示百分比、等待中为省略号）。
  * 数据全部来自 store 的 downloadState / installing / installError。
+ * 启动进度不在这里展示——它在启动页右侧的独立面板里。
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useAppStore } from '../stores/app'
@@ -38,55 +39,6 @@ const overallPct = computed(() => {
 
 /** 标题：正在安装的版本名。 */
 const jobTitle = computed(() => (store.installing ? `${store.installing} 安装` : '下载任务'))
-
-/* ------------------------------ 启动进度 ------------------------------ */
-
-/** 启动阶段（与内核 LaunchProgress.stage 一一对应）。 */
-const LAUNCH_STAGES = [
-  { stage: 'prepare', label: '准备启动' },
-  { stage: 'version', label: '读取版本信息' },
-  { stage: 'natives', label: '补齐 natives' },
-  { stage: 'files', label: '检查 / 补全文件' },
-  { stage: 'auth', label: '验证账户' },
-  { stage: 'java', label: '准备 Java' },
-  { stage: 'classpath', label: '组装启动参数' },
-  { stage: 'spawn', label: '启动游戏进程' },
-] as const
-
-const launch = computed(() => store.launchProgress)
-
-const launchFailed = computed(() => !!launch.value?.done && !!launch.value?.error)
-
-/** 启动中显示；启动完成后只在没有下载任务时保留结果。 */
-const showLaunchPanel = computed(
-  () => !!launch.value && (store.launchActive || (launch.value.done && tasks.value.length === 0)),
-)
-
-const launchPct = computed(() => {
-  const state = launch.value
-  if (!state) return 0
-  if (state.done && !state.error) return 100
-  if (state.total <= 0) return 0
-  return Math.min(100, Math.round((state.current / state.total) * 100))
-})
-
-const launchTargetName = computed(() => {
-  const id = launch.value?.instanceId
-  return store.instances.find((i) => i.id === id)?.name ?? id ?? ''
-})
-
-/** 阶段状态：当前阶段高亮，之前的打勾。 */
-function launchStageClass(index: number): string {
-  const state = launch.value
-  if (!state) return 'pending'
-  if (state.done) {
-    if (state.error) return index < state.current ? 'done' : 'pending'
-    return 'done'
-  }
-  if (index < state.current) return 'done'
-  if (index === state.current) return 'downloading'
-  return 'pending'
-}
 
 /** 把字节数转成人话。 */
 function human(bytes: number): string {
@@ -135,70 +87,6 @@ const speedLabel = computed(() => (speed.value > 0 ? `${human(speed.value)}/s` :
 
 <template>
   <div class="page-view active sub-page">
-    <!-- 启动进度：PCL 式的阶段清单，失败时在面板内保留错误信息 -->
-    <div v-if="showLaunchPanel" class="task-status-layout">
-      <aside class="task-stats">
-        <div class="task-stat">
-          <div class="task-stat-label">启动进度</div>
-          <div class="task-stat-value">{{ launchFailed ? '失败' : `${launchPct} %` }}</div>
-          <div class="progress-track">
-            <div class="progress-fill" :style="{ width: `${launchPct}%` }" />
-          </div>
-        </div>
-        <div class="task-stat">
-          <div class="task-stat-label">当前步骤</div>
-          <div class="task-stat-value">{{ launch?.message || '准备中' }}</div>
-        </div>
-        <div class="task-stat">
-          <div class="task-stat-label">启动实例</div>
-          <div class="task-stat-value">{{ launchTargetName }}</div>
-        </div>
-        <div v-if="tasks.length > 0" class="task-stat">
-          <div class="task-stat-label">文件下载</div>
-          <div class="task-stat-value">{{ overallPct }} %</div>
-          <div class="progress-track">
-            <div class="progress-fill" :style="{ width: `${overallPct}%` }" />
-          </div>
-        </div>
-      </aside>
-
-      <section class="task-panel">
-        <div class="task-panel-head">
-          <span class="task-panel-title">启动进度</span>
-          <div class="task-panel-actions">
-            <span class="tag">
-              {{ launchFailed ? '启动失败' : store.launchActive ? '启动中' : '已启动' }}
-            </span>
-          </div>
-        </div>
-
-        <div v-if="launchFailed" class="install-error-card task-launch-error">
-          <AlxIcon name="alert-circle" :size="22" />
-          <div class="install-error-body">
-            <div class="install-error-title">启动失败</div>
-            <div class="install-error-text">{{ launch?.error }}</div>
-          </div>
-        </div>
-
-        <div class="task-step-list">
-          <div
-            v-for="(s, i) in LAUNCH_STAGES"
-            :key="s.stage"
-            class="task-step"
-            :class="launchStageClass(i + 1)"
-          >
-            <span class="task-step-mark">
-              <AlxIcon
-                :name="launchStageClass(i + 1) === 'done' ? 'check' : 'more-horizontal'"
-                :size="14"
-              />
-            </span>
-            <span class="task-step-name">{{ s.label }}</span>
-          </div>
-        </div>
-      </section>
-    </div>
-
     <!-- 失败提示：安装/下载失败后保留错误信息，不再只依赖一次性 toast -->
     <div v-if="store.installError && !store.installing" class="install-error-card">
       <AlxIcon :name="isCancelled ? 'x' : 'alert-circle'" :size="22" />
@@ -212,7 +100,7 @@ const speedLabel = computed(() => (speed.value > 0 ? `${human(speed.value)}/s` :
     </div>
 
     <!-- 空态：安装刚开始时任务清单还没生成，先显示准备中 -->
-    <div v-if="tasks.length === 0 && !showLaunchPanel" class="empty-state">
+    <div v-if="tasks.length === 0" class="empty-state">
       <AlxIcon v-if="store.installError" name="alert-circle" :size="32" />
       <AlxIcon v-else name="download" :size="32" />
       <div v-if="store.installing">正在准备 {{ store.installing }} 的下载任务…</div>

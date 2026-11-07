@@ -1150,7 +1150,7 @@ async function clearDownloadCache() {
         <div class="setting-row">
           <div class="setting-label">
             文件下载源
-            <div class="setting-desc">游戏文件、资源包等文件的下载来源</div>
+            <div class="setting-desc">游戏文件、资源包等文件的下载来源；默认官方优先，缓慢时自动换用 BMCLAPI / MCIM 等镜像</div>
           </div>
           <AlxSelect
             :model-value="extras.fileSource"
@@ -1161,7 +1161,7 @@ async function clearDownloadCache() {
         <div class="setting-row">
           <div class="setting-label">
             版本下载源
-            <div class="setting-desc">版本清单与版本 JSON 的下载来源</div>
+            <div class="setting-desc">版本清单与版本 JSON 的下载来源；默认官方优先，缓慢时自动换用 BMCLAPI 镜像</div>
           </div>
           <AlxSelect
             :model-value="extras.versionSource"

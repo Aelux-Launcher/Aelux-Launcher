@@ -3,7 +3,8 @@
  * 启动页（设计稿规格：内容靠右）：
  *   登录方式展示（跟随 store 偏好 / 当前会话，本页不选择）
  *   → 档案区（头像 + 玩家名）→ 启动按钮 + 实例选择 / 版本设置副按钮。
- * 业务动作走 store；启动日志并入任务管理页（store.pushLaunchLog）。
+ * 启动进度不跳转下载任务页，而是在本页右侧展示阶段清单，
+ * 页面布局与首页保持一致。
  */
 import { computed, ref } from 'vue'
 import { useAppStore } from '../stores/app'
@@ -75,8 +76,6 @@ async function handleLaunch() {
     return
   }
   store.pushLaunchLog(`准备启动 ${selected.value.name}（${selected.value.version}）…`)
-  // 先打开进度页：启动耗时（补全文件 / Java 检测）在任务页可见。
-  store.openTasksPage()
   try {
     const r = await store.launchInstance(selected.value.id)
     if (r?.ok) {
@@ -182,81 +181,178 @@ function openInstanceSetup() {
   }
   store.openSubPage({ kind: 'instance', instanceId: selected.value.id, tab: 'overall' })
 }
+
+/* ------------------------------ 启动进度 ------------------------------ */
+
+/** 启动阶段（与内核 LaunchProgress.stage 一一对应）。 */
+const LAUNCH_STAGES = [
+  { stage: 'prepare', label: '准备启动' },
+  { stage: 'version', label: '读取版本信息' },
+  { stage: 'natives', label: '补齐 natives' },
+  { stage: 'files', label: '检查 / 补全文件' },
+  { stage: 'auth', label: '验证账户' },
+  { stage: 'java', label: '准备 Java' },
+  { stage: 'classpath', label: '组装启动参数' },
+  { stage: 'spawn', label: '启动游戏进程' },
+] as const
+
+const launch = computed(() => store.launchProgress)
+
+const launchFailed = computed(() => !!launch.value?.done && !!launch.value?.error)
+
+/** 启动中显示；失败后保留面板，方便查看原因。成功后自动收起。 */
+const showLaunchPanel = computed(
+  () => !!launch.value && (store.launchActive || launchFailed.value),
+)
+
+const launchPct = computed(() => {
+  const state = launch.value
+  if (!state) return 0
+  if (state.done && !state.error) return 100
+  if (state.total <= 0) return 0
+  return Math.min(100, Math.round((state.current / state.total) * 100))
+})
+
+const launchTargetName = computed(() => {
+  const id = launch.value?.instanceId
+  return store.instances.find((i) => i.id === id)?.name ?? id ?? ''
+})
+
+/** 阶段状态：当前阶段高亮，之前的打勾。 */
+function launchStageClass(index: number): string {
+  const state = launch.value
+  if (!state) return 'pending'
+  if (state.done) {
+    if (state.error) return index < state.current ? 'done' : 'pending'
+    return 'done'
+  }
+  if (index < state.current) return 'done'
+  if (index === state.current) return 'downloading'
+  return 'pending'
+}
 </script>
 
 <template>
   <div class="page-view active launch-page">
     <div class="launch-side">
-      <!-- 登录方式（仅展示已登录时的当前方式；未登录不显示文字，但保留行高） -->
-      <div class="login-modes static">
-        <button v-if="store.session" type="button" class="active">{{ modeLabel }}</button>
-      </div>
-
-      <!-- 档案区（未登录时不显示文字，但保留高度避免跳动） -->
-      <div class="profile-section">
-        <div class="avatar">
-          <AccountAvatar
-            v-if="store.session"
-            :name="store.session.username"
-            :type="store.session.type"
-            :uuid="store.session.uuid"
-            :size="80"
-          />
-          <AlxIcon v-else name="user" :size="36" />
+      <!-- 启动进度：与首页同一布局，启动时右栏内容切换为启动进度 -->
+      <section v-if="showLaunchPanel" class="launch-progress-panel">
+        <div class="task-panel-head">
+          <span class="task-panel-title">启动进度</span>
+          <span class="tag">{{ launchFailed ? '启动失败' : '启动中' }}</span>
         </div>
-        <div v-if="store.session">
-          <div class="player-name">{{ store.session.username }}</div>
-          <div class="player-sub">
-            {{ SESSION_LABEL[store.session.type] ?? store.session.type }}
+
+        <div class="launch-progress-value">
+          <span>{{ launchFailed ? '失败' : `${launchPct} %` }}</span>
+          <span class="launch-progress-target">{{ launchTargetName }}</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" :style="{ width: `${launchPct}%` }" />
+        </div>
+        <div class="launch-progress-current">{{ launch?.message || '准备中' }}</div>
+
+        <div v-if="launchFailed" class="install-error-card launch-progress-error">
+          <AlxIcon name="alert-circle" :size="20" />
+          <div class="install-error-body">
+            <div class="install-error-title">启动失败</div>
+            <div class="install-error-text">{{ launch?.error }}</div>
           </div>
         </div>
-      </div>
 
-      <!-- 动作区 -->
-      <div class="action-section">
-        <div class="action-group">
-          <!-- 登录按钮（未登录时：没有任何账户 → 添加账户；否则依据当前登录方式） -->
-          <template v-if="!store.session">
+        <div class="task-step-list launch-step-list">
+          <div
+            v-for="(s, i) in LAUNCH_STAGES"
+            :key="s.stage"
+            class="task-step"
+            :class="launchStageClass(i + 1)"
+          >
+            <span class="task-step-mark">
+              <AlxIcon
+                :name="launchStageClass(i + 1) === 'done' ? 'check' : 'more-horizontal'"
+                :size="14"
+              />
+            </span>
+            <span class="task-step-name">{{ s.label }}</span>
+          </div>
+        </div>
+
+        <button v-if="launchFailed" type="button" class="btn-sub launch-retry" @click="handleLaunch">
+          重新启动
+        </button>
+      </section>
+
+      <div v-else class="launch-side-normal">
+        <!-- 登录方式（仅展示已登录时的当前方式；未登录不显示文字，但保留行高） -->
+        <div class="login-modes static">
+          <button v-if="store.session" type="button" class="active">{{ modeLabel }}</button>
+        </div>
+
+        <!-- 档案区（未登录时不显示文字，但保留高度避免跳动） -->
+        <div class="profile-section">
+          <div class="avatar">
+            <AccountAvatar
+              v-if="store.session"
+              :name="store.session.username"
+              :type="store.session.type"
+              :uuid="store.session.uuid"
+              :size="80"
+            />
+            <AlxIcon v-else name="user" :size="36" />
+          </div>
+          <div v-if="store.session">
+            <div class="player-name">{{ store.session.username }}</div>
+            <div class="player-sub">
+              {{ SESSION_LABEL[store.session.type] ?? store.session.type }}
+            </div>
+          </div>
+        </div>
+
+        <!-- 动作区 -->
+        <div class="action-section">
+          <div class="action-group">
+            <!-- 登录按钮（未登录时：没有任何账户 → 添加账户；否则依据当前登录方式） -->
+            <template v-if="!store.session">
+              <button
+                v-if="store.accounts.length === 0"
+                type="button"
+                class="btn-launch"
+                @click="openAccounts"
+              >
+                <span class="main-text">添加账户</span>
+                <span class="sub-text">当前未添加任何登录方式</span>
+              </button>
+              <button v-else-if="displayMode === 'official'" type="button" class="btn-launch" @click="handleOfficialLogin">
+                <span class="main-text">微软账号登录</span>
+                <span class="sub-text">正版验证</span>
+              </button>
+              <button v-else-if="displayMode === 'third'" type="button" class="btn-launch" @click="handleThirdLogin">
+                <span class="main-text">{{ thirdLabel }} 登录</span>
+                <span class="sub-text">外置登录</span>
+              </button>
+              <button v-else type="button" class="btn-launch" @click="offlineLogin">
+                <span class="main-text">离线登录</span>
+                <span class="sub-text">本地身份</span>
+              </button>
+            </template>
+
+            <!-- 启动按钮（已登录时） -->
             <button
-              v-if="store.accounts.length === 0"
+              v-else
               type="button"
               class="btn-launch"
-              @click="openAccounts"
+              :disabled="launching"
+              @click="handleLaunch"
             >
-              <span class="main-text">添加账户</span>
-              <span class="sub-text">当前未添加任何登录方式</span>
+              <span class="main-text">{{ selected ? '启动游戏' : '下载游戏' }}</span>
+              <span class="sub-text">
+                {{ selected ? `[${selectedLoader}] ${selected.version}` : '未找到可用的游戏版本' }}
+              </span>
             </button>
-            <button v-else-if="displayMode === 'official'" type="button" class="btn-launch" @click="handleOfficialLogin">
-              <span class="main-text">微软账号登录</span>
-              <span class="sub-text">正版验证</span>
-            </button>
-            <button v-else-if="displayMode === 'third'" type="button" class="btn-launch" @click="handleThirdLogin">
-              <span class="main-text">{{ thirdLabel }} 登录</span>
-              <span class="sub-text">外置登录</span>
-            </button>
-            <button v-else type="button" class="btn-launch" @click="offlineLogin">
-              <span class="main-text">离线登录</span>
-              <span class="sub-text">本地身份</span>
-            </button>
-          </template>
 
-          <!-- 启动按钮（已登录时） -->
-          <button
-            v-else
-            type="button"
-            class="btn-launch"
-            :disabled="launching"
-            @click="handleLaunch"
-          >
-            <span class="main-text">{{ selected ? '启动游戏' : '下载游戏' }}</span>
-            <span class="sub-text">
-              {{ selected ? `[${selectedLoader}] ${selected.version}` : '未找到可用的游戏版本' }}
-            </span>
-          </button>
-
-          <div class="sub-buttons">
-            <button type="button" class="btn-sub" @click="openSelect">实例选择</button>
-            <button type="button" class="btn-sub" @click="openInstanceSetup">版本设置</button>
+            <div class="sub-buttons">
+              <button type="button" class="btn-sub" @click="openSelect">实例选择</button>
+              <button type="button" class="btn-sub" @click="openInstanceSetup">版本设置</button>
+            </div>
           </div>
         </div>
       </div>

@@ -171,8 +171,8 @@ const DEFAULT_EXTRAS: SettingsExtras = {
   proxyUser: '',
   proxyPassword: '',
   maxParallel: 128,
-  fileSource: 'mirror',
-  versionSource: 'mirror',
+  fileSource: 'auto',
+  versionSource: 'auto',
   speedLimit: 0,
   versionIsolation: 'all',
   iconPath: '',
@@ -432,8 +432,8 @@ export const LANGUAGE_OPTIONS: Array<{ value: GameLanguage; label: string }> = [
 
 /** 下载源偏好选项 */
 export const DOWNLOAD_SOURCE_OPTIONS: Array<{ value: DownloadSourcePref; label: string }> = [
-  { value: 'mirror', label: '尽量使用镜像源' },
   { value: 'auto', label: '优先使用官方源，加载缓慢时换用镜像源' },
+  { value: 'mirror', label: '尽量使用镜像源' },
   { value: 'official', label: '尽量使用官方源' },
 ]
 

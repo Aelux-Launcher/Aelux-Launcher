@@ -454,10 +454,53 @@ svg {
   height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
   padding: 16px 0;
 }
+.launch-side-normal {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 启动进度面板：与首页同一布局，启动时右栏内容切换为进度清单。 */
+.launch-progress-panel {
+  width: 100%;
+  height: 100%;
+  padding: 8px 2px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  animation: alx-fade-in 180ms linear both;
+}
+.launch-progress-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 22px;
+  font-weight: 600;
+}
+.launch-progress-target {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.launch-progress-current {
+  margin: 10px 0 4px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.launch-progress-error { margin-top: 12px; }
+.launch-step-list { margin-top: 8px; }
+.launch-retry { margin-top: 14px; align-self: flex-start; }
 
 .login-modes { display: flex; gap: 8px; }
 .login-modes button {

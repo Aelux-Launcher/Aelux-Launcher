@@ -64,14 +64,22 @@ function readFull(e: HelpEntry) {
 
 /** 特别鸣谢：启动器实际使用的项目与数据来源。 */
 const THANKS: Array<{ title: string; desc: string; url: string; icon: IconName }> = [
-  { title: 'Mojang', desc: '提供 Minecraft 版本清单与游戏资源', url: 'https://www.minecraft.net', icon: 'minecraft' },
-  { title: 'BMCLAPI', desc: '提供 Forge / OptiFine 版本清单的镜像加速', url: 'https://bmclapi2.bangbang93.com', icon: 'server' },
+  { title: 'Mojang', desc: '提供 Minecraft 版本清单、游戏资源与依赖库', url: 'https://www.minecraft.net', icon: 'grass-block' },
+  { title: 'BMCLAPI', desc: '国内镜像：版本清单、依赖库、资源、Forge / NeoForge / Fabric / OptiFine 元数据', url: 'https://bmclapi2.bangbang93.com', icon: 'zap' },
+  { title: 'MCIM', desc: '提供 Modrinth / CurseForge 的 API 与文件镜像加速', url: 'https://github.com/mcmod-info-mirror', icon: 'server' },
+  { title: 'Modrinth', desc: '提供 Mod / 整合包 / 资源包的项目与版本数据', url: 'https://modrinth.com', icon: 'modrinth' },
+  { title: 'CurseForge', desc: '提供 Mod / 整合包 / 世界的项目与文件数据', url: 'https://www.curseforge.com', icon: 'curseforge' },
   { title: 'FabricMC', desc: '提供 Fabric 加载器与安装器元数据', url: 'https://fabricmc.net', icon: 'fabric' },
-  { title: 'NeoForge / Forge', desc: '提供 NeoForge 与 Forge 加载器元数据', url: 'https://neoforged.net', icon: 'neoforge' },
-  { title: 'Modrinth', desc: '提供 Mod / 资源包的项目与版本数据', url: 'https://modrinth.com', icon: 'package' },
-  { title: 'Adoptium', desc: '提供 Java 运行时的下载源', url: 'https://adoptium.net', icon: 'coffee' },
+  { title: 'QuiltMC', desc: '提供 Quilt 加载器与安装器元数据', url: 'https://quiltmc.org', icon: 'quilt' },
+  { title: 'Forge', desc: '提供 Forge 加载器与安装器', url: 'https://files.minecraftforge.net', icon: 'forge' },
+  { title: 'NeoForge', desc: '提供 NeoForge 加载器与安装器', url: 'https://neoforged.net', icon: 'neoforge' },
+  { title: 'OptiFine', desc: '提供 OptiFine 版本清单与安装包', url: 'https://optifine.net', icon: 'optifine' },
+  { title: 'Eclipse Adoptium', desc: '提供 Temurin Java 运行时下载源', url: 'https://adoptium.net', icon: 'adoptium' },
+  { title: '阿里巴巴开源镜像', desc: '提供 Maven 依赖库镜像（BMCLAPI 未同步时兜底）', url: 'https://maven.aliyun.com', icon: 'alibabacloud' },
+  { title: '清华 TUNA 镜像', desc: '提供 Adoptium Java 安装包的国内镜像', url: 'https://mirrors.tuna.tsinghua.edu.cn', icon: 'globe' },
+  { title: 'Microsoft / Xbox', desc: '提供微软正版账号与 Xbox Live 认证', url: 'https://www.microsoft.com', icon: 'microsoft' },
+  { title: 'LittleSkin', desc: '提供默认的外置登录（Yggdrasil）服务器', url: 'https://littleskin.cn', icon: 'shirt' },
   { title: 'authlib-injector', desc: '提供外置登录与皮肤支持', url: 'https://github.com/yushijinhun/authlib-injector', icon: 'key' },
-  { title: 'Vue / Tauri', desc: '提供界面框架与桌面运行时', url: 'https://v2.tauri.app', icon: 'code' },
 ]
 
 /** 法律信息折叠面板展开态。 */

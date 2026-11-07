@@ -159,9 +159,9 @@ async function confirmDelete() {
   }
 }
 
-/** 行尾设置按钮 → 该实例的「版本设置」页。 */
+/** 行尾设置按钮 → 该实例的「版本设置 → 版本概览」页。 */
 function openSettings(instance: GameInstance) {
-  store.openSubPage({ kind: 'instance', instanceId: instance.id, tab: 'setup' })
+  store.openSubPage({ kind: 'instance', instanceId: instance.id, tab: 'overall' })
 }
 </script>
 

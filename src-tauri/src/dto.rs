@@ -108,8 +108,8 @@ impl Default for LauncherConfig {
             game_height: 480,
             game_fullscreen: false,
             download_concurrency: 128,
-            file_source: "mirror".into(),
-            version_source: "mirror".into(),
+            file_source: "auto".into(),
+            version_source: "auto".into(),
             hide_on_launch: false,
             cache_dir: String::new(),
         }

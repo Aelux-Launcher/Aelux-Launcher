@@ -344,14 +344,13 @@ export const useAppStore = defineStore('app', () => {
     error: string | null
   } | null>(null)
 
-  /** 是否正在启动：标题栏指示器与任务页的显示条件。 */
+  /** 是否正在启动：启动页右侧进度面板的显示条件。 */
   const launchActive = computed(() => !!launchProgress.value && !launchProgress.value.done)
 
-  /** 是否有正在进行的下载 / 启动：标题栏下载指示器的显示条件。 */
+  /** 是否有正在进行的下载：标题栏下载指示器的显示条件（启动进度不在下载页展示）。 */
   const downloadActive = computed(
     () =>
       installing.value !== null ||
-      launchActive.value ||
       (downloadState.value.tasks.length > 0 && !downloadState.value.finished),
   )
 
