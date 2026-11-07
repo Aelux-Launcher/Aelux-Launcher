@@ -10,6 +10,7 @@ import { defineStore } from 'pinia'
 import { router } from '../router'
 import { call, kvGet, isTauri } from '../lib/bridge'
 import type { Account, DeviceCodeSession } from '../lib/bindings'
+import { readExtras } from '../views/SettingsModel'
 import { toast } from '../lib/toast'
 import { promptDialog } from '../lib/dialog'
 import type {
@@ -62,6 +63,8 @@ export interface PageStackEntry {
   /** 返回时恢复显示的模块 */
   view: AppModuleKey
   sub?: string
+  /** 进入前的完整路由路径（用于从二级页进入任务页后原路返回）。 */
+  path?: string
 }
 
 /** 测试期版本基线（三处版本号统一维护：package.json / tauri.conf.json / 内核 Cargo.toml）。 */
@@ -200,7 +203,11 @@ export const useAppStore = defineStore('app', () => {
 
   /** 进入副页面：把来处压栈，标题栏切成返回态。 */
   function openSubPage(p: SubPage) {
-    const current: PageStackEntry = { view: view.value, sub: navState.value[view.value] }
+    const current: PageStackEntry = {
+      view: view.value,
+      sub: navState.value[view.value],
+      path: route.value.fullPath,
+    }
     const exists = pageStack.value.some((e) => e.view === current.view)
     if (exists) {
       const idx = pageStack.value.findIndex((e) => e.view === current.view)
@@ -209,6 +216,12 @@ export const useAppStore = defineStore('app', () => {
       pageStack.value = [current, ...pageStack.value]
     }
     void router.push(subPath(p))
+  }
+
+  /** 标题栏下载指示器：打开下载进度页（已在任务页则忽略）。 */
+  function openTasksPage() {
+    if (route.value.name === 'tasks') return
+    openSubPage({ kind: 'tasks' })
   }
 
   /** 退出详情页，回到所在模块（保留分类选择）。 */
@@ -231,6 +244,11 @@ export const useAppStore = defineStore('app', () => {
     }
     pageStack.value = rest
     if (top.sub) navState.value = { ...navState.value, [top.view]: top.sub }
+    // 有完整路径（如版本详情）时原路返回，避免二级页回退落到模块首页。
+    if (top.path) {
+      void router.push(top.path)
+      return
+    }
     // 模块页恢复到进入前的分类；无记录则落到默认分类（redirect）
     void router.push(top.view === 'home' || !top.sub ? `/${top.view}` : `/${top.view}/${top.sub}`)
   }
@@ -286,6 +304,11 @@ export const useAppStore = defineStore('app', () => {
     pending: 0,
     finished: true,
   })
+
+  /** 是否有正在进行的下载：标题栏下载指示器的显示条件。 */
+  const downloadActive = computed(
+    () => installing.value !== null || (downloadState.value.tasks.length > 0 && !downloadState.value.finished),
+  )
 
   /** 正在运行的游戏进程（内核 running_instances 的缓存）。 */
   const runningInstances = ref<RunningGame[]>([])
@@ -1308,12 +1331,8 @@ export const useAppStore = defineStore('app', () => {
   async function saveSettings(patch: Partial<Settings>) {
     settings.value = { ...settings.value, ...patch }
     const next = settings.value
-    // 缓存目录偏好存在界面层扩展字段里（SettingsExtras），只有「自定义」才传给内核
-    const extras = next as unknown as {
-      cacheFolderMode?: string
-      cacheFolderPath?: string
-      windowSize?: string
-    }
+    // 缓存目录 / 窗口偏好 / 并发线程都存在界面层扩展字段里（SettingsExtras）。
+    const extras = readExtras(next)
     const cacheDir =
       extras.cacheFolderMode === 'custom' ? (extras.cacheFolderPath ?? '').trim() : ''
     const gameFullscreen = extras.windowSize === 'fullscreen'
@@ -1331,7 +1350,7 @@ export const useAppStore = defineStore('app', () => {
           gameWidth: 854,
           gameHeight: 480,
           gameFullscreen,
-          downloadConcurrency: 8,
+          downloadConcurrency: extras.maxParallel,
           hideOnLaunch: false,
           cacheDir,
         },
@@ -1848,6 +1867,7 @@ export const useAppStore = defineStore('app', () => {
     installing,
     installError,
     downloadState,
+    downloadActive,
     rooms,
     resourceKind,
     resourceQuery,
@@ -1879,6 +1899,7 @@ export const useAppStore = defineStore('app', () => {
     routerPush,
     setNav,
     openSubPage,
+    openTasksPage,
     closeSubPage,
     pageBack,
     setInnerBack,

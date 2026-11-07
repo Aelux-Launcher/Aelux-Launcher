@@ -105,7 +105,7 @@ impl Default for LauncherConfig {
             game_width: 854,
             game_height: 480,
             game_fullscreen: false,
-            download_concurrency: 8,
+            download_concurrency: 64,
             hide_on_launch: false,
             cache_dir: String::new(),
         }

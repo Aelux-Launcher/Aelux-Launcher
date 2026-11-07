@@ -11,11 +11,20 @@ import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import { call } from '../lib/bridge'
 import AlxIcon from '../components/AlxIcon.vue'
-import { loaderIconUrl, VANILLA_ICON_URL } from '../lib/loaderIcons'
+import { loaderIconUrl } from '../lib/loaderIcons'
+import { versionIconKey, versionRowIcon } from '../lib/versionIcons'
 
 const props = defineProps<{ versionId: string }>()
 
 const store = useAppStore()
+
+/** 当前版本的清单条目（用于取 kind；未加载到清单时按版本号兜底）。 */
+const versionEntry = computed(() => store.versions.find((v) => v.id === props.versionId))
+
+/** 顶部图标按版本类型显示：正式版 / 快照 / 远古 / 愚人节。 */
+const heroIcon = computed(() =>
+  versionRowIcon(versionIconKey(props.versionId, versionEntry.value?.kind)),
+)
 
 /** 可叠加的加载器（有品牌图标则用位图，缺素材回退内置矢量图标）。 */
 const LOADERS = [
@@ -241,8 +250,7 @@ async function startDownload() {
     loaderVersion,
     modApi,
   })
-  // 不等下载完成：先进下载状态页看进度，安装结束后再补一条反馈。
-  store.openSubPage({ kind: 'tasks' })
+  // 不阻塞在当前页：下载进度改由标题栏指示器进入。
   const ok = await job
   if (!ok) {
     const err = store.installError
@@ -264,7 +272,7 @@ async function startDownload() {
           <AlxIcon name="arrow-left" :size="18" />
         </button>
         <div class="item-icon">
-          <img :src="VANILLA_ICON_URL" width="24" height="24" alt="" />
+          <img :src="heroIcon" width="24" height="24" alt="" />
         </div>
         <div class="version-hero-name">{{ packageName }}</div>
       </div>

@@ -88,20 +88,35 @@ onUnmounted(() => {
       <span v-if="store.browserMode" class="tag">预览</span>
     </div>
 
-    <div class="window-controls">
-      <button type="button" aria-label="最小化" @click="call('minimize_window')">
-        <AlxIcon name="minus" :size="16" />
-      </button>
+    <div class="header-right">
+      <!-- 下载中：点击进入下载进度页 -->
       <button
+        v-if="store.downloadActive"
         type="button"
-        :aria-label="fullscreen ? '退出全屏' : '全屏'"
-        @click="toggleFullscreen()"
+        class="header-download-btn"
+        aria-label="查看下载进度"
+        title="正在下载，点击查看进度"
+        @click="store.openTasksPage()"
       >
-        <AlxIcon :name="fullscreen ? 'restore' : 'maximize'" :size="16" />
+        <AlxIcon name="download" :size="16" />
+        <span class="header-download-pulse" aria-hidden="true" />
       </button>
-      <button type="button" class="win-close" aria-label="关闭" @click="call('close_window')">
-        <AlxIcon name="x" :size="16" />
-      </button>
+
+      <div class="window-controls">
+        <button type="button" aria-label="最小化" @click="call('minimize_window')">
+          <AlxIcon name="minus" :size="16" />
+        </button>
+        <button
+          type="button"
+          :aria-label="fullscreen ? '退出全屏' : '全屏'"
+          @click="toggleFullscreen()"
+        >
+          <AlxIcon :name="fullscreen ? 'restore' : 'maximize'" :size="16" />
+        </button>
+        <button type="button" class="win-close" aria-label="关闭" @click="call('close_window')">
+          <AlxIcon name="x" :size="16" />
+        </button>
+      </div>
     </div>
   </div>
 </template>

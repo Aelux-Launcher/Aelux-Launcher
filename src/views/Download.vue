@@ -20,7 +20,7 @@ import AlxIcon from '../components/AlxIcon.vue'
 import AlxLoading from '../components/AlxLoading.vue'
 import AlxSelect from '../components/AlxSelect.vue'
 import VersionRowActions from '../components/VersionRowActions.vue'
-import { versionRowIcon } from '../lib/versionIcons'
+import { versionIconKey, versionRowIcon } from '../lib/versionIcons'
 
 /** 分类 → 页头标题（与侧栏文案一致） */
 const CAT_TITLE: Record<string, string> = {
@@ -83,19 +83,6 @@ function formatDateTime(iso: string): string {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-/** 愚人节版本 id（小写比对）：Mojang 清单中它们混在 release/snapshot 里，需单独归组 */
-const APRIL_FOOLS = new Set([
-  '2.0',
-  '2.0-red',
-  '2.0-blue',
-  '1.rv-pre1',
-  '15w14a',
-  '3d shareware v1.34',
-  '20w14infinite',
-  '24w14potato',
-  '25w14craftmine',
-])
-
 /** 最新正式版 / 最新预览版（清单按时间倒序，取同类第一个） */
 const latestRelease = computed(() => store.versions.find((v) => v.kind === 'release'))
 const latestSnapshot = computed(() => store.versions.find((v) => v.kind === 'snapshot'))
@@ -105,22 +92,22 @@ const GROUP_DEFS: Array<{ key: string; title: string; match: (v: { id: string; k
   {
     key: 'release',
     title: '正式版',
-    match: (v) => v.kind === 'release' && !APRIL_FOOLS.has(v.id.toLowerCase()),
+    match: (v) => versionIconKey(v.id, v.kind) === 'release',
   },
   {
     key: 'snapshot',
     title: '快照版',
-    match: (v) => v.kind === 'snapshot' && !APRIL_FOOLS.has(v.id.toLowerCase()),
+    match: (v) => versionIconKey(v.id, v.kind) === 'snapshot',
   },
   {
     key: 'legacy',
     title: '远古版',
-    match: (v) => v.kind === 'old_beta' || v.kind === 'old_alpha',
+    match: (v) => versionIconKey(v.id, v.kind) === 'legacy',
   },
   {
     key: 'april',
     title: '愚人节版',
-    match: (v) => APRIL_FOOLS.has(v.id.toLowerCase()),
+    match: (v) => versionIconKey(v.id, v.kind) === 'april',
   },
 ]
 

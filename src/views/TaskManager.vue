@@ -84,16 +84,7 @@ const speedLabel = computed(() => (speed.value > 0 ? `${human(speed.value)}/s` :
 
 <template>
   <div class="page-view active sub-page">
-    <PageHeader title="任务管理">
-      <button
-        v-if="tasks.length > 0"
-        type="button"
-        class="btn-download btn-ghost"
-        @click="store.setView('download')"
-      >
-        前往下载页
-      </button>
-    </PageHeader>
+    <PageHeader title="任务管理" />
 
     <!-- 失败提示：安装/下载失败后保留错误信息，不再只依赖一次性 toast -->
     <div v-if="store.installError && !store.installing" class="install-error-card">

@@ -125,6 +125,46 @@ svg {
   font-weight: bold;
   color: var(--text-sub);
 }
+
+/* 顶栏右侧：下载指示器 + 窗口控制（指示器紧挨窗口按钮左侧） */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.header-download-btn {
+  position: relative;
+  width: 30px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-sub);
+  cursor: pointer;
+  transition: color var(--alx-dur-in) linear;
+}
+.header-download-btn svg { display: block; stroke-width: 2.4; }
+.header-download-btn:hover,
+.header-download-btn:active { color: var(--text-main); }
+.header-download-btn:active { background-color: var(--icon-bg); }
+.header-download-pulse {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-main);
+  animation: header-download-pulse 1.2s ease-in-out infinite;
+}
+@keyframes header-download-pulse {
+  0%, 100% { opacity: 0.25; transform: scale(0.75); }
+  50% { opacity: 1; transform: scale(1); }
+}
 .window-controls button {
   width: 30px;
   height: 26px;
