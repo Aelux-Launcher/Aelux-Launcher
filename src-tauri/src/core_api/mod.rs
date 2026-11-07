@@ -10,12 +10,14 @@
 
 #![allow(clippy::too_many_arguments)]
 
-#[cfg(feature = "dev-path")]
+// 两条链路同时开启时（`tauri build --features release-ffi` 会叠加默认的 dev-path），
+// 优先 release-ffi，避免 glob 重导出产生同名歧义。
+#[cfg(all(feature = "dev-path", not(feature = "release-ffi")))]
 mod dev;
 #[cfg(feature = "release-ffi")]
 mod ffi_backend;
 
-#[cfg(feature = "dev-path")]
+#[cfg(all(feature = "dev-path", not(feature = "release-ffi")))]
 pub use dev::*;
 #[cfg(feature = "release-ffi")]
 pub use ffi_backend::*;
