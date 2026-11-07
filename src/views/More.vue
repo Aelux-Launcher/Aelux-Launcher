@@ -88,8 +88,8 @@ const copyrightYears = computed(() => {
 
 /** GitHub Issues 反馈入口（TODO：仓库地址确定后替换）。 */
 const ISSUES_URL = 'https://github.com/Aelux-Launcher/Aelux-Launcher/issues'
-/** 官方交流群信息页（TODO：社区落地页确定后替换）。 */
-const GROUP_URL = 'https://aelux.app/community'
+/** 官方交流群（腾讯 QQ 群邀请链接）。 */
+const GROUP_URL = 'https://qm.qq.com/q/MvHrRtdjCW'
 
 /** 提交反馈前建议准备的信息。 */
 const FEEDBACK_TIPS = [
