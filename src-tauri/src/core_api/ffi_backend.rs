@@ -293,10 +293,22 @@ pub async fn curseforge_fetch(path: String) -> Result<String, CoreError> {
     value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
 }
 
-pub async fn download_file(url: String, dest: String, sha1: Option<String>) -> Result<String, CoreError> {
+pub async fn download_file(
+    url: String,
+    dest: String,
+    sha1: Option<String>,
+    task_id: Option<String>,
+    name: Option<String>,
+) -> Result<String, CoreError> {
     let value = invoke(
         "download.file",
-        &serde_json::json!({ "url": url, "dest": dest, "sha1": sha1 }),
+        &serde_json::json!({
+            "url": url,
+            "dest": dest,
+            "sha1": sha1,
+            "taskId": task_id,
+            "name": name,
+        }),
     )
     .await?;
     value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())

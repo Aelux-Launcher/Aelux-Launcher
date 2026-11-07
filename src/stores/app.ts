@@ -409,6 +409,33 @@ export const useAppStore = defineStore('app', () => {
     ds.finished = tasks.length > 0 && ds.pending === 0 && ds.active === 0
   }
 
+  /**
+   * 登记一条单文件下载任务，返回任务 id。
+   * 进度由内核 `DownloadProgress` 事件按同一 id 回填。
+   */
+  function beginDownloadTask(name: string, url: string): string {
+    const id = `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const ds = downloadState.value
+    ds.tasks = [
+      ...ds.tasks,
+      { id, name, url, received: 0, total: 0, status: 'downloading' },
+    ]
+    ds.finished = false
+    recomputeDownloadState()
+    return id
+  }
+
+  /** 按 id 更新任务状态（进度事件会替换任务对象，不能持有旧引用）。 */
+  function settleDownloadTask(
+    id: string,
+    status: 'done' | 'failed',
+    error?: string,
+  ) {
+    const ds = downloadState.value
+    ds.tasks = ds.tasks.map((t) => (t.id === id ? { ...t, status, error } : t))
+    recomputeDownloadState()
+  }
+
   /** 内核下载进度 → 任务列表（同 taskId 覆盖，未知则追加）。 */
   function upsertDownloadTask(ev: Extract<CoreEvent, { type: 'DownloadProgress' }>) {
     const ds = downloadState.value
@@ -679,8 +706,8 @@ export const useAppStore = defineStore('app', () => {
       loaderVersion?: string
       modApi?: { api: 'fabric-api' | 'qsl'; version?: string }
     },
-  ) {
-    if (installing.value) return
+  ): Promise<boolean> {
+    if (installing.value) return false
     installing.value = id
     installError.value = null
     downloadState.value = {
@@ -711,9 +738,11 @@ export const useAppStore = defineStore('app', () => {
       }
       finishDownloadTasks('done')
       await refreshInstances()
+      return true
     } catch (e) {
       installError.value = (e as Error).message
       finishDownloadTasks('failed')
+      return false
     } finally {
       installing.value = null
     }
@@ -741,8 +770,21 @@ export const useAppStore = defineStore('app', () => {
     const json = await fetchVersionJson(id)
     const client = json.downloads?.client
     if (!client) throw new Error('该版本没有提供客户端下载')
-    await call('download_file', { url: client.url, dest: path, sha1: client.sha1 })
-    return path
+    const taskId = beginDownloadTask(`${id}.jar`, client.url)
+    try {
+      await call('download_file', {
+        url: client.url,
+        dest: path,
+        sha1: client.sha1,
+        taskId,
+        name: `${id}.jar`,
+      })
+      settleDownloadTask(taskId, 'done')
+      return path
+    } catch (e) {
+      settleDownloadTask(taskId, 'failed', (e as Error).message)
+      throw e
+    }
   }
 
   /** 下载服务端 jar 到数据目录 minecraft/servers/<id>/server.jar，返回落盘路径。 */
@@ -751,8 +793,21 @@ export const useAppStore = defineStore('app', () => {
     const server = json.downloads?.server
     if (!server) throw new Error('该版本没有提供服务端下载')
     const dest = `minecraft/servers/${id}/server.jar`
-    await call('download_file', { url: server.url, dest, sha1: server.sha1 })
-    return dest
+    const taskId = beginDownloadTask(`server-${id}.jar`, server.url)
+    try {
+      await call('download_file', {
+        url: server.url,
+        dest,
+        sha1: server.sha1,
+        taskId,
+        name: `server-${id}.jar`,
+      })
+      settleDownloadTask(taskId, 'done')
+      return dest
+    } catch (e) {
+      settleDownloadTask(taskId, 'failed', (e as Error).message)
+      throw e
+    }
   }
 
   /* ----------------------------- 加载器版本列表 ----------------------------- */
@@ -1725,34 +1780,20 @@ export const useAppStore = defineStore('app', () => {
       dest = `preview/resources/${fallbackName}`
     }
 
-    const task: DownloadTaskState = {
-      id: `resource-${v.id}-${Date.now()}`,
-      name: fallbackName,
-      url: v.fileUrl,
-      received: 0,
-      total: 0,
-      status: 'pending',
-    }
-    const ds = downloadState.value
-    ds.tasks = [...ds.tasks, task]
-    ds.finished = false
-    ds.pending = ds.tasks.filter((t) => t.status === 'pending').length
-    task.status = 'downloading'
-    ds.active += 1
+    const taskId = beginDownloadTask(fallbackName, v.fileUrl)
     try {
-      await call('download_file', { url: v.fileUrl, dest, sha1: null })
-      task.status = 'done'
+      await call('download_file', {
+        url: v.fileUrl,
+        dest,
+        sha1: null,
+        taskId,
+        name: fallbackName,
+      })
+      settleDownloadTask(taskId, 'done')
       return dest
     } catch (e) {
-      task.status = 'failed'
-      task.error = (e as Error).message
+      settleDownloadTask(taskId, 'failed', (e as Error).message)
       throw e
-    } finally {
-      ds.active = Math.max(0, ds.active - 1)
-      ds.done = ds.tasks.filter((t) => t.status === 'done').length
-      ds.failed = ds.tasks.filter((t) => t.status === 'failed').length
-      ds.pending = ds.tasks.filter((t) => t.status === 'pending').length
-      ds.finished = ds.pending === 0 && ds.active === 0
     }
   }
 

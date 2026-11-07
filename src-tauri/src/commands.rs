@@ -205,8 +205,14 @@ pub async fn curseforge_fetch(path: String) -> Result<String, String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn download_file(url: String, dest: String, sha1: Option<String>) -> Result<String, String> {
-    core_api::download_file(url, dest, sha1).await
+pub async fn download_file(
+    url: String,
+    dest: String,
+    sha1: Option<String>,
+    task_id: Option<String>,
+    name: Option<String>,
+) -> Result<String, String> {
+    core_api::download_file(url, dest, sha1, task_id, name).await
 }
 
 #[tauri::command]

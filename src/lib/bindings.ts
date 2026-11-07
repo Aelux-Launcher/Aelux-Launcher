@@ -25,7 +25,7 @@ export const commands = {
 	fetchJson: (url: string) => typedError<string, string>(__TAURI_INVOKE("fetch_json", { url })),
 	/**  CurseForge API 代理（内核读取本机配置的 API Key 后转发）。 */
 	curseforgeFetch: (path: string) => typedError<string, string>(__TAURI_INVOKE("curseforge_fetch", { path })),
-	downloadFile: (url: string, dest: string, sha1: string | null) => typedError<string, string>(__TAURI_INVOKE("download_file", { url, dest, sha1 })),
+	downloadFile: (url: string, dest: string, sha1: string | null, taskId: string | null, name: string | null) => typedError<string, string>(__TAURI_INVOKE("download_file", { url, dest, sha1, taskId, name })),
 	fetchMinecraftManifest: () => typedError<VersionManifest_Serialize, string>(__TAURI_INVOKE("fetch_minecraft_manifest")),
 	loaderVersions: (loader: string, mcVersion: string) => typedError<string[], string>(__TAURI_INVOKE("loader_versions", { loader, mcVersion })),
 	modApiVersions: (api: string, mcVersion: string) => typedError<string[], string>(__TAURI_INVOKE("mod_api_versions", { api, mcVersion })),

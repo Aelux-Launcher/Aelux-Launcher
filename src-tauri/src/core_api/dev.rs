@@ -69,8 +69,20 @@ pub async fn curseforge_fetch(path: String) -> Result<String, CoreError> {
         .map_err(|e| e.to_string())
 }
 
-pub async fn download_file(url: String, dest: String, sha1: Option<String>) -> Result<String, CoreError> {
-    let req = aelux_core::api::DownloadRequest { url, dest, sha1 };
+pub async fn download_file(
+    url: String,
+    dest: String,
+    sha1: Option<String>,
+    task_id: Option<String>,
+    name: Option<String>,
+) -> Result<String, CoreError> {
+    let req = aelux_core::api::DownloadRequest {
+        url,
+        dest,
+        sha1,
+        task_id,
+        name,
+    };
     core()
         .download_file(&req)
         .await

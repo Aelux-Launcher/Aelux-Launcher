@@ -243,10 +243,14 @@ async function startDownload() {
   })
   // 不等下载完成：先进下载状态页看进度，安装结束后再补一条反馈。
   store.openSubPage({ kind: 'tasks' })
-  await job
-  const err = store.installError
-  if (err) toast.error(`安装失败：${err}`)
-  else toast.success(`已完成 ${packageName.value} 的安装`)
+  const ok = await job
+  if (!ok) {
+    const err = store.installError
+    if (err) toast.error(`安装失败：${err}`)
+    else toast.info('已有安装任务正在进行')
+    return
+  }
+  toast.success(`已完成 ${packageName.value} 的安装`)
 }
 </script>
 
