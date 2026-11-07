@@ -16,20 +16,12 @@ export const commands = {
 	getMinecraftDir: () => __TAURI_INVOKE<string>("get_minecraft_dir"),
 	/**
 	 *  检测官方启动器的 .minecraft 目录（Windows 下为 %APPDATA%\.minecraft）。
-	 *  未检测到返回 None，前端据此隐藏「官方文件夹」卡片。
+	 *  只有目录里确实存在 Minecraft 数据时才返回；空目录 / 仅创建过文件夹不显示。
 	 */
 	detectOfficialMinecraft: () => __TAURI_INVOKE<string | null>("detect_official_minecraft"),
-	/**
-	 *  扫描游戏文件夹里的全部 Minecraft 版本。
-	 *  `path` 可以是游戏根目录（含 versions）或它的父目录（含 .minecraft/versions）；
-	 *  没有 versions 目录时返回空列表，供界面展示空状态。
-	 */
-	scanFolderVersions: (path: string) => typedError<FolderScan, string>(__TAURI_INVOKE("scan_folder_versions", { path })),
-	/**
-	 *  清空游戏文件夹内容（版本 / 资源 / 存档 / 配置等全部删除，文件夹本身保留）。
-	 *  只接受能识别为 Minecraft 游戏目录的路径，且拒绝磁盘根目录，
-	 *  避免误传路径把不相干的东西删掉。
-	 */
+	/**  扫描游戏文件夹里的全部 Minecraft 版本（业务逻辑在 Aelux-Core）。 */
+	scanFolderVersions: (path: string) => typedError<FolderScan_Serialize, string>(__TAURI_INVOKE("scan_folder_versions", { path })),
+	/**  清空游戏文件夹内容（当前 `.minecraft` 会一并清理实例描述）。 */
 	clearGameFolder: (path: string) => typedError<ClearFolderResult, string>(__TAURI_INVOKE("clear_game_folder", { path })),
 	getOsInfo: () => typedError<OsInfo, string>(__TAURI_INVOKE("get_os_info")),
 	/**
@@ -116,9 +108,9 @@ export const commands = {
 	/**  读取随包公告（src-tauri/resources/announcements.json）。 */
 	readBundledAnnouncements: () => __TAURI_INVOKE<string>("read_bundled_announcements"),
 	/**  检查启动器更新（按渠道 + 更新源；auto 模式并发测速择优）。 */
-	updateCheck: (channel: string, source: string, selfBase: string | null, r2Base: string | null) => typedError<UpdateCheckResult, string>(__TAURI_INVOKE("update_check", { channel, source, selfBase, r2Base })),
+	updateCheck: (channel: string, source: string, selfBase: string | null, r2Base: string | null) => typedError<UpdateCheckResult_Serialize, string>(__TAURI_INVOKE("update_check", { channel, source, selfBase, r2Base })),
 	/**  下载更新包并校验、解压暂存（进度经内核下载任务推送，任务面板可见）。 */
-	updateDownload: (entry: UpdateChannelEntry, taskId: string) => typedError<string, string>(__TAURI_INVOKE("update_download", { entry, taskId })),
+	updateDownload: (entry: UpdateChannelEntry_Deserialize, taskId: string) => typedError<string, string>(__TAURI_INVOKE("update_download", { entry, taskId })),
 	/**  立即应用暂存的更新并重启（换身替换 exe/dll）。 */
 	updateApplyRestart: () => typedError<null, string>(__TAURI_INVOKE("update_apply_restart")),
 	/**  当前版本与暂存版本状态。 */
@@ -185,9 +177,18 @@ export type DialogFilter = {
 };
 
 /**  文件夹扫描结果（root = 实际识别出的游戏根目录）。 */
-export type FolderScan = {
+export type FolderScan = FolderScan_Serialize | FolderScan_Deserialize;
+
+/**  文件夹扫描结果（root = 实际识别出的游戏根目录）。 */
+export type FolderScan_Deserialize = {
 	root: string,
-	versions: ScannedVersion[],
+	versions: ScannedVersion_Deserialize[],
+};
+
+/**  文件夹扫描结果（root = 实际识别出的游戏根目录）。 */
+export type FolderScan_Serialize = {
+	root: string,
+	versions: ScannedVersion_Serialize[],
 };
 
 /**  游戏实例。 */
@@ -466,24 +467,6 @@ export type RunningGame = {
 	pid: number,
 };
 
-/**  文件夹里扫描到的一个 Minecraft 版本（只读展示，不写入磁盘）。 */
-export type ScannedVersion = {
-	/**  版本目录名 / 版本 JSON 里的 id */
-	id: string,
-	/**  对应的 Minecraft 版本（modded 版本取 inheritsFrom） */
-	version: string,
-	/**  vanilla / fabric / forge / neoforge / quilt */
-	loader: string,
-	/**  加载器版本（可能为空） */
-	loaderVersion: string | null,
-	/**  release / snapshot / old_beta / old_alpha */
-	kind: string,
-	/**  版本目录绝对路径 */
-	path: string,
-	/**  最后修改时间（Unix 毫秒） */
-	lastModified: number,
-};
-
 /**  「另存为」选项。 */
 export type SaveDialogOptions = SaveDialogOptions_Serialize | SaveDialogOptions_Deserialize;
 
@@ -503,6 +486,45 @@ export type SaveDialogOptions_Serialize = {
 	filters: DialogFilter[] | null,
 };
 
+/**  文件夹里扫描到的一个 Minecraft 版本（只读展示，不写入磁盘）。 */
+export type ScannedVersion = ScannedVersion_Serialize | ScannedVersion_Deserialize;
+
+/**  文件夹里扫描到的一个 Minecraft 版本（只读展示，不写入磁盘）。 */
+export type ScannedVersion_Deserialize = {
+	/**  版本目录名 / 版本 JSON 里的 id */
+	id: string,
+	/**  对应的 Minecraft 版本（modded 版本取 inheritsFrom） */
+	version: string,
+	/**  vanilla / fabric / forge / neoforge / quilt */
+	loader: string,
+	/**  加载器版本（可能为空） */
+	loaderVersion?: string | null,
+	/**  release / snapshot / old_beta / old_alpha */
+	kind: string,
+	/**  版本目录绝对路径 */
+	path: string,
+	/**  最后修改时间（Unix 毫秒） */
+	lastModified: number | null,
+};
+
+/**  文件夹里扫描到的一个 Minecraft 版本（只读展示，不写入磁盘）。 */
+export type ScannedVersion_Serialize = {
+	/**  版本目录名 / 版本 JSON 里的 id */
+	id: string,
+	/**  对应的 Minecraft 版本（modded 版本取 inheritsFrom） */
+	version: string,
+	/**  vanilla / fabric / forge / neoforge / quilt */
+	loader: string,
+	/**  加载器版本（可能为空） */
+	loaderVersion: string | null,
+	/**  release / snapshot / old_beta / old_alpha */
+	kind: string,
+	/**  版本目录绝对路径 */
+	path: string,
+	/**  最后修改时间（Unix 毫秒） */
+	lastModified: number | null,
+};
+
 /**  本地账户列表条目（微软 / 离线多账户并存）。 */
 export type StoredAccount = {
 	/**  微软账户为 msaId，离线账户为离线 UUID */
@@ -515,7 +537,39 @@ export type StoredAccount = {
 };
 
 /**  更新清单里的一个渠道条目（GitHub 单渠道清单直接使用；镜像聚合清单按渠道取键）。 */
-export type UpdateChannelEntry = {
+export type UpdateChannelEntry = UpdateChannelEntry_Serialize | UpdateChannelEntry_Deserialize;
+
+/**  更新清单里的一个渠道条目（GitHub 单渠道清单直接使用；镜像聚合清单按渠道取键）。 */
+export type UpdateChannelEntry_Deserialize = {
+	version: string,
+	pubDate: string,
+	notes: string,
+	/**  包文件名（各更新源文件名一致，客户端按源拼接下载地址） */
+	file: string,
+	/**  包 sha256（空 = 不校验，仅旧清单兼容） */
+	sha256: string,
+	/**  文件大小（字节；未知为 0） */
+	size: number | null,
+	/**  裸 exe 文件名（空 = 该发布只提供 ZIP，旧客户端继续用 `file`） */
+	exeFile?: string,
+	/**  裸 exe sha256（空 = 不校验） */
+	exeSha256?: string,
+	/**  裸 exe 文件大小（字节；未知为 0） */
+	exeSize?: number | null,
+	/**  已解析的下载地址（ZIP，按更新源拼接） */
+	downloadUrl: string,
+	/**  已解析的裸 exe 下载地址（空 = 不提供） */
+	exeDownloadUrl?: string,
+	/**  客户端应优先使用的文件名（内核已按“exe 优先、ZIP 回退”算好） */
+	preferredFile?: string,
+	/**  客户端应优先使用的下载地址 */
+	preferredDownloadUrl?: string,
+	/**  来源标识（github / self / r2） */
+	source: string,
+};
+
+/**  更新清单里的一个渠道条目（GitHub 单渠道清单直接使用；镜像聚合清单按渠道取键）。 */
+export type UpdateChannelEntry_Serialize = {
 	version: string,
 	pubDate: string,
 	notes: string,
@@ -544,7 +598,10 @@ export type UpdateChannelEntry = {
 };
 
 /**  更新检查结果。 */
-export type UpdateCheckResult = {
+export type UpdateCheckResult = UpdateCheckResult_Serialize | UpdateCheckResult_Deserialize;
+
+/**  更新检查结果。 */
+export type UpdateCheckResult_Deserialize = {
 	/**  available / up-to-date / staged / no-channel */
 	status: string,
 	currentVersion: string,
@@ -554,7 +611,21 @@ export type UpdateCheckResult = {
 	/**  已暂存待应用的版本（空 = 无） */
 	stagedVersion: string,
 	/**  当前渠道最新条目（no-channel 时 version 为空） */
-	entry: UpdateChannelEntry,
+	entry: UpdateChannelEntry_Deserialize,
+};
+
+/**  更新检查结果。 */
+export type UpdateCheckResult_Serialize = {
+	/**  available / up-to-date / staged / no-channel */
+	status: string,
+	currentVersion: string,
+	channel: string,
+	/**  实际使用的更新源 */
+	sourceUsed: string,
+	/**  已暂存待应用的版本（空 = 无） */
+	stagedVersion: string,
+	/**  当前渠道最新条目（no-channel 时 version 为空） */
+	entry: UpdateChannelEntry_Serialize,
 };
 
 /**  当前版本与暂存状态。 */

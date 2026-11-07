@@ -45,6 +45,7 @@ pub fn detect_official_minecraft() -> Option<String> {
 }
 
 /// 判定目录里是否存在可用的 Minecraft 数据（官方启动器配置文件 / 版本目录 / 资源索引）。
+#[cfg(target_os = "windows")]
 fn has_minecraft_data(dir: &std::path::Path) -> bool {
     if !dir.is_dir() {
         return false;
