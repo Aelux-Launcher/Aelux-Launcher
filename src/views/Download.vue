@@ -363,8 +363,8 @@ function retrySearch() {
   <div class="page-view active sub-page download-page">
     <!-- ============ 原版游戏下载 ============ -->
     <template v-if="!isResource">
-      <!-- 版本清单加载中 -->
-      <div v-if="store.versionsLoading" class="version-card">
+      <!-- 版本清单加载中：占满整页并居中 -->
+      <div v-if="store.versionsLoading" class="download-page-loading">
         <AlxLoading text="正在从版本清单源拉取可下载版本…" />
       </div>
 

@@ -128,6 +128,16 @@ export type CoreEvent =
   | { type: 'DownloadProgress'; taskId: string; name: string; received: number; total: number }
   | { type: 'Log'; instanceId: string; line: string }
   | { type: 'Message'; level: string; text: string }
+  | {
+      type: 'LaunchProgress'
+      instanceId: string
+      stage: string
+      message: string
+      current: number
+      total: number
+      done: boolean
+      error?: string | null
+    }
 
 export interface LauncherConfig {
   theme: string

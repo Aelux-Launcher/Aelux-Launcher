@@ -94,8 +94,8 @@ onUnmounted(() => {
         v-if="store.downloadActive"
         type="button"
         class="header-download-btn"
-        aria-label="查看下载进度"
-        title="正在下载，点击查看进度"
+        :aria-label="store.launchActive ? '查看启动进度' : '查看下载进度'"
+        :title="store.launchActive ? '正在启动游戏，点击查看进度' : '正在下载，点击查看进度'"
         @click="store.openTasksPage()"
       >
         <AlxIcon name="download" :size="16" />

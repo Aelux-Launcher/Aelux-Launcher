@@ -12,13 +12,13 @@ export const commands = {
 	detectOfficialMinecraft: () => __TAURI_INVOKE<string | null>("detect_official_minecraft"),
 	getOsInfo: () => typedError<OsInfo, string>(__TAURI_INVOKE("get_os_info")),
 	/**
-	 *  扫描所有实例的日志：启动器捕获的 `data/logs/<id>-latest.log`
+	 *  扫描所有实例的日志：启动器捕获的 `<实例>/logs/launcher-latest.log`
 	 *  与实例 Minecraft 目录下的 `logs/*.log(.gz)`。
 	 */
 	listLogs: () => typedError<LogFile[], string>(__TAURI_INVOKE("list_logs")),
 	/**
 	 *  读取崩溃报告：优先最近 10 分钟内生成的 `crash-reports/*.txt`，
-	 *  否则回退到启动器捕获的 `<id>-latest.log`，只返回末尾片段供弹窗预览。
+	 *  其次游戏自身的 `logs/latest.log`，最后回退到启动器捕获日志。
 	 */
 	readCrashReport: (instanceId: string) => typedError<CrashReport, string>(__TAURI_INVOKE("read_crash_report", { instanceId })),
 	getCoreVersion: () => __TAURI_INVOKE<string>("get_core_version"),

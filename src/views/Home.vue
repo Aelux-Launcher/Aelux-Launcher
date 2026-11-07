@@ -40,7 +40,8 @@ const LOADER_LABEL: Record<string, string> = {
 
 const store = useAppStore()
 
-const launching = ref(false)
+/** 启动中：跟随 store 的启动进度，离开页面再回来按钮状态仍正确。 */
+const launching = computed(() => store.launchActive)
 
 /**
  * 启动页展示的登录方式：已登录跟随会话类型，未登录跟随偏好设置。
@@ -73,8 +74,9 @@ async function handleLaunch() {
     store.setView('download')
     return
   }
-  launching.value = true
   store.pushLaunchLog(`准备启动 ${selected.value.name}（${selected.value.version}）…`)
+  // 先打开进度页：启动耗时（补全文件 / Java 检测）在任务页可见。
+  store.openTasksPage()
   try {
     const r = await store.launchInstance(selected.value.id)
     if (r?.ok) {
@@ -87,8 +89,6 @@ async function handleLaunch() {
   } catch (e) {
     store.pushLaunchLog(`启动异常：${(e as Error).message}`)
     toast.error(`启动异常：${(e as Error).message}`)
-  } finally {
-    launching.value = false
   }
 }
 

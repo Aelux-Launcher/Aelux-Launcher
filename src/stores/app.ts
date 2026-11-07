@@ -333,9 +333,26 @@ export const useAppStore = defineStore('app', () => {
     finished: true,
   })
 
-  /** 是否有正在进行的下载：标题栏下载指示器的显示条件。 */
+  /** 启动进度（内核 LaunchProgress 事件；null = 当前没有启动流程）。 */
+  const launchProgress = ref<{
+    instanceId: string
+    stage: string
+    message: string
+    current: number
+    total: number
+    done: boolean
+    error: string | null
+  } | null>(null)
+
+  /** 是否正在启动：标题栏指示器与任务页的显示条件。 */
+  const launchActive = computed(() => !!launchProgress.value && !launchProgress.value.done)
+
+  /** 是否有正在进行的下载 / 启动：标题栏下载指示器的显示条件。 */
   const downloadActive = computed(
-    () => installing.value !== null || (downloadState.value.tasks.length > 0 && !downloadState.value.finished),
+    () =>
+      installing.value !== null ||
+      launchActive.value ||
+      (downloadState.value.tasks.length > 0 && !downloadState.value.finished),
   )
 
   /** 正在运行的游戏进程（内核 running_instances 的缓存）。 */
@@ -548,6 +565,17 @@ export const useAppStore = defineStore('app', () => {
         const ev = event.payload
         if (ev.type === 'DownloadProgress') {
           queueDownloadProgress(ev)
+        } else if (ev.type === 'LaunchProgress') {
+          launchProgress.value = {
+            instanceId: ev.instanceId,
+            stage: ev.stage,
+            message: ev.message,
+            current: ev.current,
+            total: ev.total,
+            done: ev.done,
+            error: ev.error ?? null,
+          }
+          pushLaunchLog(`[启动] ${ev.message}`)
         } else if (ev.type === 'Log') {
           pushLaunchLog(ev.line)
         } else if (ev.type === 'Message') {
@@ -690,7 +718,7 @@ export const useAppStore = defineStore('app', () => {
 
   async function refreshInstances() {
     const list = await call<GameInstance[]>('get_instances')
-    instances.value = list ?? []
+    if (Array.isArray(list)) instances.value = list
   }
 
   async function createInstance(
@@ -719,18 +747,43 @@ export const useAppStore = defineStore('app', () => {
     const inst = instances.value.find((i) => i.id === id)
     if (!inst) return null
     pushLaunchLog(`正在启动 ${inst.name}…`)
+    launchProgress.value = {
+      instanceId: id,
+      stage: 'prepare',
+      message: '准备启动实例',
+      current: 0,
+      total: 8,
+      done: false,
+      error: null,
+    }
     try {
       const outcome = await call<LaunchOutcome>('launch_instance', { id })
       runningInstances.value = [
         ...runningInstances.value.filter((r) => r.instanceId !== id),
         { instanceId: id, pid: outcome.pid },
       ]
+      // 事件丢失时兜底标记完成，避免任务页一直停在“启动中”
+      launchProgress.value = {
+        ...launchProgress.value!,
+        stage: 'spawn',
+        message: '游戏进程已启动',
+        current: 8,
+        done: true,
+        error: null,
+      }
       // 内核回写游玩时长，刷新列表让首页显示最新状态
       void refreshInstances().catch(() => {})
       return { ok: true, pid: outcome.pid }
     } catch (e) {
       const message = (e as Error).message
       pushLaunchLog(`启动失败：${message}`)
+      launchProgress.value = {
+        ...launchProgress.value!,
+        stage: 'failed',
+        message: '启动失败',
+        done: true,
+        error: message,
+      }
       return { ok: false, error: message }
     }
   }
@@ -1225,7 +1278,9 @@ export const useAppStore = defineStore('app', () => {
   const accounts = ref<StoredAccount[]>([])
 
   async function loadAccounts() {
-    accounts.value = await call<StoredAccount[]>('accounts_list')
+    // 成功才覆盖：刷新失败时保留旧列表，避免页面被清空。
+    const list = await call<StoredAccount[]>('accounts_list')
+    if (Array.isArray(list)) accounts.value = list
   }
 
   /** 把账户设为当前会话（内核 accounts.session.set）。 */
@@ -1285,7 +1340,30 @@ export const useAppStore = defineStore('app', () => {
   const authServers = ref<AuthServer[]>([])
 
   async function loadAuthServers() {
-    authServers.value = await call<AuthServer[]>('auth_servers_list')
+    const list = await call<AuthServer[]>('auth_servers_list')
+    if (Array.isArray(list)) authServers.value = list
+  }
+
+  /** 应用内刷新账户相关数据；失败的段落保留旧值，不重载页面。 */
+  const refreshingAccountState = ref(false)
+
+  async function refreshAccountState(): Promise<string[]> {
+    if (refreshingAccountState.value) return []
+    refreshingAccountState.value = true
+    try {
+      const results = await Promise.allSettled([
+        loadAccounts(),
+        restoreSession(),
+        loadAuthServers(),
+        refreshInstances(),
+        refreshRunningInstances(),
+      ])
+      return results
+        .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+        .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)))
+    } finally {
+      refreshingAccountState.value = false
+    }
   }
 
   /** 添加认证服务器（内核负责地址去重与名称回退域名）。 */
@@ -1346,7 +1424,11 @@ export const useAppStore = defineStore('app', () => {
     } catch (e) {
       const msg = (e as Error).message
       if (msg.includes('等待') || msg.includes('稍候')) {
-        schedulePoll(s) // pending：继续按 interval 轮询
+        // slow_down 按 RFC 8628 拉长轮询间隔（每次 +5 秒），避免被服务端持续限流
+        const next: DeviceCodeSession = msg.includes('稍候')
+          ? { ...s, interval: Math.min(60, s.interval + 5) }
+          : s
+        schedulePoll(next) // pending：继续按 interval 轮询
       } else {
         deviceFlow.value = { ...deviceFlow.value, status: 'error', error: msg }
       }
@@ -1960,6 +2042,8 @@ export const useAppStore = defineStore('app', () => {
     installing,
     installError,
     cancelRequested,
+    launchProgress,
+    launchActive,
     downloadState,
     downloadActive,
     rooms,
@@ -2040,6 +2124,8 @@ export const useAppStore = defineStore('app', () => {
     loadAccounts,
     authServers,
     loadAuthServers,
+    refreshingAccountState,
+    refreshAccountState,
     addAuthServer,
     removeAuthServer,
     deviceFlow,

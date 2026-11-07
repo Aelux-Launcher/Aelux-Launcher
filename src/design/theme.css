@@ -324,7 +324,7 @@ svg {
   letter-spacing: 0.5px;
 }
 
-/* 整页刷新：平时隐藏，hover 账户标题时才出现 */
+/* 账户刷新：平时隐藏，hover 账户标题时才出现 */
 .account-title-refresh {
   display: inline-flex;
   align-items: center;
@@ -344,6 +344,8 @@ svg {
 .account-title-refresh:focus-visible { opacity: 1; }
 .account-title-refresh:hover { color: var(--text-main); background: var(--icon-bg); }
 .account-title-refresh:active { background: var(--hover-bg); }
+.account-title-refresh:disabled { opacity: 1; cursor: default; }
+.account-title-refresh svg.spinning { animation: nav-refresh-spin 0.8s linear infinite; }
 
 .account-card {
   padding: 16px 20px;
@@ -2550,6 +2552,15 @@ select.filter-control { cursor: pointer; }
 .resource-state-card .btn-download { margin-top: 8px; }
 .resource-state-title { font-size: 14px; font-weight: 600; color: var(--text-main); }
 .resource-state-desc { font-size: 12px; line-height: 1.6; max-width: 480px; }
+
+/* 原版下载加载态：占满整页，居中显示动画 */
+.download-page-loading {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 /* 资源详情加载态：占满内容区，居中显示动画 */
 .resource-detail-loading {

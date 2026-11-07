@@ -297,7 +297,15 @@ async function openCrashFolder() {
         <div class="crash-meta">
           <span class="tag">{{ store.crashInfo.instanceName }}</span>
           <span class="tag">退出码 {{ store.crashInfo.exitCode }}</span>
-          <span class="tag">{{ store.crashInfo.fromGame ? '崩溃报告' : '启动日志' }}</span>
+          <span class="tag">
+            {{
+              store.crashInfo.path.includes('crash-reports')
+                ? '崩溃报告'
+                : store.crashInfo.fromGame
+                  ? '游戏日志'
+                  : '启动器日志'
+            }}
+          </span>
         </div>
         <div class="crash-desc">
           游戏没有正常退出。下面是日志的末尾片段，完整内容可在崩溃日志文件夹中查看。

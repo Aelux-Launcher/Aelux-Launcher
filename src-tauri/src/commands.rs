@@ -42,7 +42,7 @@ pub fn get_os_info() -> Result<OsInfo, String> {
     core_api::get_os_info()
 }
 
-/// 扫描所有实例的日志：启动器捕获的 `data/logs/<id>-latest.log`
+/// 扫描所有实例的日志：启动器捕获的 `<实例>/logs/launcher-latest.log`
 /// 与实例 Minecraft 目录下的 `logs/*.log(.gz)`。
 #[tauri::command]
 #[specta::specta]
@@ -51,15 +51,19 @@ pub fn list_logs() -> Result<Vec<LogFile>, String> {
     let mut out = Vec::new();
 
     for inst in core_api::list_instances()? {
-        // 启动器捕获的启动输出
-        let launcher_log = data.join("logs").join(format!("{}-latest.log", inst.id));
-        push_log(&mut out, &inst.id, "launcher", &launcher_log);
+        let instance_dir = data.join("minecraft").join("instances").join(&inst.id);
+        let game_logs = instance_dir.join("logs");
+
+        // 启动器捕获的启动输出（与游戏日志同目录）；旧实例回退旧路径
+        let launcher_log = game_logs.join("launcher-latest.log");
+        if launcher_log.is_file() {
+            push_log(&mut out, &inst.id, "launcher", &launcher_log);
+        } else {
+            let legacy = data.join("logs").join(format!("{}-latest.log", inst.id));
+            push_log(&mut out, &inst.id, "launcher", &legacy);
+        }
+
         // 游戏自身的 logs 目录（latest.log 与按日期滚动的 .log.gz）
-        let game_logs = data
-            .join("minecraft")
-            .join("instances")
-            .join(&inst.id)
-            .join("logs");
         if let Ok(entries) = std::fs::read_dir(&game_logs) {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -67,6 +71,9 @@ pub fn list_logs() -> Result<Vec<LogFile>, String> {
                     continue;
                 }
                 let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if name == "launcher-latest.log" {
+                    continue;
+                }
                 if name.ends_with(".log") || name.ends_with(".log.gz") {
                     push_log(&mut out, &inst.id, "game", &path);
                 }
@@ -113,18 +120,15 @@ fn push_log(out: &mut Vec<LogFile>, instance_id: &str, source: &str, path: &std:
 }
 
 /// 读取崩溃报告：优先最近 10 分钟内生成的 `crash-reports/*.txt`，
-/// 否则回退到启动器捕获的 `<id>-latest.log`，只返回末尾片段供弹窗预览。
+/// 其次游戏自身的 `logs/latest.log`，最后回退到启动器捕获日志。
 #[tauri::command]
 #[specta::specta]
 pub fn read_crash_report(instance_id: String) -> Result<CrashReport, String> {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let data = std::path::PathBuf::from(core_api::get_data_dir());
-    let crash_dir = data
-        .join("minecraft")
-        .join("instances")
-        .join(&instance_id)
-        .join("crash-reports");
+    let instance_dir = data.join("minecraft").join("instances").join(&instance_id);
+    let crash_dir = instance_dir.join("crash-reports");
 
     // 只认本次启动后产生的崩溃报告，避免展示上一次的旧文件
     let cutoff = SystemTime::now()
@@ -162,12 +166,25 @@ pub fn read_crash_report(instance_id: String) -> Result<CrashReport, String> {
         }
     }
 
-    let launcher_log = data
+    let logs_dir = instance_dir.join("logs");
+    let game_log = logs_dir.join("latest.log");
+    let launcher_log = logs_dir.join("launcher-latest.log");
+    let legacy_log = data
         .join("logs")
         .join(format!("{}-latest.log", instance_id));
+    // 游戏日志也要是本次启动后更新的，否则回退到启动器捕获日志。
+    let game_log_recent = std::fs::metadata(&game_log)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() >= cutoff)
+        .unwrap_or(false);
+
     let (path, from_game) = match newest {
         Some((_, p)) => (p, true),
+        None if game_log_recent => (game_log, true),
         None if launcher_log.is_file() => (launcher_log, false),
+        None if legacy_log.is_file() => (legacy_log, false),
         None => {
             return Ok(CrashReport {
                 path: String::new(),

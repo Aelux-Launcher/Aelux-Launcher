@@ -30,9 +30,19 @@ function openAccounts() {
   store.openSubPage({ kind: 'accounts' })
 }
 
-/** 整页刷新：页面卡顿或状态不同步时的兜底操作。 */
-function reloadPage() {
-  window.location.reload()
+/**
+ * 账户区刷新：整页重载。除了重新读取账户 / 实例 / 认证服务器外，
+ * 主要用于清理 WebView 中长期累积的状态，避免页面卡死。
+ * 路由是 hash 模式，reload 后会停留在当前页面。
+ */
+const refreshingAccount = ref(false)
+
+function refreshAccountView() {
+  if (refreshingAccount.value) return
+  refreshingAccount.value = true
+  toast.info('正在刷新页面…')
+  // 留一点时长给旋转动画，再整页重载。
+  window.setTimeout(() => location.reload(), 300)
 }
 
 /** 各模块的侧栏分组（key 与路由参数一致）。 */
@@ -578,9 +588,10 @@ function selectFolder(f: StoredFolder) {
           class="account-title-refresh"
           aria-label="刷新页面"
           title="刷新页面"
-          @click="reloadPage"
+          :disabled="refreshingAccount"
+          @click="refreshAccountView"
         >
-          <AlxIcon name="refresh" :size="14" />
+          <AlxIcon name="refresh" :size="14" :class="{ spinning: refreshingAccount }" />
         </button>
       </div>
       <button type="button" class="account-card" @click="openAccounts">
