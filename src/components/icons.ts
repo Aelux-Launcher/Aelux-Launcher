@@ -1,12 +1,18 @@
 /**
  * 图标注册表：name → SVG 内容（feather 风格线性图标，24 viewBox / 1.5 描边）。
+ * 也可配置 `src` 使用位图素材（如 PCL 的方块图标），见下方 grass/command 条目。
  * 通过 <AlxIcon name="..." :size="16" /> 使用。
  */
+import grassBlockImg from '../assets/blocks/grass-block.png'
+import commandBlockImg from '../assets/blocks/command-block.png'
+
 export interface IconDef {
   /** viewBox */
   vb: string
-  /** SVG 内部内容（不含 <svg> 壳） */
+  /** SVG 内部内容（不含 <svg> 壳）；位图图标留空 */
   body: string
+  /** 位图路径：存在时渲染 <img> 而非 SVG */
+  src?: string
 }
 
 const V = '0 0 24 24'
@@ -83,15 +89,9 @@ export const ICONS = {
   'arrow-left': { vb: V, body: `<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>` },
   /* 日志文件：文档 + 文本行（「更多 → 日志」） */
   'file-text': { vb: V, body: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>` },
-  /* 帮助教程图标：草方块 / 命令方块 / 干草块（等距方块） */
-  'grass-block': {
-    vb: V,
-    body: `<polygon points="12 2 22 7 12 12 2 7" fill="#79c34b" stroke="none"/><polygon points="2 7 12 12 12 22 2 17" fill="#8a6242" stroke="none"/><polygon points="22 7 12 12 12 22 22 17" fill="#6b4930" stroke="none"/><polygon points="2 7 12 12 22 7 22 9.5 12 14.5 2 9.5" fill="#5aa23a" stroke="none"/>`,
-  },
-  'command-block': {
-    vb: V,
-    body: `<polygon points="12 2 22 7 12 12 2 7" fill="#d8a35b" stroke="none"/><polygon points="2 7 12 12 12 22 2 17" fill="#b47a3a" stroke="none"/><polygon points="22 7 12 12 12 22 22 17" fill="#95612c" stroke="none"/><polygon points="15 13 19 15 19 18 15 16" fill="#3b2a1b" stroke="none"/><polygon points="6 12 10 14 10 17 6 15" fill="#3b2a1b" stroke="none"/>`,
-  },
+  /* 帮助教程图标：草方块 / 命令方块使用 PCL 位图素材；干草块无现成素材，保留等距 SVG */
+  'grass-block': { vb: V, body: '', src: grassBlockImg },
+  'command-block': { vb: V, body: '', src: commandBlockImg },
   'hay-block': {
     vb: V,
     body: `<polygon points="12 2 22 7 12 12 2 7" fill="#e8c85a" stroke="none"/><polygon points="2 7 12 12 12 22 2 17" fill="#d3ad3f" stroke="none"/><polygon points="22 7 12 12 12 22 22 17" fill="#b8912f" stroke="none"/><path d="M5 8.5 9 10.5M7 12.5 11 14.5M15 9.5 19 11.5M17 13.5 21 15.5" fill="none" stroke="#8f6d22"/>`,
