@@ -71,9 +71,9 @@ export interface SettingsExtras {
   updateChannel: UpdateChannel
   /** 更新源选择（auto / 自建服务器 / Cloudflare 镜像 / GitHub） */
   updateSource: UpdateSourcePref
-  /** 自建更新源地址（如 https://updates.example.com，updateSource 为 self 时必填） */
+  /** 自建更新源地址（根地址，如 https://updates.blocktavern.cn） */
   updateSelfBase: string
-  /** Cloudflare 更新源地址（Pages / R2 等静态托管的根地址，如 https://cdn.example.com） */
+  /** Cloudflare 更新源地址（Pages / R2 等静态托管的根地址，如 https://cdn.blocktavern.cn） */
   updateR2Base: string
   /** 发现新版本后自动后台下载（无痕更新：就绪后下次启动静默生效） */
   autoDownloadUpdate: boolean
@@ -168,8 +168,8 @@ const DEFAULT_EXTRAS: SettingsExtras = {
   launcherLanguage: 'system',
   updateChannel: 'release',
   updateSource: 'auto',
-  updateSelfBase: '',
-  updateR2Base: '',
+  updateSelfBase: 'https://updates.blocktavern.cn',
+  updateR2Base: 'https://cdn.blocktavern.cn',
   autoDownloadUpdate: true,
   previewUpdates: false,
   showUpdateDialog: true,

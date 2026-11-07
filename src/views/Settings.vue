@@ -993,12 +993,12 @@ async function clearDownloadCache() {
         <div v-if="extras.updateSource === 'self'" class="setting-row">
           <div class="setting-label">
             自建源地址
-            <div class="setting-desc">如 https://updates.example.com（根目录含 launcher-update.json）</div>
+            <div class="setting-desc">如 https://updates.blocktavern.cn（根目录含 launcher-update.json）</div>
           </div>
           <input
             class="setting-input"
             type="text"
-            placeholder="https://updates.example.com"
+            placeholder="https://updates.blocktavern.cn"
             :value="extras.updateSelfBase"
             @change="onUpdateBaseInput('updateSelfBase', $event)"
           />
@@ -1006,12 +1006,12 @@ async function clearDownloadCache() {
         <div v-if="extras.updateSource === 'r2' || extras.updateSource === 'auto'" class="setting-row">
           <div class="setting-label">
             Cloudflare 镜像地址
-            <div class="setting-desc">Pages / R2 等静态托管的根地址；留空则不参与测速</div>
+            <div class="setting-desc">Pages / R2 等静态托管的根地址，如 https://cdn.blocktavern.cn；留空则不参与测速</div>
           </div>
           <input
             class="setting-input"
             type="text"
-            placeholder="https://cdn.example.com"
+            placeholder="https://cdn.blocktavern.cn"
             :value="extras.updateR2Base"
             @change="onUpdateBaseInput('updateR2Base', $event)"
           />

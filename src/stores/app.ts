@@ -826,8 +826,8 @@ export const useAppStore = defineStore('app', () => {
       const result = await call<UpdateCheckResult>('update_check', {
         channel: extras.updateChannel === 'dev' ? 'dev' : 'release',
         source: extras.updateSource,
-        selfBase: extras.updateSelfBase.trim() || null,
-        r2Base: extras.updateR2Base.trim() || null,
+        selfBase: extras.updateSelfBase.trim(),
+        r2Base: extras.updateR2Base.trim(),
       })
       updateInfo.value = result
       stagedVersion.value = result.stagedVersion

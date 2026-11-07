@@ -11,6 +11,18 @@ fn main() {
     println!("cargo:rustc-env=AELUX_UPDATE_REPO={repo}");
     println!("cargo:rerun-if-env-changed=GITHUB_REPO");
 
+    // 自建 / Cloudflare 更新源默认地址：CI 里由 UPDATE_SELF_BASE / UPDATE_R2_BASE 注入；
+    // 前端未显式传参时，运行时可通过 KV `update-self-base` / `update-r2-base` 覆盖。
+    let self_base = std::env::var("UPDATE_SELF_BASE")
+        .unwrap_or_else(|_| "https://updates.blocktavern.cn".into());
+    println!("cargo:rustc-env=AELUX_UPDATE_SELF_BASE={self_base}");
+    println!("cargo:rerun-if-env-changed=UPDATE_SELF_BASE");
+
+    let r2_base = std::env::var("UPDATE_R2_BASE")
+        .unwrap_or_else(|_| "https://cdn.blocktavern.cn".into());
+    println!("cargo:rustc-env=AELUX_UPDATE_R2_BASE={r2_base}");
+    println!("cargo:rerun-if-env-changed=UPDATE_R2_BASE");
+
     // 发布链路（release-ffi）：内核以 cdylib 随包分发，运行完全离线。
     // 库文件的就位策略（按优先级）：
     //   1. src-tauri/lib/<platform>/ 下已有本地文件（本地打包测试）

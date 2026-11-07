@@ -34,6 +34,35 @@ fn github_repo() -> String {
         .unwrap_or_else(|| env!("AELUX_UPDATE_REPO").into())
 }
 
+/// 自建更新源默认地址（build.rs 注入；前端未传参时，KV `update-self-base` 优先）。
+fn default_self_base() -> Option<String> {
+    kv_override("update-self-base").or_else(|| {
+        let v = env!("AELUX_UPDATE_SELF_BASE").trim();
+        (!v.is_empty()).then(|| v.to_string())
+    })
+}
+
+/// Cloudflare 镜像默认地址（build.rs 注入；前端未传参时，KV `update-r2-base` 优先）。
+fn default_r2_base() -> Option<String> {
+    kv_override("update-r2-base").or_else(|| {
+        let v = env!("AELUX_UPDATE_R2_BASE").trim();
+        (!v.is_empty()).then(|| v.to_string())
+    })
+}
+
+/// 读 KV 覆盖值（去空白；空串视为未配置）。
+fn kv_override(key: &str) -> Option<String> {
+    crate::commands::kv_get(key.into())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// 前端显式传值：空串表示禁用该源。
+fn non_empty(value: &str) -> Option<String> {
+    let v = value.trim();
+    (!v.is_empty()).then(|| v.to_string())
+}
+
 /* ------------------------------ 版本比较 ------------------------------ */
 
 /// 解析 `v0.2.0-beta.1` → (0, 2, 0, 预发布序)。预发布排在对应正式版之前。
@@ -274,8 +303,16 @@ async fn resolve_entry(
     r2_base: Option<&str>,
 ) -> Result<UpdateChannelEntry, String> {
     let client = http_client(Duration::from_secs(15)).map_err(|e| e.to_string())?;
-    let self_base = self_base.map(str::trim).filter(|s| !s.is_empty());
-    let r2_base = r2_base.map(str::trim).filter(|s| !s.is_empty());
+    // 显式传值（含空串，表示禁用）优先；未传时回落到 build.rs 默认地址（KV 可覆盖）。
+    let self_base = match self_base {
+        Some(v) => non_empty(v),
+        None => default_self_base(),
+    };
+    let r2_base = match r2_base {
+        Some(v) => non_empty(v),
+        None => default_r2_base(),
+    };
+    let (self_base, r2_base) = (self_base.as_deref(), r2_base.as_deref());
 
     // 显式指定源：直接用，不探测
     match source {
