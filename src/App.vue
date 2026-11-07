@@ -28,6 +28,7 @@ import VersionDetail from './views/VersionDetail.vue'
 import Accounts from './views/Accounts.vue'
 import DeviceLoginModal from './components/DeviceLoginModal.vue'
 import DialogHost from './components/DialogHost.vue'
+import AlxIcon from './components/AlxIcon.vue'
 
 const COMPONENTS: Record<string, Component> = {
   home: Home,
@@ -80,8 +81,35 @@ function stageProps(r: (typeof route.value)): Record<string, unknown> {
   return {}
 }
 
+/** 右下角回到顶部：所有页面共用同一个滚动容器（.page-view）。 */
+const showBackTop = ref(false)
+const topBtn = ref<HTMLButtonElement | null>(null)
+/** 当前页面的滚动容器（滚动事件里记录，点击时直接复用）。 */
+let pageScroller: HTMLElement | null = null
+/** 回顶按钮的触发高度：要滚过较长距离才出现，避免普通页面误触发。 */
+const BACK_TOP_THRESHOLD = 600
+
+/** 滚动事件不冒泡，用捕获阶段统一监听各页面自己的 .page-view。 */
+function onStageScroll(e: Event) {
+  const el = e.target as HTMLElement | null
+  if (!el || !el.classList.contains('page-view')) return
+  pageScroller = el
+  showBackTop.value = el.scrollTop > BACK_TOP_THRESHOLD
+}
+
+function backToTop() {
+  pageScroller?.scrollTo({ top: 0, behavior: 'smooth' })
+  const btn = topBtn.value
+  if (!btn) return
+  // 点击时放大再回落（重置动画以支持连续点击）
+  btn.classList.remove('is-pop')
+  void btn.offsetWidth
+  btn.classList.add('is-pop')
+}
+
 /** 页面切换后始终从顶部开始（不再保留上一页的滚动位置）。 */
 function resetStageScroll() {
+  showBackTop.value = false
   void nextTick(() => {
     const page = document.querySelector<HTMLElement>('.alx-stage__layer:last-child .page-view')
     if (page) page.scrollTop = 0
@@ -142,6 +170,7 @@ onMounted(() => {
   // Tauri WebView 的默认右键菜单与快捷键在桌面端全部禁用（浏览器预览保留，便于调试）
   document.addEventListener('contextmenu', onContextMenu, { capture: true })
   document.addEventListener('keydown', onShortcut, { capture: true })
+  document.addEventListener('scroll', onStageScroll, { capture: true, passive: true })
   resetStageScroll()
   void store.init().then(() => {
     // 启动时恢复自定义窗口图标
@@ -157,6 +186,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('contextmenu', onContextMenu, { capture: true })
   document.removeEventListener('keydown', onShortcut, { capture: true })
+  document.removeEventListener('scroll', onStageScroll, { capture: true })
 })
 
 const announcement = computed(() => store.pendingAnnouncements[0] ?? null)
@@ -204,6 +234,19 @@ async function openCrashFolder() {
             <component :is="stage.comp" v-bind="stage.props" />
           </div>
         </div>
+
+        <!-- 回到顶部：所有页面通用，滚动较深后出现在右下角 -->
+        <button
+          ref="topBtn"
+          v-show="showBackTop"
+          type="button"
+          class="scroll-top-btn"
+          aria-label="回到顶部"
+          title="回到顶部"
+          @click="backToTop"
+        >
+          <AlxIcon name="arrow-up" :size="18" />
+        </button>
 
         <!-- 初始化提醒：浮在内容区右下角 -->
         <div v-if="store.initError || store.browserMode" class="aelux-init-alerts">
