@@ -369,10 +369,30 @@ const needsCurseForgeKey = computed(() =>
 function retrySearch() {
   void store.searchResources()
 }
+
+/* ------------------------------ 回到顶部 ------------------------------ */
+
+/** 页面滚动容器（.page-view 自身滚动）。 */
+const pageRoot = ref<HTMLElement | null>(null)
+/** 滚动超过一屏多时显示右下角回顶按钮。 */
+const showBackTop = ref(false)
+
+function onPageScroll(e: Event) {
+  const el = e.currentTarget as HTMLElement | null
+  showBackTop.value = (el?.scrollTop ?? 0) > 320
+}
+
+function backToTop() {
+  pageRoot.value?.scrollTo({ top: 0, behavior: 'smooth' })
+}
 </script>
 
 <template>
-  <div class="page-view active sub-page">
+  <div
+    ref="pageRoot"
+    class="page-view active sub-page download-page"
+    @scroll.passive="onPageScroll"
+  >
     <!-- ============ 原版游戏下载 ============ -->
     <template v-if="!isResource">
       <!-- 版本清单加载中 -->
@@ -689,5 +709,17 @@ function retrySearch() {
           </div>
         </template>
       </template>
+
+    <!-- 回到顶部：数据过多滚动很长时，右下角一键回顶 -->
+    <button
+      v-show="showBackTop"
+      type="button"
+      class="scroll-top-btn"
+      aria-label="回到顶部"
+      title="回到顶部"
+      @click="backToTop"
+    >
+      <AlxIcon name="arrow-up" :size="18" />
+    </button>
   </div>
 </template>

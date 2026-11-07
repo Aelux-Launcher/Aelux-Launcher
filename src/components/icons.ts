@@ -103,6 +103,7 @@ export const ICONS = {
   optifine: { vb: V, body: `<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/>` },
   minecraft: { vb: V, body: `<path d="M4 7l8-4 8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10M4 7h16"/>` },
   'arrow-left': { vb: V, body: `<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>` },
+  'arrow-up': { vb: V, body: `<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>` },
   /* 日志文件：文档 + 文本行（「更多 → 日志」） */
   'file-text': { vb: V, body: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>` },
   /* 帮助教程图标：全部使用 PCL 的方块位图素材 */

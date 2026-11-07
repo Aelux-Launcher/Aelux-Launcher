@@ -1808,6 +1808,69 @@ svg {
 
 .account-list { min-width: 0; }
 .account-empty { padding: 60px 0; }
+
+/* ============================================================================
+ * 下载页：列表占满可用高度 + 右下角回到顶部
+ * ========================================================================== */
+
+/* 给浮动回顶按钮留出空间，避免盖住最后一条列表项 */
+.download-page { padding-bottom: 72px; }
+
+/* 压缩筛选卡片与列表之间的垂直留白，让一屏能展示更多条目 */
+.download-page .resource-search-card {
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+/* 回到顶部按钮（仅下载页出现） */
+.scroll-top-btn {
+  position: fixed;
+  right: 28px;
+  bottom: 24px;
+  z-index: 30;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border-light);
+  border-radius: 50%;
+  background: var(--bg-color);
+  color: var(--text-sub);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, transform 0.15s;
+}
+.scroll-top-btn:hover {
+  color: var(--text-main);
+  border-color: var(--text-main);
+  transform: translateY(-2px);
+}
+.scroll-top-btn:active { transform: translateY(0); }
+
+/* 安装失败提示卡片（任务管理页） */
+.install-error-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: rgba(217, 48, 37, 0.06);
+  color: var(--danger);
+}
+.install-error-card svg { flex: none; margin-top: 2px; }
+.install-error-body { flex: 1; min-width: 0; }
+.install-error-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.install-error-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-main);
+  word-break: break-all;
+}
+.install-error-card .btn-download { flex: none; }
 .account-row {
   display: flex;
   align-items: center;

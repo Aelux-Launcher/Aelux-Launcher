@@ -1,11 +1,11 @@
 <script setup lang="ts">
 /**
- * 下载状态页（副页面，/tasks）：下载进度 + 启动日志。
+ * 下载状态页（副页面，/tasks）：只展示本次下载/安装的进度。
  *
  * 布局参考同类启动器的任务窗口，但按本启动器的极简黑白风格重做：
  *   左栏 = 总进度 / 下载速度 / 剩余文件；
  *   右栏 = 本次安装的步骤清单（已完成打勾、下载中显示百分比、等待中为省略号）。
- * 数据全部来自 store（downloadState / installing / launchLogs），这里只做展示。
+ * 数据全部来自 store 的 downloadState / installing / installError。
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useAppStore } from '../stores/app'
@@ -27,9 +27,9 @@ const remainingFiles = computed(
 const receivedBytes = computed(() => tasks.value.reduce((sum, t) => sum + Math.max(0, t.received), 0))
 const totalBytes = computed(() => tasks.value.reduce((sum, t) => sum + (t.total > 0 ? t.total : 0), 0))
 
-/** 总进度：有总大小时按字节算，全部结束时固定 100%。 */
+/** 总进度：有总大小时按字节算，成功结束时固定 100%（失败不显示 100%）。 */
 const overallPct = computed(() => {
-  if (store.downloadState.finished) return 100
+  if (store.downloadState.finished && store.downloadState.failed === 0) return 100
   if (totalBytes.value <= 0) return 0
   return Math.min(100, Math.round((receivedBytes.value / totalBytes.value) * 100))
 })
@@ -61,16 +61,7 @@ function pct(t: DownloadTaskState): number {
 const speed = ref(0)
 let speedTimer: ReturnType<typeof setInterval> | null = null
 
-/** 运行中的游戏：实例名 + pid（内核运行表）。 */
-const runningRows = computed(() =>
-  store.runningInstances.map((r) => ({
-    ...r,
-    name: store.instances.find((i) => i.id === r.instanceId)?.name ?? r.instanceId,
-  })),
-)
-
 onMounted(() => {
-  void store.refreshRunningInstances()
   let lastReceived = receivedBytes.value
   let lastAt = performance.now()
   speedTimer = setInterval(() => {
@@ -104,10 +95,27 @@ const speedLabel = computed(() => (speed.value > 0 ? `${human(speed.value)}/s` :
       </button>
     </PageHeader>
 
+    <!-- 失败提示：安装/下载失败后保留错误信息，不再只依赖一次性 toast -->
+    <div v-if="store.installError && !store.installing" class="install-error-card">
+      <AlxIcon name="alert-circle" :size="22" />
+      <div class="install-error-body">
+        <div class="install-error-title">下载失败</div>
+        <div class="install-error-text">{{ store.installError }}</div>
+      </div>
+      <button type="button" class="btn-download" @click="store.setView('download')">
+        返回下载页重试
+      </button>
+    </div>
+
     <!-- 空态：安装刚开始时任务清单还没生成，先显示准备中 -->
     <div v-if="tasks.length === 0" class="empty-state">
-      <AlxIcon name="download" :size="32" />
+      <AlxIcon v-if="store.installError" name="alert-circle" :size="32" />
+      <AlxIcon v-else name="download" :size="32" />
       <div v-if="store.installing">正在准备 {{ store.installing }} 的下载任务…</div>
+      <template v-else-if="store.installError">
+        <div>本次下载没有产生任何文件</div>
+        <div>请按上方错误信息检查网络或配置后重试。</div>
+      </template>
       <template v-else>
         <div>暂无下载任务</div>
         <div>下载游戏版本或社区资源时，进度会显示在这里。</div>
@@ -137,7 +145,15 @@ const speedLabel = computed(() => (speed.value > 0 ? `${human(speed.value)}/s` :
       <section class="task-panel">
         <div class="task-panel-head">
           <span class="task-panel-title">{{ jobTitle }}</span>
-          <span class="tag">{{ store.downloadState.finished ? '已完成' : '进行中' }}</span>
+          <span class="tag">
+            {{
+              store.downloadState.failed > 0
+                ? '已失败'
+                : store.downloadState.finished
+                  ? '已完成'
+                  : '进行中'
+            }}
+          </span>
         </div>
 
         <div class="task-step-list">
@@ -152,58 +168,6 @@ const speedLabel = computed(() => (speed.value > 0 ? `${human(speed.value)}/s` :
           </div>
         </div>
       </section>
-    </div>
-
-    <template v-if="runningRows.length > 0">
-      <div class="section-title">运行中的游戏</div>
-      <div class="setting-group">
-        <div v-for="row in runningRows" :key="row.instanceId" class="list-item">
-          <div class="item-left">
-            <div class="item-icon"><AlxIcon name="play" :size="18" /></div>
-            <div class="item-info">
-              <div class="item-title">{{ row.name }}</div>
-              <div class="item-desc">进程 PID {{ row.pid }}</div>
-            </div>
-          </div>
-          <button type="button" class="btn-sub" @click="store.killInstance(row.instanceId)">
-            结束进程
-          </button>
-        </div>
-      </div>
-    </template>
-
-    <div class="section-title">启动日志</div>
-
-    <!-- 清空按钮（无日志时禁用） -->
-    <div style="display: flex; justify-content: flex-end; margin-bottom: 8px">
-      <button
-        type="button"
-        class="btn-download btn-ghost"
-        :disabled="store.launchLogs.length === 0"
-        @click="store.clearLaunchLogs()"
-      >
-        清空
-      </button>
-    </div>
-
-    <div v-if="store.launchLogs.length === 0" class="loading-hint">
-      暂无启动日志，启动游戏后相关记录会显示在这里。
-    </div>
-    <div v-else class="setting-group" style="padding: 12px 16px">
-      <div
-        v-for="(line, i) in store.launchLogs"
-        :key="i"
-        :style="{
-          fontFamily: 'var(--aelux-font-mono)',
-          fontSize: '12px',
-          lineHeight: '1.8',
-          color: 'var(--text-sub)',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-all',
-        }"
-      >
-        {{ line }}
-      </div>
     </div>
   </div>
 </template>

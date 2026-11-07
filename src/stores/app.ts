@@ -414,17 +414,30 @@ export const useAppStore = defineStore('app', () => {
     const ds = downloadState.value
     const tasks = ds.tasks.slice()
     const idx = tasks.findIndex((t) => t.id === ev.taskId)
+    const complete = ev.total > 0 && ev.received >= ev.total
     const next: DownloadTaskState = {
       id: ev.taskId,
       name: ev.name,
       url: '',
       received: ev.received,
       total: ev.total,
-      status: 'downloading',
+      status: complete ? 'done' : 'downloading',
     }
     if (idx >= 0) tasks[idx] = { ...tasks[idx], ...next, url: tasks[idx].url }
     else tasks.push(next)
     downloadState.value = { ...ds, tasks }
+    recomputeDownloadState()
+  }
+
+  /** 安装结束（成功 / 失败）时统一收尾仍在下载的任务。 */
+  function finishDownloadTasks(status: 'done' | 'failed') {
+    const ds = downloadState.value
+    downloadState.value = {
+      ...ds,
+      tasks: ds.tasks.map((t) =>
+        t.status === 'downloading' || t.status === 'pending' ? { ...t, status } : t,
+      ),
+    }
     recomputeDownloadState()
   }
 
@@ -696,18 +709,11 @@ export const useAppStore = defineStore('app', () => {
           version: meta.modApi.version ?? null,
         })
       }
-      downloadState.value = {
-        ...downloadState.value,
-        tasks: downloadState.value.tasks.map((t) =>
-          t.status === 'downloading' ? { ...t, status: 'done' as const } : t,
-        ),
-      }
-      recomputeDownloadState()
+      finishDownloadTasks('done')
       await refreshInstances()
     } catch (e) {
       installError.value = (e as Error).message
-      downloadState.value = { ...downloadState.value }
-      recomputeDownloadState()
+      finishDownloadTasks('failed')
     } finally {
       installing.value = null
     }
