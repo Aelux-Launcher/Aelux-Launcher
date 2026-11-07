@@ -64,50 +64,90 @@ function openLink(url: string) {
         <AlxSearchBar v-model="query" placeholder="在本文中搜索" />
       </PageHeader>
 
-      <span class="tag">{{ entry.group }}</span>
-
       <!-- 搜索无命中 -->
-      <div v-if="!hit" class="empty-state">
+      <div v-if="!hit" class="empty-state help-search-empty">
         <AlxIcon name="search" :size="32" />
         <div>没有匹配的内容。</div>
       </div>
 
-      <!-- 正文段落 -->
+      <!-- 正文卡片 -->
       <template v-else>
-        <div style="margin-top: 16px">
-          <p
-            v-for="(p, i) in entry.paragraphs"
-            :key="i"
-            :style="{ margin: '0 0 12px', fontSize: '14px', lineHeight: '1.8', color: 'var(--text-main)' }"
-          >
+        <div class="help-article">
+          <div class="help-article-head">
+            <span class="tag">{{ entry.group }}</span>
+          </div>
+
+          <p v-for="(p, i) in entry.paragraphs" :key="i" class="help-paragraph">
             {{ p }}
           </p>
+
+          <!-- 相关链接 -->
+          <div v-if="entry.links && entry.links.length > 0" class="help-links">
+            <button
+              v-for="l in entry.links"
+              :key="l.url"
+              type="button"
+              class="btn-download btn-ghost help-link"
+              @click="openLink(l.url)"
+            >
+              <AlxIcon name="external" :size="13" />
+              <span>{{ l.label }}</span>
+            </button>
+          </div>
         </div>
 
-        <!-- 相关链接 -->
-        <div
-          v-if="entry.links && entry.links.length > 0"
-          style="display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap"
-        >
-          <button
-            v-for="l in entry.links"
-            :key="l.url"
-            type="button"
-            class="btn-download btn-ghost"
-            @click="openLink(l.url)"
-          >
-            <AlxIcon name="external" :size="13" />
-            <span style="margin-left: 6px">{{ l.label }}</span>
+        <!-- 返回帮助列表 -->
+        <div class="help-back">
+          <button type="button" class="btn-download btn-ghost" @click="store.pageBack()">
+            返回帮助列表
           </button>
         </div>
       </template>
-
-      <!-- 返回帮助列表 -->
-      <div style="display: flex; justify-content: center; margin-top: 32px">
-        <button type="button" class="btn-download btn-ghost" @click="store.pageBack()">
-          返回帮助列表
-        </button>
-      </div>
     </template>
   </div>
 </template>
+
+<style scoped>
+.help-article {
+  margin-top: 16px;
+  padding: 20px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--bg-color);
+}
+.help-article-head {
+  display: flex;
+  margin-bottom: 14px;
+}
+.help-paragraph {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-main);
+}
+.help-paragraph:last-of-type {
+  margin-bottom: 0;
+}
+.help-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-light);
+}
+.help-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+}
+.help-back {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+.help-search-empty {
+  margin-top: 16px;
+}
+</style>
