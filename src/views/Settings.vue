@@ -374,58 +374,10 @@ function onRefreshJava() {
   void refreshJavaList(true)
 }
 
-/* ---------------------------- 服务与 API ---------------------------- */
-
-/** 真实数据源凭据（独立文件 data/config/secrets.json）。 */
-const curseforgeKey = ref('')
-const msaClientId = ref('')
-const serviceConfigPath = ref('')
-
-/** 读取已保存的凭据 + 配置文件路径。 */
-async function loadServiceConfig() {
-  try {
-    const cfg = await call<{
-      curseforgeApiKey: string
-      msaClientId: string
-      path: string
-    }>('api_config_get')
-    curseforgeKey.value = cfg.curseforgeApiKey
-    msaClientId.value = cfg.msaClientId
-    serviceConfigPath.value = cfg.path
-  } catch {
-    // 未连接内核（如纯浏览器预览）时保持空值
-  }
-}
-
-/** 保存两个凭据（一并写入 secrets.json）。 */
-async function saveServiceConfig(label: string) {
-  try {
-    await call('api_config_set', {
-      config: {
-        curseforgeApiKey: curseforgeKey.value.trim(),
-        msaClientId: msaClientId.value.trim(),
-      },
-    })
-    toast.success(`${label}已保存`)
-  } catch (e) {
-    toast.error(`保存失败：${(e as Error).message}`)
-  }
-}
-
-/** 打开凭据文件所在目录。 */
-function openServiceConfigDir() {
-  const dir = serviceConfigPath.value.replace(/[\\/][^\\/]+$/, '')
-  if (!dir || !isTauri) return
-  void call('open_folder_in_explorer', { path: dir }).catch(() =>
-    toast.error('无法打开配置目录'),
-  )
-}
-
 // 首次进入设置页读取 Java 列表（有缓存时直接复用，不重复探测）
 onMounted(() => {
   void refreshJavaList()
   void loadPresets()
-  void loadServiceConfig()
   // 已保存的自定义窗口图标：进入设置页时重新应用一次
   if (isTauri && extras.value.iconPath) {
     void call('set_window_icon', { path: extras.value.iconPath }).catch(() => {})
@@ -1364,48 +1316,6 @@ async function clearDownloadCache() {
         </template>
       </SettingGroup>
 
-      <!-- 服务与 API：真实数据源的凭据，保存到独立的 secrets.json -->
-      <SettingGroup title="服务与 API" :collapsible="false">
-        <div class="setting-row">
-          <div class="setting-label">
-            CurseForge API Key
-            <div class="setting-desc">用于 CurseForge 搜索与下载；留空时该源不可用</div>
-          </div>
-          <input
-            class="setting-input"
-            type="password"
-            v-model="curseforgeKey"
-            placeholder="粘贴 CurseForge API Key"
-            @change="saveServiceConfig('CurseForge API Key')"
-          />
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            微软 Client ID
-            <div class="setting-desc">Azure 应用注册的「应用程序(客户端) ID」，用于正版登录</div>
-          </div>
-          <input
-            class="setting-input"
-            v-model="msaClientId"
-            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            @change="saveServiceConfig('微软 Client ID')"
-          />
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            凭据文件
-            <div class="setting-desc">{{ serviceConfigPath || '首次运行内核后生成' }}</div>
-          </div>
-          <button type="button" class="btn-download btn-ghost" @click="openServiceConfigDir">
-            打开配置目录
-          </button>
-        </div>
-        <div class="setting-note">
-          凭据保存在独立的 secrets.json，不会上传；也可用环境变量
-          AELUX_CURSEFORGE_API_KEY / AELUX_MSA_CLIENT_ID 覆盖。修改后重新发起搜索或登录即可生效。
-          申请方式见项目文档 docs/API-KEYS.md。
-        </div>
-      </SettingGroup>
     </template>
   </div>
 </template>

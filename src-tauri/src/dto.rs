@@ -116,23 +116,6 @@ impl Default for LauncherConfig {
     }
 }
 
-/// 第三方服务凭据（settings 页编辑、内核写入 secrets.json）。
-#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
-#[serde(default, rename_all = "camelCase")]
-pub struct ApiConfig {
-    pub curseforge_api_key: String,
-    pub msa_client_id: String,
-}
-
-/// 凭据 + 配置文件路径。
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ApiConfigView {
-    pub curseforge_api_key: String,
-    pub msa_client_id: String,
-    pub path: String,
-}
-
 /// 设备码登录会话（轮询时原样回传）。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

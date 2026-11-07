@@ -542,19 +542,12 @@ function retrySearch() {
           {{ needsCurseForgeKey ? '需要配置 CurseForge API Key' : '暂时无法连接到社区资源源' }}
         </div>
         <div v-if="needsCurseForgeKey" class="resource-state-desc">
-          世界分类由 CurseForge 提供数据，需要你自己申请 API Key。
-          请到「设置 → 下载 → 服务与 API」填写，或编辑 data/config/secrets.json。
+          世界分类由 CurseForge 提供数据，当前内核未配置 CurseForge API Key。
         </div>
         <div v-else class="resource-state-desc">请检查网络后重试。错误详情：{{ store.resourceError }}</div>
-        <button
-          v-if="needsCurseForgeKey"
-          type="button"
-          class="btn-download"
-          @click="store.routerPush('/settings/download')"
-        >
-          去设置填写
+        <button v-if="!needsCurseForgeKey" type="button" class="btn-download btn-ghost" @click="retrySearch">
+          重试
         </button>
-        <button v-else type="button" class="btn-download btn-ghost" @click="retrySearch">重试</button>
       </div>
 
       <!-- 无结果 -->

@@ -50,50 +50,6 @@ release-ffi = ["dep:libloading"]      # 发布打包
 两条链路对外暴露**完全相同**的函数签名（`core_api/mod.rs` 契约），命令层零感知。
 未选择任何链路时编译期直接 `compile_error!`，避免误用假实现。
 
-## 第三方服务配置
-
-凭据只保存在本机独立配置文件 `data/config/secrets.json`，不上传；设置页修改后立即生效。
-完整申请步骤与排错见 [docs/API-KEYS.md](../docs/API-KEYS.md)（仓库根目录 `docs/`）。
-
-### CurseForge API Key
-
-1. 打开 <https://console.curseforge.com/>，用 CurseForge 账号登录；
-2. 在 **API Keys** 页申请一个 Key（个人使用即可）；
-3. 启动器「设置 → 服务与 API → CurseForge API Key」粘贴保存。
-
-未配置时 CurseForge 源不可用，搜索会自动只展示 Modrinth；配置后搜索结果
-会把两个来源合并并按下载量排序。所有请求由内核转发到
-`https://api.curseforge.com/v1`（请求头 `x-api-key`），前端不直接接触 Key。
-
-### 微软正版登录（Microsoft OAuth 设备码流）
-
-1. 打开 <https://portal.azure.com/> → **Microsoft Entra ID → 应用注册 → 新注册**；
-2. 受支持的账户类型选「**仅个人 Microsoft 账户**」；
-3. 注册后在「**身份验证 → 添加平台 → 移动和桌面应用程序**」，
-   勾选「**允许公共客户端流 (Enable public client flow)**」；
-4. 复制概览页的「**应用程序(客户端) ID**」；
-5. 填入「设置 → 服务与 API → 微软 Client ID」，或打包时用环境变量注入：
-
-   ```powershell
-   $env:AELUX_MSA_CLIENT_ID = "<你的客户端 ID>"
-   ```
-
-解析优先级：环境变量 `AELUX_MSA_CLIENT_ID` → `secrets.json` 的 `msaClientId` → 旧版 KV。
-占位值状态下发起登录会直接提示「未配置微软 Client ID」。
-
-登录链路：设备码 → Xbox Live → XSTS → Minecraft 服务 → 档案；
-refresh token 按账户存入系统钥匙串，账户页「刷新」会静默续期，不再要求重新登录。
-
-### 已对接的公开 API
-
-| 服务 | 地址 | 用途 |
-| --- | --- | --- |
-| Modrinth v2 | `https://api.modrinth.com/v2` | 搜索 / 详情 / 版本 / 依赖 / 更新检查 |
-| CurseForge v1 | `https://api.curseforge.com/v1` | 搜索 / 详情 / 版本 / 依赖 / 整合包解析 |
-| Mojang 版本清单 | `https://launchermeta.mojang.com` / `piston-meta` | 游戏与资源下载 |
-| Fabric / Quilt / Forge / NeoForge | 各自官方 meta | 加载器版本与安装 |
-| MC 百科 | `https://search.mcmod.cn` | 资源中文名补充 |
-
 ## IPC 与类型同步
 
 - 命令层：`src-tauri/src/commands.rs`（每个命令带 `#[tauri::command]` + `#[specta::specta]`）

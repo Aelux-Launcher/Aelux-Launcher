@@ -13,9 +13,9 @@ use serde_json::Value;
 use tauri::Manager;
 
 use crate::dto::{
-    Account, AccountSession, ApiConfig, ApiConfigView, AuthServer, DeviceCodeSession, GameInstance,
-    InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem,
-    ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
+    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, InstallResult,
+    JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem, ModUpdate,
+    ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
 };
 
 use super::CoreError;
@@ -288,22 +288,6 @@ pub async fn fetch_json(url: String) -> Result<String, CoreError> {
         .as_str()
         .map(str::to_string)
         .ok_or_else(|| "内核返回类型错误".into())
-}
-
-pub fn api_config() -> Result<ApiConfigView, CoreError> {
-    let value = invoke_sync("secrets.get", &Value::Null)?;
-    serde_json::from_value(value).map_err(|e| e.to_string())
-}
-
-pub fn save_api_config(config: ApiConfig) -> Result<(), CoreError> {
-    invoke_sync(
-        "secrets.set",
-        &serde_json::json!({
-            "curseforge_api_key": config.curseforge_api_key,
-            "msa_client_id": config.msa_client_id,
-        }),
-    )
-    .map(|_| ())
 }
 
 pub async fn curseforge_fetch(path: String) -> Result<String, CoreError> {

@@ -41,8 +41,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::kv_remove,
         commands::get_config,
         commands::save_config,
-        commands::api_config_get,
-        commands::api_config_set,
         commands::cache_dir,
         commands::clear_cache,
         commands::set_window_icon,

@@ -49,8 +49,6 @@ export const commands = {
 	kvRemove: (key: string) => typedError<null, string>(__TAURI_INVOKE("kv_remove", { key })),
 	getConfig: () => typedError<LauncherConfig_Serialize, string>(__TAURI_INVOKE("get_config")),
 	saveConfig: (config: LauncherConfig_Deserialize) => typedError<null, string>(__TAURI_INVOKE("save_config", { config })),
-	apiConfigGet: () => typedError<ApiConfigView, string>(__TAURI_INVOKE("api_config_get")),
-	apiConfigSet: (config: ApiConfig_Deserialize) => typedError<null, string>(__TAURI_INVOKE("api_config_set", { config })),
 	cacheDir: () => __TAURI_INVOKE<string>("cache_dir"),
 	clearCache: () => typedError<number, string>(__TAURI_INVOKE("clear_cache")),
 	/**  用本地 PNG 设置窗口图标（自定义启动器图标）。 */
@@ -115,28 +113,6 @@ export type AccountSession = {
 	type: string,
 	username: string,
 	uuid: string,
-};
-
-/**  第三方服务凭据（settings 页编辑、内核写入 secrets.json）。 */
-export type ApiConfig = ApiConfig_Serialize | ApiConfig_Deserialize;
-
-/**  凭据 + 配置文件路径。 */
-export type ApiConfigView = {
-	curseforgeApiKey: string,
-	msaClientId: string,
-	path: string,
-};
-
-/**  第三方服务凭据（settings 页编辑、内核写入 secrets.json）。 */
-export type ApiConfig_Deserialize = {
-	curseforgeApiKey?: string,
-	msaClientId?: string,
-};
-
-/**  第三方服务凭据（settings 页编辑、内核写入 secrets.json）。 */
-export type ApiConfig_Serialize = {
-	curseforgeApiKey: string,
-	msaClientId: string,
 };
 
 /**  外置登录认证服务器（authlib-injector）。 */

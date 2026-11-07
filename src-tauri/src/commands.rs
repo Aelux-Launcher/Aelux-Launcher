@@ -6,10 +6,9 @@
 
 use crate::core_api;
 use crate::dto::{
-    Account, AccountSession, ApiConfig, ApiConfigView, AuthServer, CrashReport, DeviceCodeSession,
-    GameInstance, InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig,
-    LocalContentItem, LogFile, ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount,
-    VersionManifest,
+    Account, AccountSession, AuthServer, CrashReport, DeviceCodeSession, GameInstance,
+    InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem,
+    LogFile, ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
 };
 
 /* ------------------------------ 内核命令 ------------------------------ */
@@ -366,18 +365,6 @@ pub fn get_config() -> Result<LauncherConfig, String> {
 #[specta::specta]
 pub fn save_config(config: LauncherConfig) -> Result<(), String> {
     core_api::save_config(config)
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn api_config_get() -> Result<ApiConfigView, String> {
-    core_api::api_config()
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn api_config_set(config: ApiConfig) -> Result<(), String> {
-    core_api::save_api_config(config)
 }
 
 #[tauri::command]

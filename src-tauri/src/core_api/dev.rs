@@ -8,9 +8,9 @@ use serde_json::Value;
 use tauri::Emitter;
 
 use crate::dto::{
-    Account, AccountSession, ApiConfig, ApiConfigView, AuthServer, DeviceCodeSession, GameInstance,
-    InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem,
-    ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
+    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, InstallResult,
+    JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem, ModUpdate,
+    ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
 };
 
 use super::CoreError;
@@ -288,17 +288,6 @@ pub fn cache_dir() -> String {
 
 pub fn clear_cache() -> Result<u32, CoreError> {
     core().clear_cache().map_err(|e| e.to_string())
-}
-
-pub fn api_config() -> Result<ApiConfigView, CoreError> {
-    to_dto(core().api_config())
-}
-
-pub fn save_api_config(config: ApiConfig) -> Result<(), CoreError> {
-    let core_cfg: aelux_core::secrets::ApiConfig =
-        serde_json::from_value(serde_json::to_value(config).map_err(|e| e.to_string())?)
-            .map_err(|e| e.to_string())?;
-    core().save_api_config(&core_cfg).map_err(|e| e.to_string())
 }
 
 /* --------------------------- Java / 本地内容 --------------------------- */
