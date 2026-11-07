@@ -5,13 +5,16 @@
  *   + 侧栏（按模块分组切换 + 底部账户区）
  *   + 内容舞台（页面切换直接替换，内容块逐项淡入）
  */
-import { computed, nextTick, onMounted, ref, watch, type Component } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { router } from './router'
 import { useAppStore } from './stores/app'
 import TopHeader from './components/TopHeader.vue'
 import SideNav from './components/SideNav.vue'
 import AlxModal from './components/AlxModal.vue'
 import { toasts, toast } from './lib/toast'
+import { call, isTauri } from './lib/bridge'
+import { readExtras } from './views/SettingsModel'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import Home from './views/Home.vue'
 import Download from './views/Download.vue'
 import Settings from './views/Settings.vue'
@@ -25,14 +28,6 @@ import VersionDetail from './views/VersionDetail.vue'
 import Accounts from './views/Accounts.vue'
 import DeviceLoginModal from './components/DeviceLoginModal.vue'
 import DialogHost from './components/DialogHost.vue'
-
-/** 舞台层：同一时间只渲染这一页。 */
-interface StageLayer {
-  id: number
-  key: string
-  comp: Component
-  props: Record<string, unknown>
-}
 
 const COMPONENTS: Record<string, Component> = {
   home: Home,
@@ -93,41 +88,75 @@ function resetStageScroll() {
   })
 }
 
-const layer = ref<StageLayer>({
-  id: 0,
+/** 舞台内容直接由路由派生：路由变化必然触发重渲染，避免手动层状态滞留。 */
+const stage = computed(() => ({
   key: stageKey(route.value),
   comp: COMPONENTS[String(route.value.name ?? 'home')] ?? Home,
   props: stageProps(route.value),
-})
-let nextId = 1
+}))
 
-// 页面切换：直接替换舞台内容，旧页在同一帧内卸载。
-// 保留旧层等待卸载会让 WebView 的合成缓存残留上一页像素，形成重叠 / 拖影。
+// 页面切换后回到顶部（等新页 DOM 渲染完成再滚动）。
 watch(
-  () => stageKey(route.value),
-  (key) => {
-    if (layer.value.key === key) return
-    layer.value = {
-      id: nextId++,
-      key,
-      comp: COMPONENTS[String(route.value.name ?? 'home')] ?? Home,
-      props: stageProps(route.value),
-    }
-    resetStageScroll()
-  },
-  // 同步捕捉：DOM 仍是旧页，且路由参数已更新。
-  { flush: 'sync' },
+  () => stage.value.key,
+  () => resetStageScroll(),
+  { flush: 'post' },
 )
+
+/** 自定义背景：直接铺在应用根节点上（设置页选择图片后立即生效）。 */
+const appStyle = computed(() => {
+  const extras = readExtras(store.settings)
+  if (extras.backgroundMode !== 'custom' || !extras.backgroundPath) return {}
+  const url = isTauri ? convertFileSrc(extras.backgroundPath) : extras.backgroundPath
+  return {
+    backgroundImage: `url("${url}")`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+  }
+})
+
+/** 桌面端拦截 WebView 默认右键菜单（返回 / 刷新 / 另存为 / 打印 / 检查）。 */
+function onContextMenu(e: MouseEvent) {
+  if (isTauri) e.preventDefault()
+}
+
+/** 桌面端拦截浏览器快捷键（F5 / Ctrl+R / 打印 / devtools / 前进后退）。 */
+function onShortcut(e: KeyboardEvent) {
+  if (!isTauri) return
+  const key = e.key.toLowerCase()
+  const ctrl = e.ctrlKey || e.metaKey
+  const blocked =
+    key === 'f5' ||
+    key === 'f12' ||
+    (ctrl && ['r', 'p', 's', 'u'].includes(key)) ||
+    (ctrl && e.shiftKey && ['r', 'i', 'j', 'c'].includes(key)) ||
+    (e.altKey && (key === 'arrowleft' || key === 'arrowright'))
+  if (!blocked) return
+  e.preventDefault()
+  e.stopPropagation()
+}
 
 onMounted(() => {
   // 刷新后不还原上次的滚动位置：页面回到顶部。
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+  // Tauri WebView 的默认右键菜单与快捷键在桌面端全部禁用（浏览器预览保留，便于调试）
+  document.addEventListener('contextmenu', onContextMenu, { capture: true })
+  document.addEventListener('keydown', onShortcut, { capture: true })
   resetStageScroll()
-  void store.init()
+  void store.init().then(() => {
+    // 启动时恢复自定义窗口图标
+    const icon = readExtras(store.settings).iconPath
+    if (isTauri && icon) void call('set_window_icon', { path: icon }).catch(() => {})
+  })
   // 浏览器预览提示只停留 3 秒：说明数据是模拟的即可，不常驻遮挡内容
   window.setTimeout(() => {
     showPreviewTip.value = false
   }, 3000)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('contextmenu', onContextMenu, { capture: true })
+  document.removeEventListener('keydown', onShortcut, { capture: true })
 })
 
 const announcement = computed(() => store.pendingAnnouncements[0] ?? null)
@@ -135,7 +164,7 @@ const showPreviewTip = ref(true)
 </script>
 
 <template>
-  <div class="aelux-app">
+  <div class="aelux-app" :style="appStyle">
     <TopHeader />
 
     <div class="main-body">
@@ -143,8 +172,8 @@ const showPreviewTip = ref(true)
 
       <div class="content-area">
         <div class="alx-stage">
-          <div :key="layer.id" class="alx-stage__layer">
-            <component :is="layer.comp" v-bind="layer.props" />
+          <div :key="stage.key" class="alx-stage__layer">
+            <component :is="stage.comp" v-bind="stage.props" />
           </div>
         </div>
 

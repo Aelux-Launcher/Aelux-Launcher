@@ -87,6 +87,7 @@ pub struct LauncherConfig {
     pub game_height: u32,
     pub download_concurrency: u32,
     pub hide_on_launch: bool,
+    pub cache_dir: String,
 }
 
 impl Default for LauncherConfig {
@@ -103,6 +104,7 @@ impl Default for LauncherConfig {
             game_height: 480,
             download_concurrency: 8,
             hide_on_launch: false,
+            cache_dir: String::new(),
         }
     }
 }

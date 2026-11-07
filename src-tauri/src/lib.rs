@@ -10,6 +10,7 @@ use tauri_specta::{collect_commands, Builder};
 fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         commands::get_data_dir,
+        commands::detect_official_minecraft,
         commands::get_os_info,
         commands::get_core_version,
         commands::fetch_json,
@@ -37,6 +38,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::kv_remove,
         commands::get_config,
         commands::save_config,
+        commands::cache_dir,
+        commands::clear_cache,
+        commands::set_window_icon,
         commands::scan_java,
         commands::required_java,
         commands::get_instance_dir,
@@ -93,6 +97,7 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+            commands::set_app_handle(app.handle().clone());
 
             // 窗口形态：不透明铺满 + 系统圆角（Win11 DWM）+ 系统阴影（tao undecorated
             // shadow，conf 里 shadow:true）。不关系统圆角——圆角由 DWM 裁剪，

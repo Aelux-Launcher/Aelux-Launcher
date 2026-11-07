@@ -1852,6 +1852,7 @@ svg {
 }
 .folder-menu button:hover { background: var(--hover-bg); }
 .folder-menu button:active { background: var(--icon-bg); }
+.folder-menu button.danger { color: #e5484d; }
 .instance-groups { min-width: 0; }
 .account-list { min-width: 0; }
 

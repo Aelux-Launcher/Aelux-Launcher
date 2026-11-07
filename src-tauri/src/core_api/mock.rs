@@ -528,6 +528,14 @@ pub fn save_config(_config: LauncherConfig) -> Result<(), CoreError> {
     Ok(())
 }
 
+pub fn cache_dir() -> String {
+    "data/cache".into()
+}
+
+pub fn clear_cache() -> Result<u32, CoreError> {
+    Ok(0)
+}
+
 /* ---------------------------- 安装 / 启动 / 市场 ---------------------------- */
 
 /// mock 安装结果：按命名规则拼出与内核一致的版本目录名。

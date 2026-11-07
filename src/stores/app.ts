@@ -422,6 +422,14 @@ export const useAppStore = defineStore('app', () => {
       /* 数据目录读取失败留空 */
     }
     try {
+      officialFolderPath.value = (await call<string | null>('detect_official_minecraft')) ?? ''
+    } catch {
+      /* 未检测到官方启动器目录 */
+    }
+    if (!officialFolderPath.value && selectedFolderId.value === 'official') {
+      selectedFolderId.value = 'current'
+    }
+    try {
       await loadAddedFolders()
     } catch {
       /* 文件夹列表读取失败按空处理 */
@@ -694,6 +702,9 @@ export const useAppStore = defineStore('app', () => {
   /** 数据根目录（当前文件夹路径的根，init 时读取）。 */
   const dataDir = ref('')
 
+  /** 官方启动器 .minecraft 路径：检测到才非空，未检测到就不显示官方文件夹卡片。 */
+  const officialFolderPath = ref('')
+
   /** 用户添加的游戏文件夹（落 kv 'game-folders'；当前/官方文件夹为派生态）。 */
   const addedFolders = ref<StoredFolder[]>([])
 
@@ -706,16 +717,21 @@ export const useAppStore = defineStore('app', () => {
     await call('kv_set', { key: 'game-folders', value: JSON.stringify(addedFolders.value) })
   }
 
-  /** 版本选择页的文件夹列表：当前文件夹 + 官方文件夹 + 添加的文件夹。 */
-  const gameFolders = computed<StoredFolder[]>(() => [
-    {
-      id: 'current',
-      type: 'current',
-      path: dataDir.value ? `${dataDir.value}/.minecraft` : '',
-    },
-    { id: 'official', type: 'official', path: '' },
-    ...addedFolders.value,
-  ])
+  /** 版本选择页的文件夹列表：当前文件夹 + 官方文件夹（仅检测到）+ 添加的文件夹。 */
+  const gameFolders = computed<StoredFolder[]>(() => {
+    const list: StoredFolder[] = [
+      {
+        id: 'current',
+        type: 'current',
+        path: dataDir.value ? `${dataDir.value}/.minecraft` : '',
+      },
+    ]
+    if (officialFolderPath.value) {
+      list.push({ id: 'official', type: 'official', path: officialFolderPath.value })
+    }
+    list.push(...addedFolders.value)
+    return list
+  })
 
   /** 版本选择页当前选中的文件夹（决定内容区显示哪个文件夹的实例）。 */
   const selectedFolderId = ref('current')
@@ -1104,6 +1120,10 @@ export const useAppStore = defineStore('app', () => {
   async function saveSettings(patch: Partial<Settings>) {
     settings.value = { ...settings.value, ...patch }
     const next = settings.value
+    // 缓存目录偏好存在界面层扩展字段里（SettingsExtras），只有「自定义」才传给内核
+    const extras = next as unknown as { cacheFolderMode?: string; cacheFolderPath?: string }
+    const cacheDir =
+      extras.cacheFolderMode === 'custom' ? (extras.cacheFolderPath ?? '').trim() : ''
     await Promise.all([
       call('kv_set', { key: 'settings', value: JSON.stringify(next) }),
       call('save_config', {
@@ -1119,6 +1139,7 @@ export const useAppStore = defineStore('app', () => {
           gameHeight: 480,
           downloadConcurrency: 8,
           hideOnLaunch: false,
+          cacheDir,
         },
       }).catch(() => {
         /* 预览环境没有 save_config */

@@ -4,11 +4,14 @@
  *   侧栏 = 文件夹列表（见 SideNav 的子页面板）；本页内容 = 按加载器分组的实例，
  *   跟随侧栏选中的文件夹（当前文件夹显示实例，其余文件夹待内核扫描支持）。
  */
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useAppStore } from '../stores/app'
 import AlxIcon from '../components/AlxIcon.vue'
+import AlxModal from '../components/AlxModal.vue'
+import { toast } from '../lib/toast'
 import { loaderIconUrl } from '../lib/loaderIcons'
 import type { GameInstance } from '../lib/types'
+import { loadInstanceUiMap, saveInstanceUi } from './instanceMeta'
 
 const store = useAppStore()
 
@@ -73,14 +76,21 @@ function loaderIcon(instance: GameInstance): string {
   return key === 'vanilla' ? 'minecraft' : key
 }
 
-/** 按加载器分组的实例（空组隐藏）。 */
-const instanceGroups = computed(() =>
-  LOADER_ORDER.map((key) => ({
-    key,
+/** 收藏状态（持久化在实例外观偏好里）。 */
+const favorites = ref<Record<string, boolean>>({})
+
+/** 按加载器分组的实例（空组隐藏）；收藏夹固定在最顶部。 */
+const instanceGroups = computed(() => {
+  const favorited = store.instances.filter((i) => favorites.value[i.id])
+  const groups = LOADER_ORDER.map((key) => ({
+    key: key as string,
     title: LOADER_TITLE[key],
     items: store.instances.filter((i) => (i.loader || 'vanilla') === key),
-  })).filter((g) => g.items.length > 0),
-)
+  })).filter((g) => g.items.length > 0)
+  return favorited.length
+    ? [{ key: 'favorites', title: '收藏夹', items: favorited }, ...groups]
+    : groups
+})
 
 /** 分组折叠状态（默认全部展开，收起后记住）。 */
 const collapsedGroups = ref(new Set<string>())
@@ -98,6 +108,60 @@ function toggleGroup(key: string) {
 /** 点击实例 → 实例详情页。 */
 function openInstance(id: string) {
   store.openSubPage({ kind: 'instance', instanceId: id, tab: 'overall' })
+}
+
+/* ------------------------------ 行尾操作 ------------------------------ */
+
+onMounted(async () => {
+  const map = await loadInstanceUiMap()
+  const next: Record<string, boolean> = {}
+  for (const [id, ui] of Object.entries(map)) {
+    if (ui.favorite) next[id] = true
+  }
+  favorites.value = next
+})
+
+function isFavorite(id: string): boolean {
+  return !!favorites.value[id]
+}
+
+/** 切换收藏（写回本地 KV）。 */
+async function toggleFavorite(instance: GameInstance) {
+  const next = !isFavorite(instance.id)
+  favorites.value = { ...favorites.value, [instance.id]: next }
+  try {
+    await saveInstanceUi(instance.id, { favorite: next })
+  } catch {
+    toast.error('收藏状态保存失败')
+  }
+}
+
+/** 删除确认（二级锁）：行尾删除按钮先弹窗，确认后才真正删除。 */
+const pendingDelete = ref<GameInstance | null>(null)
+const deleting = ref(false)
+
+function askDelete(instance: GameInstance) {
+  pendingDelete.value = instance
+}
+
+async function confirmDelete() {
+  const inst = pendingDelete.value
+  if (!inst || deleting.value) return
+  deleting.value = true
+  try {
+    await store.deleteInstance(inst.id)
+    pendingDelete.value = null
+    toast.success(`已删除 ${inst.name}`)
+  } catch (e) {
+    toast.error(`删除失败：${(e as Error).message}`)
+  } finally {
+    deleting.value = false
+  }
+}
+
+/** 行尾设置按钮 → 该实例的「版本设置」页。 */
+function openSettings(instance: GameInstance) {
+  store.openSubPage({ kind: 'instance', instanceId: instance.id, tab: 'setup' })
 }
 </script>
 
@@ -144,11 +208,85 @@ function openInstance(id: string) {
                   <div class="item-desc">{{ instanceDesc(i) }}</div>
                 </div>
               </div>
+              <div class="item-actions" @click.stop>
+                <button
+                  type="button"
+                  class="item-action"
+                  :class="{ active: isFavorite(i.id) }"
+                  :title="isFavorite(i.id) ? '取消收藏' : '收藏'"
+                  @click="toggleFavorite(i)"
+                >
+                  <AlxIcon :name="isFavorite(i.id) ? 'star-filled' : 'star'" :size="16" />
+                </button>
+                <button type="button" class="item-action" title="版本设置" @click="openSettings(i)">
+                  <AlxIcon name="settings" :size="16" />
+                </button>
+                <button type="button" class="item-action danger" title="删除实例" @click="askDelete(i)">
+                  <AlxIcon name="trash" :size="16" />
+                </button>
+              </div>
             </div>
             <div v-if="g.items.length === 0" class="version-group-empty">暂无实例</div>
           </div>
         </div>
       </div>
     </template>
+
+    <!-- 删除确认（二级锁） -->
+    <AlxModal
+      :open="pendingDelete !== null"
+      title="删除实例"
+      variant="danger"
+      @close="pendingDelete = null"
+    >
+      <p class="modal-note">
+        确定要删除「{{ pendingDelete?.name }}」吗？该实例的存档与配置会一并移除，此操作不可撤销。
+      </p>
+      <template #actions>
+        <button type="button" class="btn-sub" @click="pendingDelete = null">取消</button>
+        <button type="button" class="btn-download" :disabled="deleting" @click="confirmDelete">
+          删除
+        </button>
+      </template>
+    </AlxModal>
   </div>
 </template>
+
+<style scoped>
+/* 行尾操作：默认淡显，悬停整行时完全显形；已收藏的星标常显 */
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0.45;
+  transition: opacity 0.15s;
+}
+.list-item:hover .item-actions,
+.item-actions:has(.active) {
+  opacity: 1;
+}
+.item-action {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-sub);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.item-action:hover {
+  background: var(--icon-bg);
+  color: var(--text-main);
+}
+.item-action.active {
+  color: var(--text-main);
+}
+.item-action.danger:hover {
+  color: #e5484d;
+}
+</style>

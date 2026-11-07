@@ -11,6 +11,7 @@ import { toast } from '../lib/toast'
 import { confirmDialog, promptDialog } from '../lib/dialog'
 import { call } from '../lib/bridge'
 import AlxIcon from './AlxIcon.vue'
+import AccountAvatar from './AccountAvatar.vue'
 import AuthServerModal from './AuthServerModal.vue'
 import AuthLoginModal from './AuthLoginModal.vue'
 import MicrosoftLoginModal from './MicrosoftLoginModal.vue'
@@ -394,7 +395,7 @@ function selectFolder(f: StoredFolder) {
               <AlxIcon name="trash" :size="15" />
             </button>
           </div>
-          <div class="folder-path">{{ f.path || '未检测到官方启动器文件夹' }}</div>
+          <div class="folder-path">{{ f.path || (f.type === 'current' ? '启动器数据目录' : '路径不可用') }}</div>
 
           <!-- 设置菜单（点击别处自动收起） -->
           <div v-if="folderMenuId === f.id" class="folder-menu" @click.stop>
@@ -402,6 +403,15 @@ function selectFolder(f: StoredFolder) {
             <button type="button" @click="folderAction('open', f.id)">打开</button>
             <button type="button" @click="folderAction('refresh', f.id)">刷新</button>
             <button type="button" @click="folderAction('clear', f.id)">清空</button>
+            <!-- 添加的文件夹可从设置菜单删除（二级锁确认） -->
+            <button
+              v-if="f.type === 'added'"
+              type="button"
+              class="danger"
+              @click="deleteFolder(f.id)"
+            >
+              删除文件夹
+            </button>
           </div>
         </div>
 
@@ -557,7 +567,15 @@ function selectFolder(f: StoredFolder) {
     <div v-else-if="sideModule === 'home' && !store.subPage" class="account-section">
       <div class="account-title">账户</div>
       <button type="button" class="account-card" @click="openAccounts">
-        <div class="account-avatar">
+        <AccountAvatar
+          v-if="store.session"
+          class="account-avatar"
+          :name="store.session.username"
+          :type="store.session.type"
+          :uuid="store.session.uuid"
+          :size="32"
+        />
+        <div v-else class="account-avatar">
           <AlxIcon name="user" :size="18" />
         </div>
         <div class="account-info">

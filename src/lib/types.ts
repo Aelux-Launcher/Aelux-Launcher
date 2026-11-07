@@ -161,7 +161,7 @@ export interface Session {
 export interface StoredAccount {
   /** 微软账户为 msaId（XBL uhs），离线账户为离线 UUID */
   id: string
-  type: 'microsoft' | 'offline'
+  type: 'microsoft' | 'third' | 'offline'
   username: string
   uuid: string
   /** 登录时间（Unix 秒，仅展示） */

@@ -403,6 +403,18 @@ pub fn save_config(config: LauncherConfig) -> Result<(), CoreError> {
     Ok(())
 }
 
+pub fn cache_dir() -> String {
+    invoke_sync("cache.dir", &Value::Null)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_default()
+}
+
+pub fn clear_cache() -> Result<u32, CoreError> {
+    let value = invoke_sync("cache.clear", &Value::Null)?;
+    Ok(value.as_u64().unwrap_or(0) as u32)
+}
+
 /* --------------------------- Java / 本地内容 --------------------------- */
 
 pub fn scan_java() -> Result<Vec<JavaRuntime>, CoreError> {

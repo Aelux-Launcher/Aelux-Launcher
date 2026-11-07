@@ -11,6 +11,7 @@ import { toast } from '../../lib/toast'
 import { call } from '../../lib/bridge'
 import type { GameInstance, InstallResult } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
+import { loaderIconUrl } from '../../lib/loaderIcons'
 import AlxModal from '../../components/AlxModal.vue'
 import AlxSelect from '../../components/AlxSelect.vue'
 import SettingGroup from '../../components/SettingGroup.vue'
@@ -66,6 +67,13 @@ const LOADER_ICON: Record<string, string> = {
 
 /** 当前实例的图标：按加载器区分，未知加载器回落到原版。 */
 const loaderIcon = computed(() => LOADER_ICON[props.instance.loader] ?? 'minecraft')
+
+/** 位图图标键：旧版加载器复用 Fabric 图标，缺素材时回退矢量图标。 */
+const loaderIconSrc = computed(() => {
+  const key = props.instance.loader || 'vanilla'
+  const mapped = key === 'liteloader' || key === 'legacyfabric' ? 'fabric' : key
+  return loaderIconUrl(mapped)
+})
 
 /** 全局登录方式 → 实例登录方式取值（登录方式为「跟随全局设置」时使用）。 */
 const GLOBAL_LOGIN: Record<string, InstanceSettings['serverLogin']> = {
@@ -151,7 +159,10 @@ function confirmDesc() {
   <SettingGroup title="版本信息" :collapsible="false">
     <div class="setting-row">
       <div class="item-left">
-        <div class="item-icon"><AlxIcon :name="loaderIcon" :size="20" /></div>
+        <div class="item-icon">
+          <img v-if="loaderIconSrc" :src="loaderIconSrc" width="20" height="20" alt="" />
+          <AlxIcon v-else :name="loaderIcon" :size="20" />
+        </div>
         <div class="item-info">
           <div class="item-title">{{ displayName }}</div>
           <div class="item-desc">{{ summarizeInstance(instance, effectiveLogin) }}</div>

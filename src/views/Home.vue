@@ -11,6 +11,7 @@ import { toast } from '../lib/toast'
 import { promptDialog } from '../lib/dialog'
 import { call } from '../lib/bridge'
 import AlxIcon from '../components/AlxIcon.vue'
+import AccountAvatar from '../components/AccountAvatar.vue'
 import MicrosoftLoginModal from '../components/MicrosoftLoginModal.vue'
 
 /** 登录方式（与 store 偏好一致） */
@@ -194,7 +195,14 @@ function openInstanceSetup() {
       <!-- 档案区（未登录时不显示文字，但保留高度避免跳动） -->
       <div class="profile-section">
         <div class="avatar">
-          <AlxIcon name="user" :size="36" />
+          <AccountAvatar
+            v-if="store.session"
+            :name="store.session.username"
+            :type="store.session.type"
+            :uuid="store.session.uuid"
+            :size="80"
+          />
+          <AlxIcon v-else name="user" :size="36" />
         </div>
         <div v-if="store.session">
           <div class="player-name">{{ store.session.username }}</div>

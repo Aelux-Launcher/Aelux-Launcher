@@ -447,6 +447,9 @@ async function mockCall<T>(command: string, args?: Record<string, unknown>): Pro
   switch (command) {
     case 'get_data_dir':
       return '/preview/.aelux' as T
+    case 'detect_official_minecraft':
+      // 浏览器预览没有官方启动器目录，保持与桌面端未检测到时一致
+      return null as T
     case 'get_core_version':
       return 'preview' as T
     case 'get_os_info':
@@ -768,7 +771,14 @@ async function mockCall<T>(command: string, args?: Record<string, unknown>): Pro
         gameHeight: 480,
         downloadConcurrency: 8,
         hideOnLaunch: false,
+        cacheDir: '',
       } as T
+    case 'cache_dir':
+      return 'data/cache' as T
+    case 'clear_cache':
+      return 0 as T
+    case 'set_window_icon':
+      return null as T
     case 'read_bundled_announcements':
       return '[]' as T
     case 'read_local_update':

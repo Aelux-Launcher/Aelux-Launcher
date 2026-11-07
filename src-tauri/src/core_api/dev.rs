@@ -223,6 +223,14 @@ pub fn save_config(config: LauncherConfig) -> Result<(), CoreError> {
     core().save_config(&core_cfg).map_err(|e| e.to_string())
 }
 
+pub fn cache_dir() -> String {
+    core().cache_dir().to_string_lossy().into_owned()
+}
+
+pub fn clear_cache() -> Result<u32, CoreError> {
+    core().clear_cache().map_err(|e| e.to_string())
+}
+
 /* --------------------------- Java / 本地内容 --------------------------- */
 
 pub fn scan_java() -> Result<Vec<JavaRuntime>, CoreError> {

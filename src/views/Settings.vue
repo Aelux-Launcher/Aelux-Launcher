@@ -13,7 +13,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import type { SettingsSection } from '../lib/types'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
-import { call } from '../lib/bridge'
+import { call, isTauri, kvGet } from '../lib/bridge'
+import { confirmDialog, promptDialog } from '../lib/dialog'
+import { open } from '@tauri-apps/plugin-dialog'
 import AlxSelect from '../components/AlxSelect.vue'
 import AlxToggle from '../components/AlxToggle.vue'
 import AlxInfoTip from '../components/AlxInfoTip.vue'
@@ -103,14 +105,62 @@ type ChoiceKey =
   | 'presetInherit'
   | 'presetName'
 
-/** 下拉提交：写入对应偏好并落盘。 */
+/** 下拉提交：写入对应偏好并落盘；切换预设时套用快照。 */
 function setChoice(key: ChoiceKey, value: string) {
+  if (key === 'presetName' && presetMap.value[value]) {
+    applyPreset(value)
+    return
+  }
   extras.value = { ...extras.value, [key]: value } as SettingsExtras
   persistExtras()
 }
 
-/** 当前可选的游戏设置预设（预设管理接入后由设置数据填充）。 */
-const presetOptions = [{ value: '预设1', label: '预设1' }]
+/* ------------------------------ 游戏设置预设 ------------------------------ */
+
+/** 预设快照：一组界面偏好 + 分配内存。 */
+interface PresetSnapshot {
+  extras: SettingsExtras
+  memoryMb: number
+}
+
+/** 预设存储键（与设置同库的本地 KV）。 */
+const PRESET_KEY = 'aelux.presets'
+const presetMap = ref<Record<string, PresetSnapshot>>({})
+
+/** 下拉选项：已有预设 + 当前名称（即使还没保存也可见）。 */
+const presetOptions = computed(() => {
+  const names = Object.keys(presetMap.value)
+  if (!names.includes(extras.value.presetName)) names.unshift(extras.value.presetName)
+  return names.map((name) => ({ value: name, label: name }))
+})
+
+/** 读取已保存的预设。 */
+async function loadPresets() {
+  const raw = await kvGet(PRESET_KEY)
+  if (!raw) return
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (parsed && typeof parsed === 'object') presetMap.value = parsed as Record<string, PresetSnapshot>
+  } catch {
+    /* 损坏的预设数据直接忽略 */
+  }
+}
+
+/** 落盘预设表。 */
+async function persistPresets() {
+  await call('kv_set', { key: PRESET_KEY, value: JSON.stringify(presetMap.value) })
+}
+
+/** 切换到某个预设：套用快照里的界面偏好与内存。 */
+function applyPreset(name: string) {
+  const snap = presetMap.value[name]
+  if (!snap) return
+  extras.value = { ...snap.extras, presetName: name }
+  void store.saveSettings({
+    memoryMb: snap.memoryMb,
+    ...extrasPatch(extras.value),
+  })
+}
 
 /** 当前隔离策略的说明文案（放在标题后的感叹号气泡里，避免行内文字过长）。 */
 const isolationDesc = computed(
@@ -187,14 +237,56 @@ async function downloadJava() {
   }
 }
 
-/** 自定义图标选择（内核文件选择命令未接入，先提示）。 */
-function pickIcon() {
-  toast.info('自定义图标选择尚未接入，等待内核文件选择命令就绪。')
+/** 打开图片选择器；浏览器预览没有本地文件访问能力。 */
+async function pickImagePath(): Promise<string | null> {
+  if (!isTauri) {
+    toast.info('浏览器预览无法访问本地文件，请在桌面端操作。')
+    return null
+  }
+  const picked = await open({
+    multiple: false,
+    directory: false,
+    filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
+  })
+  return typeof picked === 'string' ? picked : null
 }
 
-/** 新建游戏设置预设（预设管理尚未接入，先提示）。 */
-function addPreset() {
-  toast.info('自定义预设管理尚未接入。')
+/** 自定义图标：写入偏好并立即应用为窗口图标。 */
+async function pickIcon() {
+  try {
+    const path = await pickImagePath()
+    if (!path) return
+    setExtra('iconPath', path)
+    await call('set_window_icon', { path })
+    toast.success('已应用自定义窗口图标')
+  } catch (e) {
+    toast.warning(`设置图标失败：${(e as Error).message}`)
+  }
+}
+
+/** 新建游戏设置预设：保存当前界面偏好与内存分配。 */
+async function addPreset() {
+  const result = await promptDialog({
+    title: '新建预设',
+    message: '请输入预设名称',
+    fields: [
+      { key: 'name', label: '预设名', value: `预设 ${Object.keys(presetMap.value).length + 1}` },
+    ],
+  })
+  const name = result?.name?.trim()
+  if (!name) return
+  presetMap.value = {
+    ...presetMap.value,
+    [name]: { extras: { ...extras.value, presetName: name }, memoryMb: store.settings.memoryMb },
+  }
+  extras.value = { ...extras.value, presetName: name }
+  persistExtras()
+  try {
+    await persistPresets()
+    toast.success(`已创建预设「${name}」`)
+  } catch (e) {
+    toast.warning(`保存预设失败：${(e as Error).message}`)
+  }
 }
 
 /* ------------------------------ 内存分配 ------------------------------ */
@@ -276,6 +368,11 @@ async function refreshJavaList() {
 // 首次进入设置页即扫描本机 Java（只读探测，不阻塞渲染）
 onMounted(() => {
   void refreshJavaList()
+  void loadPresets()
+  // 已保存的自定义窗口图标：进入设置页时重新应用一次
+  if (isTauri && extras.value.iconPath) {
+    void call('set_window_icon', { path: extras.value.iconPath }).catch(() => {})
+  }
   // 开启「自动检查更新」时静默检查一次：有新版本才弹窗
   if (store.settings.autoUpdate) void checkUpdates(true)
 })
@@ -393,19 +490,51 @@ function onProxyInput(
   setExtra(key, (e.target as HTMLInputElement).value)
 }
 
-/** 选择背景图片（内核文件选择命令未接入，先提示）。 */
-function pickBackground() {
-  toast.info('背景图片选择尚未接入内核文件选择命令。')
+/** 选择背景图片：写入路径并切到「自定义」背景，App 根节点会立即应用。 */
+async function pickBackground() {
+  try {
+    const path = await pickImagePath()
+    if (!path) return
+    extras.value = { ...extras.value, backgroundMode: 'custom', backgroundPath: path }
+    persistExtras()
+    toast.success('已设置自定义背景')
+  } catch (e) {
+    toast.warning(`选择背景失败：${(e as Error).message}`)
+  }
 }
 
-/** 选择缓存目录（内核文件选择命令未接入，先提示）。 */
-function pickCacheFolder() {
-  toast.info('缓存目录选择尚未接入内核文件选择命令。')
+/** 选择缓存目录：目录由内核 `cache_dir` 使用，切换后新下载落到新位置。 */
+async function pickCacheFolder() {
+  if (!isTauri) {
+    toast.info('浏览器预览无法选择本地目录，请在桌面端操作。')
+    return
+  }
+  try {
+    const picked = await open({ multiple: false, directory: true })
+    if (typeof picked !== 'string') return
+    extras.value = { ...extras.value, cacheFolderMode: 'custom', cacheFolderPath: picked }
+    persistExtras()
+    toast.success(`缓存目录已切换到 ${picked}`)
+  } catch (e) {
+    toast.warning(`选择缓存目录失败：${(e as Error).message}`)
+  }
 }
 
-/** 清理下载缓存（内核文件命令未接入，先提示）。 */
-function clearDownloadCache() {
-  toast.info('清理缓存尚未接入内核文件命令。')
+/** 清理下载缓存：二次确认后由内核删除缓存目录内容。 */
+async function clearDownloadCache() {
+  const ok = await confirmDialog({
+    title: '清理下载缓存',
+    message: '将删除缓存目录中的全部文件（下次需要时会重新下载），确定继续吗？',
+    confirmText: '清理',
+    danger: true,
+  })
+  if (!ok) return
+  try {
+    const removed = await call<number>('clear_cache')
+    toast.success(`已清理 ${removed} 项缓存`)
+  } catch (e) {
+    toast.error(`清理缓存失败：${(e as Error).message}`)
+  }
 }
 </script>
 

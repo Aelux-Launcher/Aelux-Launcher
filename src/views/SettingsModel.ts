@@ -79,6 +79,8 @@ export interface SettingsExtras {
   accentColorHex: string
   /** 背景图片来源 */
   backgroundMode: BackgroundMode
+  /** 自定义背景图片的本地路径（backgroundMode 为 custom 时生效） */
+  backgroundPath: string
   /** 下载缓存目录来源 */
   cacheFolderMode: CacheFolderMode
   /** 自定义缓存目录（cacheFolderMode 为 custom 时生效） */
@@ -159,6 +161,7 @@ const DEFAULT_EXTRAS: SettingsExtras = {
   accentColor: 'default',
   accentColorHex: '#111111',
   backgroundMode: 'default',
+  backgroundPath: '',
   cacheFolderMode: 'default',
   cacheFolderPath: '',
   proxyMode: 'system',
@@ -381,6 +384,7 @@ export function readExtras(raw: unknown): SettingsExtras {
   out.updateChannel = pick(obj.updateChannel, UPDATE_CHANNEL_VALUES, out.updateChannel)
   out.accentColor = pick(obj.accentColor, ACCENT_COLOR_VALUES, out.accentColor)
   out.backgroundMode = pick(obj.backgroundMode, BACKGROUND_MODE_VALUES, out.backgroundMode)
+  if (typeof obj.backgroundPath === 'string') out.backgroundPath = obj.backgroundPath
   out.cacheFolderMode = pick(obj.cacheFolderMode, CACHE_FOLDER_VALUES, out.cacheFolderMode)
   out.proxyMode = pick(obj.proxyMode, PROXY_MODE_VALUES, out.proxyMode)
   if (typeof obj.cacheFolderPath === 'string') out.cacheFolderPath = obj.cacheFolderPath

@@ -19,6 +19,23 @@ pub fn get_data_dir() -> String {
     core_api::get_data_dir()
 }
 
+/// 检测官方启动器的 .minecraft 目录（Windows 下为 %APPDATA%\.minecraft）。
+/// 未检测到返回 None，前端据此隐藏「官方文件夹」卡片。
+#[tauri::command]
+#[specta::specta]
+pub fn detect_official_minecraft() -> Option<String> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let dir = std::path::Path::new(&appdata).join(".minecraft");
+            if dir.is_dir() {
+                return Some(dir.to_string_lossy().into_owned());
+            }
+        }
+    }
+    None
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn get_os_info() -> Result<OsInfo, String> {
@@ -188,6 +205,38 @@ pub fn get_config() -> Result<LauncherConfig, String> {
 #[specta::specta]
 pub fn save_config(config: LauncherConfig) -> Result<(), String> {
     core_api::save_config(config)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn cache_dir() -> String {
+    core_api::cache_dir()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn clear_cache() -> Result<u32, String> {
+    core_api::clear_cache()
+}
+
+/* ------------------------- 窗口命令 ------------------------- */
+
+static APP_HANDLE: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
+
+/// 记录应用句柄（setup 时调用，供无注入参数的命令使用）。
+pub fn set_app_handle(handle: tauri::AppHandle) {
+    let _ = APP_HANDLE.set(handle);
+}
+
+/// 用本地 PNG 设置窗口图标（自定义启动器图标）。
+#[tauri::command]
+#[specta::specta]
+pub fn set_window_icon(path: String) -> Result<(), String> {
+    use tauri::Manager;
+    let app = APP_HANDLE.get().ok_or("应用尚未初始化")?;
+    let win = app.get_webview_window("main").ok_or("主窗口不存在")?;
+    let image = tauri::image::Image::from_path(&path).map_err(|e| e.to_string())?;
+    win.set_icon(image).map_err(|e| e.to_string())
 }
 
 /* ------------------------- Java / 本地内容命令 ------------------------- */

@@ -5,6 +5,11 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	getDataDir: () => __TAURI_INVOKE<string>("get_data_dir"),
+	/**
+	 *  检测官方启动器的 .minecraft 目录（Windows 下为 %APPDATA%\.minecraft）。
+	 *  未检测到返回 None，前端据此隐藏「官方文件夹」卡片。
+	 */
+	detectOfficialMinecraft: () => __TAURI_INVOKE<string | null>("detect_official_minecraft"),
 	getOsInfo: () => typedError<OsInfo, string>(__TAURI_INVOKE("get_os_info")),
 	getCoreVersion: () => __TAURI_INVOKE<string>("get_core_version"),
 	fetchJson: (url: string) => typedError<string, string>(__TAURI_INVOKE("fetch_json", { url })),
@@ -32,6 +37,10 @@ export const commands = {
 	kvRemove: (key: string) => typedError<null, string>(__TAURI_INVOKE("kv_remove", { key })),
 	getConfig: () => typedError<LauncherConfig_Serialize, string>(__TAURI_INVOKE("get_config")),
 	saveConfig: (config: LauncherConfig_Deserialize) => typedError<null, string>(__TAURI_INVOKE("save_config", { config })),
+	cacheDir: () => __TAURI_INVOKE<string>("cache_dir"),
+	clearCache: () => typedError<number, string>(__TAURI_INVOKE("clear_cache")),
+	/**  用本地 PNG 设置窗口图标（自定义启动器图标）。 */
+	setWindowIcon: (path: string) => typedError<null, string>(__TAURI_INVOKE("set_window_icon", { path })),
 	scanJava: () => typedError<JavaRuntime[], string>(__TAURI_INVOKE("scan_java")),
 	requiredJava: (mcVersion: string) => __TAURI_INVOKE<number>("required_java", { mcVersion }),
 	getInstanceDir: (id: string) => typedError<string, string>(__TAURI_INVOKE("get_instance_dir", { id })),
@@ -217,6 +226,7 @@ export type LauncherConfig_Deserialize = {
 	gameHeight?: number,
 	downloadConcurrency?: number,
 	hideOnLaunch?: boolean,
+	cacheDir?: string,
 };
 
 /**  启动器全局配置。 */
@@ -232,6 +242,7 @@ export type LauncherConfig_Serialize = {
 	gameHeight: number,
 	downloadConcurrency: number,
 	hideOnLaunch: boolean,
+	cacheDir: string,
 };
 
 /**  实例内的一件本地内容（Mod / 资源包 / 光影包 / 存档 / 原理图）。 */
