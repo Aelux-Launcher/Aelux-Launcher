@@ -35,7 +35,8 @@ jobs:
     runs-on: windows-latest
     env:
       CORE_MANIFEST_URL: ${{ secrets.CORE_MANIFEST_URL }}
-      CORE_DOWNLOAD_TOKEN: ${{ secrets.CORE_DOWNLOAD_TOKEN }}
+      # 私有内核 Release 资产下载鉴权：未单独配置时复用 CORE_ACCESS_TOKEN
+      CORE_DOWNLOAD_TOKEN: ${{ secrets.CORE_DOWNLOAD_TOKEN || secrets.CORE_ACCESS_TOKEN }}
       # 注入更新默认仓库（build.rs → AELUX_UPDATE_REPO，客户端 GitHub 更新源）
       GITHUB_REPO: ${{ github.repository }}
       MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
