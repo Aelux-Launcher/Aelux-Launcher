@@ -161,8 +161,8 @@ async function refreshCategory(key: string) {
       if (store.versionsError) toast.error(`版本列表刷新失败：${store.versionsError}`)
       else toast.success('版本列表已刷新')
     } else {
-      // 社区资源：按当前筛选条件重查，并重置到第一页
-      await store.searchResources()
+      // 社区资源：按当前筛选条件重查，并重置到第一页（跳过缓存强制拉新）
+      await store.searchResources(true, true)
       if (store.resourceError) toast.error(`资源列表刷新失败：${store.resourceError}`)
       else toast.success('资源列表已刷新')
     }

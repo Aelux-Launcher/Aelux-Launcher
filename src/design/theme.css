@@ -1524,6 +1524,16 @@ svg {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.task-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.task-cancel-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+}
 .task-step-list { display: flex; flex-direction: column; }
 .task-step {
   display: flex;
@@ -2540,6 +2550,15 @@ select.filter-control { cursor: pointer; }
 .resource-state-card .btn-download { margin-top: 8px; }
 .resource-state-title { font-size: 14px; font-weight: 600; color: var(--text-main); }
 .resource-state-desc { font-size: 12px; line-height: 1.6; max-width: 480px; }
+
+/* 资源详情加载态：占满内容区，居中显示动画 */
+.resource-detail-loading {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .resource-skeleton {
   display: flex;

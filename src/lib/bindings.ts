@@ -63,6 +63,7 @@ export const commands = {
 	installVersion: (mcVersion: string, loader: string, loaderVersion: string | null) => typedError<InstallResult_Serialize, string>(__TAURI_INVOKE("install_version", { mcVersion, loader, loaderVersion })),
 	installInstance: (id: string) => typedError<InstallResult_Serialize, string>(__TAURI_INVOKE("install_instance", { id })),
 	setInstanceLoader: (id: string, loader: string, loaderVersion: string | null) => typedError<InstallResult_Serialize, string>(__TAURI_INVOKE("set_instance_loader", { id, loader, loaderVersion })),
+	cancelDownload: () => typedError<null, string>(__TAURI_INVOKE("cancel_download")),
 	launchInstance: (id: string) => typedError<LaunchOutcome, string>(__TAURI_INVOKE("launch_instance", { id })),
 	killInstance: (id: string) => __TAURI_INVOKE<boolean>("kill_instance", { id }),
 	runningInstances: () => typedError<RunningGame[], string>(__TAURI_INVOKE("running_instances")),

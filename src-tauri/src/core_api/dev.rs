@@ -523,6 +523,11 @@ pub async fn import_modpack_url(
     to_dto(result)
 }
 
+pub fn cancel_download() -> Result<(), CoreError> {
+    core().cancel_download();
+    Ok(())
+}
+
 pub async fn install_java(major: u32) -> Result<JavaInstallResult, CoreError> {
     let result = core()
         .install_java(major)

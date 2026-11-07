@@ -35,8 +35,8 @@ import {
   uniqueVersionNames,
   versionRangeSummary,
 } from '../lib/mcVersion'
-import PageHeader from '../components/PageHeader.vue'
 import AlxIcon from '../components/AlxIcon.vue'
+import AlxLoading from '../components/AlxLoading.vue'
 import AlxModal from '../components/AlxModal.vue'
 /* 版本发布类型图标（素材取自 PCL 的 ReleaseTypes：Alpha / Beta / Release）。 */
 import ALPHA_ICON from '../assets/release-types/alpha.png'
@@ -119,7 +119,7 @@ const project = computed(() => store.resourceDetailData?.project ?? null)
 const versions = computed(() => store.resourceDetailData?.versions ?? [])
 const dependencies = computed(() => store.resourceDetailData?.dependencies ?? [])
 
-/** 页头标题：优先取详情里的项目名，路由参数兜底。 */
+/** 项目名：优先取详情里的标题，路由参数兜底（复制名称用）。 */
 const pageTitle = computed(() => project.value?.title || props.title || '资源详情')
 
 /** MC百科信息（中文名 + 条目地址）；未收录为 undefined。 */
@@ -667,12 +667,9 @@ watch(
 
 <template>
   <div class="page-view active sub-page">
-    <PageHeader :title="pageTitle" />
-
-    <!-- 加载中 -->
-    <div v-if="store.resourceDetailLoading" class="resource-results-card">
-      <div v-for="i in 3" :key="i" class="resource-skeleton" />
-      <div class="loading-hint">正在获取版本列表...</div>
+    <!-- 加载中：整页居中动画 -->
+    <div v-if="store.resourceDetailLoading" class="resource-detail-loading">
+      <AlxLoading text="正在加载资源详情…" />
     </div>
 
     <!-- 加载失败 -->

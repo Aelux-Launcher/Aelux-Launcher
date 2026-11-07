@@ -237,7 +237,11 @@ fn invoke_sync(method: &str, payload: &Value) -> Result<Value, CoreError> {
 /// 这里转成与内核 `Display` 一致的文本，避免发布链路只显示一句笼统的「内核错误」。
 fn core_error_message(error: &Value) -> String {
     if let Some(text) = error.as_str() {
-        return text.to_string();
+        return if text == "Cancelled" {
+            "下载已取消".into()
+        } else {
+            text.to_string()
+        };
     }
     let Some((kind, detail)) = error.as_object().and_then(|o| o.iter().next()) else {
         return "内核错误".into();
@@ -611,6 +615,10 @@ pub async fn set_instance_loader(
     )
     .await?;
     serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn cancel_download() -> Result<(), CoreError> {
+    invoke_sync("downloads.cancel", &Value::Null).map(|_| ())
 }
 
 pub async fn launch_instance(id: String) -> Result<LaunchOutcome, CoreError> {

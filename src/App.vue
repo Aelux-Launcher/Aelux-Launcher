@@ -47,8 +47,10 @@ const COMPONENTS: Record<string, Component> = {
 const store = useAppStore()
 const route = computed(() => router.currentRoute.value)
 
-/** 任务页是全屏下载进度视图：隐藏左侧导航，只保留顶栏 + 进度内容。 */
-const isTasksPage = computed(() => route.value.name === 'tasks')
+/** 任务页 / 资源详情页是全屏视图：隐藏左侧导航，只保留顶栏 + 页面内容。 */
+const isFullPage = computed(
+  () => route.value.name === 'tasks' || route.value.name === 'resource',
+)
 
 /** 舞台内容键：同键视为同一页（用于判定是否需要切换动画）。 */
 function stageKey(r: (typeof route.value)): string {
@@ -229,7 +231,7 @@ async function openCrashFolder() {
     <TopHeader />
 
     <div class="main-body">
-      <SideNav v-if="!isTasksPage" />
+      <SideNav v-if="!isFullPage" />
 
       <div class="content-area">
         <div class="alx-stage">

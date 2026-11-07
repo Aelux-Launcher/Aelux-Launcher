@@ -322,6 +322,8 @@ export const useAppStore = defineStore('app', () => {
   const versionsError = ref<string | null>(null)
   const installing = ref<string | null>(null)
   const installError = ref<string | null>(null)
+  /** 用户是否点了「取消下载」：下载被中止后用于区分「失败」与「已取消」。 */
+  const cancelRequested = ref(false)
   const downloadState = ref<DownloadManagerState>({
     tasks: [],
     active: 0,
@@ -414,6 +416,9 @@ export const useAppStore = defineStore('app', () => {
   const resourceError = ref<string | null>(null)
   const resourceDetailData = ref<ResourceDetailData | null>(null)
   const resourceDetailLoading = ref(false)
+  /** 搜索结果缓存：切换资源类型 / 来源 / 翻页时复用，避免重复请求。 */
+  const resourceCache = new Map<string, { projects: ResourceProject[]; total: number }>()
+  const RESOURCE_CACHE_LIMIT = 24
   /** 搜索请求序号：切换筛选/翻页时丢弃过期响应。 */
   let resourceSearchToken = 0
 
@@ -776,6 +781,7 @@ export const useAppStore = defineStore('app', () => {
     if (installing.value) return false
     installing.value = id
     installError.value = null
+    cancelRequested.value = false
     downloadState.value = {
       tasks: [],
       active: 0,
@@ -806,11 +812,22 @@ export const useAppStore = defineStore('app', () => {
       await refreshInstances()
       return true
     } catch (e) {
-      installError.value = (e as Error).message
+      installError.value = cancelRequested.value ? '下载已取消' : (e as Error).message
       finishDownloadTasks('failed')
       return false
     } finally {
       installing.value = null
+    }
+  }
+
+  /** 取消当前下载任务：内核检测到取消标记后中止并清理临时文件。 */
+  async function cancelDownload() {
+    if (!downloadActive.value) return
+    cancelRequested.value = true
+    try {
+      await call('cancel_download')
+    } catch (e) {
+      toast.error(`取消下载失败：${(e as Error).message}`)
     }
   }
 
@@ -1034,6 +1051,7 @@ export const useAppStore = defineStore('app', () => {
 
     installing.value = picked
     installError.value = null
+    cancelRequested.value = false
     try {
       const result = await call<ModpackImportResult>('import_modpack', {
         source: picked,
@@ -1043,7 +1061,7 @@ export const useAppStore = defineStore('app', () => {
       toast.success(`整合包已导入：${result.instance.name}（${result.files} 个文件）`)
       return result.instance
     } catch (e) {
-      installError.value = (e as Error).message
+      installError.value = cancelRequested.value ? '下载已取消' : (e as Error).message
       toast.error(`导入整合包失败：${(e as Error).message}`)
       return null
     } finally {
@@ -1091,6 +1109,7 @@ export const useAppStore = defineStore('app', () => {
     if (installing.value) return null
     installing.value = url
     installError.value = null
+    cancelRequested.value = false
     try {
       const result = await call<ModpackImportResult>('import_modpack_url', {
         url,
@@ -1100,7 +1119,7 @@ export const useAppStore = defineStore('app', () => {
       toast.success(`整合包已安装：${result.instance.name}（${result.files} 个文件）`)
       return result.instance
     } catch (e) {
-      installError.value = (e as Error).message
+      installError.value = cancelRequested.value ? '下载已取消' : (e as Error).message
       toast.error(`安装整合包失败：${(e as Error).message}`)
       return null
     } finally {
@@ -1486,14 +1505,15 @@ export const useAppStore = defineStore('app', () => {
 
   /* ------------------------------- 社区资源 ------------------------------- */
 
-  /** 切换资源类型（类型切换后清空筛选与翻页）。 */
+  /** 切换资源类型：保留来源与筛选，只清空分类并回到第一页，便于命中缓存。 */
   function setResourceKind(k: ResourceKind) {
+    if (resourceKind.value === k) return
     resourceKind.value = k
     resourceProjects.value = []
     resourceTotal.value = 0
     resourcePage.value = 0
     resourceError.value = null
-    resourceQuery.value = { name: '', source: 'all', gameVersion: '', loader: '', category: '' }
+    resourceQuery.value = { ...resourceQuery.value, category: '' }
   }
 
   function setResourceQuery(patch: Partial<ResourceQuery>) {
@@ -1506,8 +1526,8 @@ export const useAppStore = defineStore('app', () => {
     resourcePage.value = 0
   }
 
-  /** 搜索社区资源（resetPage=true 时回到第一页；翻页传 false）。 */
-  async function searchResources(resetPage = true) {
+  /** 搜索社区资源（resetPage=true 时回到第一页；翻页传 false；force=true 跳过缓存）。 */
+  async function searchResources(resetPage = true, force = false) {
     if (resetPage) resourcePage.value = 0
     const token = ++resourceSearchToken
     resourceError.value = null
@@ -1528,6 +1548,26 @@ export const useAppStore = defineStore('app', () => {
     const isLoaderCategory = selected?.facet === 'loader'
     const loaderFilter = isLoaderCategory ? selected.slug : resourceQuery.value.loader
     const categoryFilter = isLoaderCategory ? '' : resourceQuery.value.category
+
+    // 同一组筛选条件命中缓存时直接还原，不再发起网络请求
+    const cacheKey = [
+      resourceKind.value,
+      source,
+      resourceQuery.value.name,
+      resourceQuery.value.gameVersion,
+      loaderFilter,
+      categoryFilter,
+      resourcePage.value,
+    ].join('\u0001')
+    if (!force) {
+      const cached = resourceCache.get(cacheKey)
+      if (cached) {
+        resourceProjects.value = cached.projects
+        resourceTotal.value = cached.total
+        resourceLoading.value = false
+        return
+      }
+    }
 
     /** Modrinth 单页结果。 */
     async function fetchModrinthPage(): Promise<{ total: number; projects: ResourceProject[] }> {
@@ -1627,6 +1667,14 @@ export const useAppStore = defineStore('app', () => {
         if (token !== resourceSearchToken) return
         resourceTotal.value = result.total
         resourceProjects.value = result.projects
+      }
+      resourceCache.set(cacheKey, {
+        projects: resourceProjects.value,
+        total: resourceTotal.value,
+      })
+      if (resourceCache.size > RESOURCE_CACHE_LIMIT) {
+        const oldest = resourceCache.keys().next().value
+        if (oldest !== undefined) resourceCache.delete(oldest)
       }
     } catch (e) {
       if (token !== resourceSearchToken) return
@@ -1911,6 +1959,7 @@ export const useAppStore = defineStore('app', () => {
     versionsError,
     installing,
     installError,
+    cancelRequested,
     downloadState,
     downloadActive,
     rooms,
@@ -1964,6 +2013,7 @@ export const useAppStore = defineStore('app', () => {
     refreshRunningInstances,
     loadVersions,
     installVersion,
+    cancelDownload,
     saveVersionClient,
     downloadVersionServer,
     loaderVersions,

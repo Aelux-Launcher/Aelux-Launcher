@@ -11,9 +11,11 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useAppStore } from '../stores/app'
 import type { DownloadTaskState } from '../lib/types'
 import AlxIcon from '../components/AlxIcon.vue'
-import PageHeader from '../components/PageHeader.vue'
 
 const store = useAppStore()
+
+/** 用户主动取消后的状态（用于区分「失败」与「已取消」）。 */
+const isCancelled = computed(() => store.cancelRequested && !store.installing)
 
 /** 下载任务清单。 */
 const tasks = computed(() => store.downloadState?.tasks ?? [])
@@ -84,13 +86,11 @@ const speedLabel = computed(() => (speed.value > 0 ? `${human(speed.value)}/s` :
 
 <template>
   <div class="page-view active sub-page">
-    <PageHeader title="任务管理" />
-
     <!-- 失败提示：安装/下载失败后保留错误信息，不再只依赖一次性 toast -->
     <div v-if="store.installError && !store.installing" class="install-error-card">
-      <AlxIcon name="alert-circle" :size="22" />
+      <AlxIcon :name="isCancelled ? 'x' : 'alert-circle'" :size="22" />
       <div class="install-error-body">
-        <div class="install-error-title">下载失败</div>
+        <div class="install-error-title">{{ isCancelled ? '下载已取消' : '下载失败' }}</div>
         <div class="install-error-text">{{ store.installError }}</div>
       </div>
       <button type="button" class="btn-download" @click="store.setView('download')">
@@ -136,15 +136,27 @@ const speedLabel = computed(() => (speed.value > 0 ? `${human(speed.value)}/s` :
       <section class="task-panel">
         <div class="task-panel-head">
           <span class="task-panel-title">{{ jobTitle }}</span>
-          <span class="tag">
-            {{
-              store.downloadState.failed > 0
-                ? '已失败'
-                : store.downloadState.finished
-                  ? '已完成'
-                  : '进行中'
-            }}
-          </span>
+          <div class="task-panel-actions">
+            <span class="tag">
+              {{
+                isCancelled
+                  ? '已取消'
+                  : store.downloadState.failed > 0
+                    ? '已失败'
+                    : store.downloadState.finished
+                      ? '已完成'
+                      : '进行中'
+              }}
+            </span>
+            <button
+              v-if="!store.downloadState.finished"
+              type="button"
+              class="btn-download btn-ghost task-cancel-btn"
+              @click="store.cancelDownload()"
+            >
+              取消下载
+            </button>
+          </div>
         </div>
 
         <div class="task-step-list">

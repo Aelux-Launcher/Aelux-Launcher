@@ -228,9 +228,15 @@ const hasActiveFilters = computed(
     store.resourceQuery.source !== 'all',
 )
 
+/** 切换来源：立即按新来源重新检索（切换回已看过的来源会命中缓存）。 */
+function setSource(v: string) {
+  store.setResourceQuery({ source: v as ResourceSource })
+  void store.searchResources()
+}
+
 /** 执行检索（点击「搜索」或名称框回车，输入变化不自动检索） */
 function applyFilters() {
-  void store.searchResources()
+  void store.searchResources(true, true)
 }
 
 /** 重置条件：只清空输入，不自动检索 */
@@ -241,7 +247,7 @@ function resetFilters() {
 /** 空状态里的「清除筛选」：清空并重新检索，避免列表停在旧条件 */
 function clearFiltersAndSearch() {
   store.resetResourceFilters()
-  void store.searchResources()
+  void store.searchResources(true, true)
 }
 
 /** 进入分类时同步资源类型与结果（setResourceKind 会清空旧结果，避免串类）。 */
@@ -347,14 +353,9 @@ function goPage(page: number) {
   store.setResourcePage(page)
 }
 
-/** 检索失败是否因为缺少 CurseForge API Key（世界分类只有该源提供数据）。 */
-const needsCurseForgeKey = computed(() =>
-  Boolean(store.resourceError && /CurseForge API Key/.test(store.resourceError)),
-)
-
-/** 加载失败重试 */
+/** 检索失败重试 */
 function retrySearch() {
-  void store.searchResources()
+  void store.searchResources(true, true)
 }
 </script>
 
@@ -476,7 +477,7 @@ function retrySearch() {
               <AlxSelect
                 :model-value="source"
                 :options="sourceOptions"
-                @update:model-value="(v: string) => store.setResourceQuery({ source: v as ResourceSource })"
+                @update:model-value="setSource"
               />
             </div>
           </div>
@@ -537,15 +538,15 @@ function retrySearch() {
 
       <!-- 检索失败（浏览器预览没有内核，不展示误导性的连接错误） -->
       <div v-else-if="store.resourceError && !store.browserMode" class="resource-state-card">
-        <AlxIcon :name="needsCurseForgeKey ? 'key' : 'alert-circle'" :size="28" />
+        <AlxIcon :name="isWorld ? 'clock' : 'alert-circle'" :size="28" />
         <div class="resource-state-title">
-          {{ needsCurseForgeKey ? '需要配置 CurseForge API Key' : '暂时无法连接到社区资源源' }}
+          {{ isWorld ? '世界资源暂不支持' : '暂时无法连接到社区资源源' }}
         </div>
-        <div v-if="needsCurseForgeKey" class="resource-state-desc">
-          世界分类由 CurseForge 提供数据，当前内核未配置 CurseForge API Key。
+        <div v-if="isWorld" class="resource-state-desc">
+          CurseForge 服务正在审核中，世界资源暂时无法获取，请稍后再试。
         </div>
         <div v-else class="resource-state-desc">请检查网络后重试。错误详情：{{ store.resourceError }}</div>
-        <button v-if="!needsCurseForgeKey" type="button" class="btn-download btn-ghost" @click="retrySearch">
+        <button v-if="!isWorld" type="button" class="btn-download btn-ghost" @click="retrySearch">
           重试
         </button>
       </div>

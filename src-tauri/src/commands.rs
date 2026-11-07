@@ -500,6 +500,12 @@ pub async fn set_instance_loader(
 
 #[tauri::command]
 #[specta::specta]
+pub fn cancel_download() -> Result<(), String> {
+    core_api::cancel_download()
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn launch_instance(id: String) -> Result<LaunchOutcome, String> {
     core_api::launch_instance(id).await
 }
