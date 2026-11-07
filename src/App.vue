@@ -150,12 +150,14 @@ const appStyle = computed(() => {
 
 /** 桌面端拦截 WebView 默认右键菜单（返回 / 刷新 / 另存为 / 打印 / 检查）。 */
 function onContextMenu(e: MouseEvent) {
-  if (isTauri) e.preventDefault()
+  // 仅发布包禁用；dev 构建保留右键「检查」便于调试
+  if (isTauri && import.meta.env.PROD) e.preventDefault()
 }
 
 /** 桌面端拦截浏览器快捷键（F5 / Ctrl+R / 打印 / devtools / 前进后退）。 */
 function onShortcut(e: KeyboardEvent) {
-  if (!isTauri) return
+  // 仅发布包拦截；dev 构建保留 F12 / Ctrl+Shift+I 等便于调试
+  if (!isTauri || import.meta.env.DEV) return
   const key = e.key.toLowerCase()
   const ctrl = e.ctrlKey || e.metaKey
   const blocked =
