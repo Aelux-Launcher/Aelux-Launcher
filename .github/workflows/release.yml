@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "发布版本号（如 0.1.0-beta.1；beta 渠道只填 0.1.0 会自动补 -beta.1）"
+        description: "发布版本号（如 0.1.0；工作流会按渠道自动补 -beta.1 或去掉 beta 后缀）"
         required: false
         default: "0.1.0-beta.1"
       channel:
@@ -58,28 +58,36 @@ jobs:
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             version="${INPUT_VERSION#v}"
             channel="$INPUT_CHANNEL"
-            # 镜像仓库 / 客户端都按 tag 是否含 beta 识别渠道；
-            # dispatch 发 beta 时把 beta.1 补进 tag，保证三处（tag、包名、清单）一致。
-            if [ "$channel" = "beta" ] && [[ "${version,,}" != *beta* ]]; then
-              version="${version}-beta.1"
+            # 镜像仓库 / 客户端都按 tag 是否含 beta 识别渠道，渠道与版本号必须自洽；
+            # dispatch 表单不能随渠道联动，这里统一规范化（输入框保留 beta 版本也不会发错渠道）：
+            #   beta   缺 beta 后缀 → 自动补 -beta.1
+            #   stable 带 beta 等预发布后缀 → 自动去掉（0.1.0-beta.2 → 0.1.0）
+            if [ "$channel" = "beta" ]; then
+              if [[ "${version,,}" != *beta* ]]; then
+                version="${version}-beta.1"
+              fi
+            else
+              base="${version%%-*}"
+              if [ "$base" != "$version" ]; then
+                echo "[meta] 正式版渠道：${version} 去掉预发布后缀 → ${base}"
+                version="$base"
+              fi
             fi
           else
             version="${REF_NAME#v}"
             if [[ "${REF_NAME,,}" == *beta* ]]; then channel="beta"; else channel="stable"; fi
           fi
           if [ "$channel" = "beta" ]; then
-            suffix="Beta"
             manifest_channel="dev"
           else
-            suffix="Stable"
             manifest_channel="release"
           fi
           tag="v${version}"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "channel=${channel}" >> "$GITHUB_OUTPUT"
-          echo "suffix=${suffix}" >> "$GITHUB_OUTPUT"
           echo "manifest_channel=${manifest_channel}" >> "$GITHUB_OUTPUT"
-          echo "zip=Aelux-Launcher-${tag}-${suffix}.zip" >> "$GITHUB_OUTPUT"
+          # tag 已含版本与渠道（beta 带 -beta.N，stable 不带），文件名不再重复追加后缀
+          echo "zip=Aelux-Launcher-${tag}.zip" >> "$GITHUB_OUTPUT"
           echo "[meta] tag=${tag} channel=${channel} manifest=${manifest_channel}"
 
       # aelux-core 是 optional path 依赖，Cargo resolve 要求路径存在；
@@ -99,20 +107,34 @@ jobs:
 
       # 客户端 CURRENT_VERSION 来自 Cargo.toml；tag 与三处版本不一致时，
       # 新包装上后仍报告旧版本，会反复提示更新（换身循环）。
-      - name: 校验发布版本与工程版本一致
+      # workflow_dispatch 的版本号已经按渠道规范化，这里直接把三处工程版本对齐；
+      # tag 推送仍保持严格校验，避免打错 tag 被静默掩盖。
+      - name: 对齐工程版本号
         shell: bash
         env:
           TAG: ${{ steps.meta.outputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           tag_version="${TAG#v}"
           cargo_version="$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n1)"
           pkg_version="$(node -p "require('./package.json').version")"
           conf_version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
           echo "[version] tag=${tag_version} cargo=${cargo_version} package=${pkg_version} tauri=${conf_version}"
-          if [ "$tag_version" != "$cargo_version" ] || [ "$cargo_version" != "$pkg_version" ] || [ "$pkg_version" != "$conf_version" ]; then
+          if [ "$tag_version" = "$cargo_version" ] && [ "$cargo_version" = "$pkg_version" ] && [ "$pkg_version" = "$conf_version" ]; then
+            echo "[version] 三处版本与 tag 一致"
+            exit 0
+          fi
+          if [ "$EVENT_NAME" != "workflow_dispatch" ]; then
             echo "::error::版本不一致：发布 tag 必须与 src-tauri/Cargo.toml、package.json、src-tauri/tauri.conf.json 三处版本完全相同（含 -beta.N 后缀）。"
             exit 1
           fi
+          echo "[version] 手动发布：自动对齐三处工程版本 → ${tag_version}"
+          sed -i "0,/^version = \"[^\"]*\"/s//version = \"${tag_version}\"/" src-tauri/Cargo.toml
+          node -e "const fs=require('fs');for(const p of ['package.json','src-tauri/tauri.conf.json']){const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version='${tag_version}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')}"
+          cargo_new="$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n1)"
+          pkg_new="$(node -p "require('./package.json').version")"
+          conf_new="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          echo "[version] 对齐后 cargo=${cargo_new} package=${pkg_new} tauri=${conf_new}"
 
       - uses: dtolnay/rust-toolchain@stable
 
