@@ -601,6 +601,7 @@ function selectFolder(f: StoredFolder) {
           :name="store.session.username"
           :type="store.session.type"
           :uuid="store.session.uuid"
+          :skin-url="store.sessionSkinUrl"
           :size="32"
         />
         <div v-else class="account-avatar">

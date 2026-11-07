@@ -11,6 +11,7 @@ import { router } from '../router'
 import { call, kvGet, isTauri } from '../lib/bridge'
 import type { Account, DeviceCodeSession } from '../lib/bindings'
 import { readExtras } from '../views/SettingsModel'
+import { fetchOnlineSkinUrl } from '../lib/skins'
 import { toast } from '../lib/toast'
 import { promptDialog } from '../lib/dialog'
 import type {
@@ -1240,12 +1241,46 @@ export const useAppStore = defineStore('app', () => {
     // 成功才覆盖：刷新失败时保留旧列表，避免页面被清空。
     const list = await call<StoredAccount[]>('accounts_list')
     if (Array.isArray(list)) accounts.value = list
+    // 账户就绪后异步同步在线皮肤；失败不影响列表展示（头像回退本地皮肤）
+    void loadAccountSkins()
   }
+
+  /* --------------------------------- 皮肤 --------------------------------- */
+
+  /** account.id → 在线皮肤贴图地址（未取到的不入表）。 */
+  const skinUrls = ref<Record<string, string>>({})
+
+  /** 为所有在线账户拉取皮肤贴图地址（外置账户需要认证服务器列表）。 */
+  async function loadAccountSkins(force = false) {
+    if (authServers.value.length === 0) {
+      try {
+        await loadAuthServers()
+      } catch {
+        /* 认证服务器不可用时只处理微软账户 */
+      }
+    }
+    const targets = accounts.value.filter((a) => a.type !== 'offline')
+    await Promise.allSettled(
+      targets.map(async (a) => {
+        if (!force && skinUrls.value[a.id]) return
+        const url = await fetchOnlineSkinUrl(a.type, a.uuid, authServers.value)
+        if (url) skinUrls.value = { ...skinUrls.value, [a.id]: url }
+      }),
+    )
+  }
+
+  /** 当前会话的皮肤地址（会话只带 uuid，按 uuid 反查账户）。 */
+  const sessionSkinUrl = computed(() => {
+    const uuid = session.value?.uuid
+    if (!uuid) return ''
+    const acc = accounts.value.find((a) => a.uuid === uuid)
+    return acc ? skinUrls.value[acc.id] ?? '' : ''
+  })
 
   /** 把账户设为当前会话（内核 accounts.session.set）。 */
   async function applyAccount(acc: StoredAccount) {
     const s: Session = {
-      type: acc.type === 'microsoft' ? 'microsoft' : 'offline',
+      type: acc.type === 'microsoft' ? 'microsoft' : acc.type === 'third' ? 'third' : 'offline',
       username: acc.username,
       uuid: acc.uuid,
     }
@@ -2081,6 +2116,9 @@ export const useAppStore = defineStore('app', () => {
     restoreSession,
     accounts,
     loadAccounts,
+    skinUrls,
+    loadAccountSkins,
+    sessionSkinUrl,
     authServers,
     loadAuthServers,
     refreshingAccountState,

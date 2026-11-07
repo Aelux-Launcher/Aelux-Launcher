@@ -10,12 +10,38 @@ import { invoke } from '@tauri-apps/api/core'
 export const isTauri: boolean =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in (window as unknown as Record<string, unknown>)
 
+/**
+ * 内核错误 → 可读文本。
+ *
+ * Tauri 命令签名为 `Result<T, String>`，IPC 拒绝值是**字符串**而非 Error；
+ * 直接取 `.message` 会得到 undefined，调用方再对它做判断就会抛 TypeError
+ * （设备码轮询因此中断，界面永远停在「等待授权」）。
+ */
+function errorText(e: unknown): string {
+  if (typeof e === 'string') return e
+  if (e instanceof Error) return e.message
+  if (e && typeof e === 'object') {
+    const message = (e as { message?: unknown }).message
+    if (typeof message === 'string') return message
+    try {
+      return JSON.stringify(e)
+    } catch {
+      /* 循环引用等无法序列化时走兜底 */
+    }
+  }
+  return String(e)
+}
+
 /** 调用后端命令。非 Tauri 环境直接报错，避免静默使用假数据。 */
 export async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauri) {
     throw new Error('当前为浏览器预览环境，未连接启动器内核；请使用桌面端运行')
   }
-  return invoke<T>(command, args ?? {})
+  try {
+    return await invoke<T>(command, args ?? {})
+  } catch (e) {
+    throw new Error(errorText(e))
+  }
 }
 
 /** 读取内核 KV。 */

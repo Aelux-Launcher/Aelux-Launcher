@@ -184,6 +184,7 @@ async function deleteAccount(id: string) {
             :type="a.type"
             :uuid="a.uuid"
             :override="skinMap[a.id]"
+            :skin-url="store.skinUrls[a.id]"
             :size="32"
           />
         </div>

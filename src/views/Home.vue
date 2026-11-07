@@ -295,6 +295,7 @@ function launchStageClass(index: number): string {
               :name="store.session.username"
               :type="store.session.type"
               :uuid="store.session.uuid"
+              :skin-url="store.sessionSkinUrl"
               :size="80"
             />
             <AlxIcon v-else name="user" :size="36" />

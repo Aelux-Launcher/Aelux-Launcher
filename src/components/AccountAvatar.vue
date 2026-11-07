@@ -2,7 +2,7 @@
 /**
  * 统一账户头像：
  *   1. 本地自定义头像（用户上传，Tauri asset 协议）
- *   2. 正版 / 第三方账户的在线皮肤头像（crafatar）
+ *   2. 正版 / 第三方账户的在线皮肤贴图（内核拉取的 Mojang / 认证服务器地址）
  *   3. 离线或在线加载失败 → PCL 内置皮肤按用户名确定性裁切头部
  */
 import { computed, ref, watch } from 'vue'
@@ -16,16 +16,17 @@ const props = withDefaults(
     type?: string
     uuid?: string
     override?: string
+    skinUrl?: string
     size?: number
   }>(),
-  { type: 'offline', uuid: '', override: '', size: 40 },
+  { type: 'offline', uuid: '', override: '', skinUrl: '', size: 40 },
 )
 
 /** 在线头像加载失败后回退到本地皮肤。 */
 const failed = ref(false)
 
 watch(
-  () => [props.name, props.type, props.uuid, props.override],
+  () => [props.name, props.type, props.uuid, props.override, props.skinUrl],
   () => {
     failed.value = false
   },
@@ -36,14 +37,7 @@ const overrideUrl = computed(() =>
   props.override && isTauri ? convertFileSrc(props.override) : '',
 )
 
-/** 微软 / 外置账户的在线头像（离线账户没有稳定 UUID，直接用本地皮肤）。 */
-const onlineUrl = computed(() => {
-  if (props.type === 'offline' || !props.uuid) return ''
-  const size = Math.max(32, props.size * 2)
-  return `https://crafatar.com/avatars/${props.uuid}?size=${size}&overlay`
-})
-
-const imgUrl = computed(() => (failed.value ? '' : overrideUrl.value || onlineUrl.value))
+const imgUrl = computed(() => (failed.value ? '' : overrideUrl.value || props.skinUrl))
 
 /** PCL 皮肤第 8–16 像素为头部正面，用 800% 背景缩放裁出来。 */
 const faceStyle = computed(() => ({ backgroundImage: `url("${localSkinUrl(props.name)}")` }))
