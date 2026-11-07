@@ -6,7 +6,7 @@ name: 发布 Windows 便携包
 #   beta   → tag 必须含 beta（如 v0.2.0-beta.1），产物 …-Beta.zip
 #   stable → tag 不含 beta（如 v0.2.0），产物 …-Stable.zip
 # tag 触发的发布按 tag 名判断渠道；workflow_dispatch 按所选渠道补全 tag
-# （beta 渠道输入 0.2.0 会自动发布 v0.2.0-beta）。
+# （beta 渠道输入 0.1.0 会自动发布 v0.1.0-beta.1）。
 #
 # 发布版本号：tag 必须与 src-tauri/Cargo.toml、package.json、src-tauri/tauri.conf.json
 # 三处版本完全相同（workflow 会校验）。只出 Artifacts 测试包不必发 Release；
@@ -18,9 +18,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "发布版本号（如 0.2.0；beta 渠道可写 0.2.0-beta.1）"
+        description: "发布版本号（如 0.1.0-beta.1；beta 渠道只填 0.1.0 会自动补 -beta.1）"
         required: false
-        default: "0.2.0"
+        default: "0.1.0-beta.1"
       channel:
         description: "发布渠道"
         type: choice
@@ -58,9 +58,9 @@ jobs:
             version="${INPUT_VERSION#v}"
             channel="$INPUT_CHANNEL"
             # 镜像仓库 / 客户端都按 tag 是否含 beta 识别渠道；
-            # dispatch 发 beta 时把 beta 补进 tag，保证三处（tag、包名、清单）一致。
+            # dispatch 发 beta 时把 beta.1 补进 tag，保证三处（tag、包名、清单）一致。
             if [ "$channel" = "beta" ] && [[ "${version,,}" != *beta* ]]; then
-              version="${version}-beta"
+              version="${version}-beta.1"
             fi
           else
             version="${REF_NAME#v}"
