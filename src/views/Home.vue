@@ -21,13 +21,13 @@ type LoginMode = 'official' | 'third' | 'offline'
 /** 登录方式 → 展示文案（启动页左上角单个徽标） */
 const MODE_LABEL: Record<LoginMode, string> = {
   official: '正版',
-  third: '第三方',
+  third: '外置登录',
   offline: '离线',
 }
 
 const SESSION_LABEL: Record<string, string> = {
   microsoft: '正版（微软账号）',
-  third: '正版（服务器账号）',
+  third: '外置登录',
   offline: '离线',
 }
 
@@ -63,10 +63,8 @@ const selectedLoader = computed(() =>
 /** 第三方登录展示的认证服务器名（默认取列表里的第一台，如 LittleSkin）。 */
 const thirdLabel = computed(() => store.authServers[0]?.name ?? '第三方')
 
-/** 登录方式徽标文本：第三方显示具体认证服务器名（如「LittleSkin」）。 */
-const modeLabel = computed(() =>
-  displayMode.value === 'third' ? thirdLabel.value : MODE_LABEL[displayMode.value],
-)
+/** 登录方式徽标文本：外置登录统一显示「外置登录」，不再区分服务器名。 */
+const modeLabel = computed(() => MODE_LABEL[displayMode.value])
 
 async function handleLaunch() {
   if (!selected.value) {

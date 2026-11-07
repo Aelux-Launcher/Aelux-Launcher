@@ -25,6 +25,13 @@ interface NavEntry {
 
 const store = useAppStore()
 
+/** 账户卡副文本：微软 = 正版账户，外置 = 外置登录，离线 = 离线账户。 */
+const ACCOUNT_TYPE_LABEL: Record<string, string> = {
+  microsoft: '正版账户',
+  third: '外置登录',
+  offline: '离线账户',
+}
+
 /** 账户卡 → 账户管理页（多账户列表）。 */
 function openAccounts() {
   store.openSubPage({ kind: 'accounts' })
@@ -609,7 +616,7 @@ function selectFolder(f: StoredFolder) {
         </div>
         <div class="account-info">
           <div class="main">{{ store.session ? store.session.username : '没有游戏账户' }}</div>
-          <div class="sub">{{ store.session ? store.session.type === 'offline' ? '离线账户' : '正版账户' : '点击此处添加账户' }}</div>
+          <div class="sub">{{ store.session ? ACCOUNT_TYPE_LABEL[store.session.type] ?? '正版账户' : '点击此处添加账户' }}</div>
         </div>
       </button>
     </div>

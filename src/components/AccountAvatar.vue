@@ -32,45 +32,51 @@ watch(
   },
 )
 
-/** 本地上传头像。 */
+/** 本地上传头像：用户裁剪过的方图，直接铺满。 */
 const overrideUrl = computed(() =>
   props.override && isTauri ? convertFileSrc(props.override) : '',
 )
 
-const imgUrl = computed(() => (failed.value ? '' : overrideUrl.value || props.skinUrl))
-
-/** PCL 皮肤第 8–16 像素为头部正面，用 800% 背景缩放裁出来。 */
-const faceStyle = computed(() => ({ backgroundImage: `url("${localSkinUrl(props.name)}")` }))
+/**
+ * 皮肤贴图：在线皮肤（Mojang / 认证服务器）或本地素材。
+ * 都是 64×64 全身图，由 `.skin-img` 放大 8 倍只露出头部正面。
+ */
+const skinSrc = computed(() => {
+  if (failed.value) return localSkinUrl(props.name)
+  return props.skinUrl || localSkinUrl(props.name)
+})
 </script>
 
 <template>
   <div class="account-avatar-box" :style="{ width: `${size}px`, height: `${size}px` }">
-    <img v-if="imgUrl" :src="imgUrl" alt="" @error="failed = true" />
-    <span v-else class="skin-face" :style="faceStyle" />
+    <img v-if="overrideUrl" class="avatar-img" :src="overrideUrl" alt="" />
+    <img v-else class="skin-img" :src="skinSrc" alt="" @error="failed = true" />
   </div>
 </template>
 
 <style scoped>
 .account-avatar-box {
+  position: relative;
   flex-shrink: 0;
   overflow: hidden;
   border-radius: 6px;
   background: var(--icon-bg);
 }
-.account-avatar-box img {
+/* 自定义头像：整图铺满 */
+.avatar-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-/* 64×64 皮肤只取头部正面（8,8–16,16） */
-.skin-face {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background-repeat: no-repeat;
-  background-size: 800% 800%;
-  background-position: 14.2857% 14.2857%;
+/* 皮肤：64×64 全身图放大 8 倍，偏移 1/8 后只露出头部正面（8,8–16,16） */
+.skin-img {
+  position: absolute;
+  left: -100%;
+  top: -100%;
+  width: 800%;
+  height: 800%;
+  object-fit: fill;
   image-rendering: pixelated;
 }
 </style>
