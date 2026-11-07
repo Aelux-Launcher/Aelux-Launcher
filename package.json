@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "tauri dev",
     "dev:core": "tauri dev --features dev-path",
+    "dev:web": "vite",
     "build:web": "vite build",
     "build:single": "tauri build --features dev-path --no-bundle",
     "build:portable": "tauri build --features release-ffi --no-bundle",

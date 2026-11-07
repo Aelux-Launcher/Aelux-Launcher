@@ -21,6 +21,7 @@ Minecraft Java Edition 桌面启动器（公开仓库）：Tauri 2 薄壳 + Vue 
 npm install
 npm run dev          # cargo tauri dev（默认 dev-path，直调 Aelux-Core 源码）
 npm run dev:core     # 同上（显式指定 dev-path）
+npm run dev:web      # 仅启动 Vite 前端开发服务器（tauri dev 会自动调用）
 npm run typecheck    # vue-tsc
 npm run build:web    # 纯前端构建
 ```
