@@ -1,7 +1,7 @@
 /**
  * CurseForge 真实接口封装。
  *
- * 请求统一经内核命令 `curseforge_fetch` 转发（API Key 由内核从本机 KV 读取，
+ * 请求统一经内核命令 `curseforge_fetch` 转发（API Key 编译期内置于内核，
  * 不下发到前端）。这里只负责 URL 构造与 DTO → 前端资源模型的映射。
  *
  * 文档：https://docs.curseforge.com/rest-api/

@@ -23,7 +23,7 @@ export const commands = {
 	readCrashReport: (instanceId: string) => typedError<CrashReport, string>(__TAURI_INVOKE("read_crash_report", { instanceId })),
 	getCoreVersion: () => __TAURI_INVOKE<string>("get_core_version"),
 	fetchJson: (url: string) => typedError<string, string>(__TAURI_INVOKE("fetch_json", { url })),
-	/**  CurseForge API 代理（内核读取本机配置的 API Key 后转发）。 */
+	/**  CurseForge API 代理（API Key 由内核编译期内置后转发）。 */
 	curseforgeFetch: (path: string) => typedError<string, string>(__TAURI_INVOKE("curseforge_fetch", { path })),
 	downloadFile: (url: string, dest: string, sha1: string | null, taskId: string | null, name: string | null) => typedError<string, string>(__TAURI_INVOKE("download_file", { url, dest, sha1, taskId, name })),
 	fetchMinecraftManifest: () => typedError<VersionManifest_Serialize, string>(__TAURI_INVOKE("fetch_minecraft_manifest")),
