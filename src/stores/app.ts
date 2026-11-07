@@ -625,78 +625,38 @@ export const useAppStore = defineStore('app', () => {
       /* 预览环境无内核 */
     }
 
-    // 逐段容错：任何一段失败都不应把启动器卡死
-    try {
-      await loadVersions()
-    } catch (e) {
-      initError.value = `版本清单加载失败：${(e as Error).message}`
-    }
-    try {
-      await refreshInstances()
-    } catch {
-      /* 本地失败时静默 */
-    }
-    try {
-      await restoreSession()
-    } catch {
-      /* 会话读取失败静默 */
-    }
-    try {
-      const savedMode = await kvGet('login-mode')
-      if (savedMode === 'official' || savedMode === 'third' || savedMode === 'offline') {
-        loginMode.value = savedMode
-      }
-    } catch {
-      /* 登录方式读取失败用默认值 */
-    }
-    try {
-      await loadAccounts()
-    } catch {
-      /* 账户列表读取失败按空处理 */
-    }
-    try {
-      await loadAuthServers()
-    } catch {
-      /* 认证服务器列表读取失败按空处理 */
-    }
-    try {
-      dataDir.value = await call<string>('get_data_dir')
-    } catch {
-      /* 数据目录读取失败留空 */
-    }
-    try {
-      officialFolderPath.value = (await call<string | null>('detect_official_minecraft')) ?? ''
-    } catch {
-      /* 未检测到官方启动器目录 */
-    }
+    // 逐段容错：任何一段失败都不应把启动器卡死。
+    // 关键：本地数据与网络清单并行加载。版本清单是最慢一段（走网络，最坏要等超时），
+    // 串行会让账户 / 实例 / 设置全部排在它后面，整页数据要等很久才出来。
+    await Promise.allSettled([
+      loadVersions(),
+      refreshInstances(),
+      restoreSession(),
+      loadAccounts(),
+      loadAuthServers(),
+      kvGet('login-mode').then((savedMode) => {
+        if (savedMode === 'official' || savedMode === 'third' || savedMode === 'offline') {
+          loginMode.value = savedMode
+        }
+      }),
+      call<string>('get_data_dir').then((dir) => {
+        dataDir.value = dir
+      }),
+      call<string | null>('detect_official_minecraft').then((path) => {
+        officialFolderPath.value = path ?? ''
+      }),
+      loadAddedFolders(),
+      loadSettings(),
+      loadRooms(),
+      pullAnnouncements().then((list) => {
+        pendingAnnouncements.value = list
+      }),
+      call<string>('read_local_update').then((raw) => {
+        updateAvailable.value = raw.trim().length > 0
+      }),
+    ])
     if (!officialFolderPath.value && selectedFolderId.value === 'official') {
       selectedFolderId.value = 'current'
-    }
-    try {
-      await loadAddedFolders()
-    } catch {
-      /* 文件夹列表读取失败按空处理 */
-    }
-    try {
-      await loadSettings()
-    } catch {
-      /* 设置读取失败用默认值 */
-    }
-    try {
-      await loadRooms()
-    } catch {
-      /* 静默 */
-    }
-    try {
-      pendingAnnouncements.value = await pullAnnouncements()
-    } catch {
-      /* 公告拉取失败不影响启动 */
-    }
-    try {
-      const raw = await call<string>('read_local_update')
-      updateAvailable.value = raw.trim().length > 0
-    } catch {
-      /* 静默 */
     }
     ready.value = true
   }
