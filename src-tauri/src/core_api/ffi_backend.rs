@@ -1,12 +1,13 @@
-//! release-ffi 链路：libloading 加载 aelux-core cdylib，JSON 进出。
+//! release-ffi 链路：内核 cdylib 在编译期嵌入 exe，运行时释放后用 libloading 加载，
+//! JSON 进出。发布包因此只有一个 exe，不再随包分发 dll。
 //!
-//! 库文件查找顺序：
-//!   1. `AELUX_CORE_LIB` 环境变量（build.rs 在打包时注入）
-//!   2. Tauri 资源目录 `lib/<platform>/`（安装包自带）
-//!   3. exe 同级 `lib/<platform>/`（便携 ZIP 手动放置）
-//!   4. 仓库内 `src-tauri/lib/<platform>/`（本地打包测试）
+//! 库文件来源顺序：
+//!   1. `AELUX_CORE_LIB` 环境变量（运行时调试：临时指定外部库）
+//!   2. 编译期嵌入的字节流（build.rs 注入路径，发布包唯一来源）
+//!      运行时释放到应用缓存目录 `runtime/<版本>/`，不污染安装目录。
 
 use std::ffi::{c_char, CStr, CString};
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use serde_json::Value;
@@ -34,33 +35,8 @@ struct CoreLib {
 
 static LIB: OnceLock<CoreLib> = OnceLock::new();
 
-/// 平台子目录名，与 build.rs / manifest.json 的键一致。
-fn platform_key() -> &'static str {
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    {
-        "windows-x64"
-    }
-    #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-    {
-        "windows-arm64"
-    }
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        "macos-arm64"
-    }
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    {
-        "macos-x64"
-    }
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    {
-        "linux-x64"
-    }
-    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-    {
-        "linux-arm64"
-    }
-}
+/// 编译期嵌入的内核动态库（build.rs 注入绝对路径）。
+static EMBEDDED_CORE: &[u8] = include_bytes!(env!("AELUX_CORE_LIB"));
 
 fn lib_file_name() -> &'static str {
     #[cfg(target_os = "windows")]
@@ -77,50 +53,58 @@ fn lib_file_name() -> &'static str {
     }
 }
 
-/// 解析库文件路径（不做加载）。
-fn resolve_lib_path(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
-    let name = lib_file_name();
+/// 解析库文件路径：显式环境变量优先，否则释放嵌入的库。
+fn resolve_lib_path(app: &tauri::AppHandle) -> PathBuf {
     if let Ok(env_path) = std::env::var("AELUX_CORE_LIB") {
-        let p = std::path::PathBuf::from(env_path);
+        let p = PathBuf::from(env_path);
         if p.exists() {
-            return Some(p);
+            return p;
         }
     }
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        let p = resource_dir.join("lib").join(platform_key()).join(name);
-        if p.exists() {
-            return Some(p);
-        }
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            let p = parent.join("lib").join(platform_key()).join(name);
-            if p.exists() {
-                return Some(p);
+    materialize_embedded(app)
+}
+
+/// 把嵌入的库释放到应用缓存目录 `runtime/<启动器版本>/<库文件名>`，返回可加载路径。
+/// 按版本分目录：换身更新时新旧进程并存，不会因文件被占用而释放失败。
+fn materialize_embedded(app: &tauri::AppHandle) -> PathBuf {
+    let root = runtime_root(app);
+    let dir = root.join(env!("CARGO_PKG_VERSION"));
+    let path = dir.join(lib_file_name());
+    if !path.is_file() {
+        std::fs::create_dir_all(&dir).expect("创建内核运行目录失败");
+        // 先写临时文件再改名：避免崩溃留下半截库文件被下次启动加载
+        let tmp = dir.join(format!("{}.tmp", lib_file_name()));
+        std::fs::write(&tmp, EMBEDDED_CORE).expect("释放内核动态库失败");
+        if let Err(e) = std::fs::rename(&tmp, &path) {
+            let _ = std::fs::remove_file(&tmp);
+            // 另一实例已先一步就位（Windows 上覆盖运行中的库会失败）
+            if !path.is_file() {
+                panic!("内核动态库就位失败: {e}");
             }
-            // 便携布局：exe 同级直接放 dll
-            let p = parent.join(name);
-            if p.exists() {
-                return Some(p);
+        }
+    }
+    // 旧版本目录不再需要（旧进程占用时删除失败，下次启动再清）
+    if let Ok(entries) = std::fs::read_dir(&root) {
+        for entry in entries.flatten() {
+            if entry.path() != dir {
+                let _ = std::fs::remove_dir_all(entry.path());
             }
         }
     }
-    // 本地打包测试：源码树内
-    let dev = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("lib")
-        .join(platform_key())
-        .join(name);
-    dev.exists().then_some(dev)
+    path
+}
+
+/// 释放目录根：应用缓存目录（始终可写，安装到 Program Files 也不受影响）。
+fn runtime_root(app: &tauri::AppHandle) -> PathBuf {
+    app.path()
+        .app_cache_dir()
+        .unwrap_or_else(|_| std::env::temp_dir().join("aelux-launcher"))
+        .join("runtime")
 }
 
 /// 初始化：解析并加载动态库。失败即 panic（发布链路缺内核等于残废）。
 pub fn init(app: &tauri::AppHandle) {
-    let path = resolve_lib_path(app).unwrap_or_else(|| {
-        panic!(
-            "未找到 aelux-core 动态库（{}），release-ffi 链路无法启动",
-            lib_file_name()
-        )
-    });
+    let path = resolve_lib_path(app);
     unsafe {
         let lib =
             libloading::Library::new(&path).unwrap_or_else(|e| panic!("加载 {path:?} 失败: {e}"));

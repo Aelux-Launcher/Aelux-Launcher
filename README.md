@@ -44,8 +44,8 @@ release-ffi = ["dep:libloading"]      # 发布打包
   `CoreApi`；内核事件经 broadcast channel 转发为 Tauri 事件（`core-event`）。
 - **release-ffi**（发布打包）：`build.rs` 就位 cdylib（本地 `src-tauri/lib/<platform>/` 优先，
   否则 `node scripts/fetch-core.mjs` 按 manifest.json 下载 + sha256 校验），
-  拷入 resources 打进安装包；运行时 `core_api/ffi_backend.rs` 用 libloading 加载，
-  JSON 进出，**离线运行**。
+  编译期用 `include_bytes!` 嵌入 exe；运行时释放到应用缓存目录后
+  用 libloading 加载，JSON 进出，**离线运行**（发布包单文件，不带 dll）。
 
 两条链路对外暴露**完全相同**的函数签名（`core_api/mod.rs` 契约），命令层零感知。
 未选择任何链路时编译期直接 `compile_error!`，避免误用假实现。
@@ -65,11 +65,11 @@ release-ffi = ["dep:libloading"]      # 发布打包
 | 命令 | 产物 | 内核来源 | 适用场景 |
 | --- | --- | --- | --- |
 | `npm run build:single` | **单文件 exe**（内核静态编译进 exe，无需 dll） | 内核源码（dev-path） | **你自己在有源码的机器上发布**，最简单 |
-| `npm run build:portable` | 便携 ZIP（exe + 内核 dll） | 下载二进制（fetch-core） | 公开 CI / 别的机器打包，源码不外泄 |
-| `npm run build:release` | NSIS / MSI 安装器 | 下载二进制 | 需要安装器形态时 |
+| `npm run build:portable` | **单文件 exe**（内核 dll 编译期嵌入，无需随包分发） | 下载二进制（fetch-core） | 公开 CI / 别的机器打包，源码不外泄 |
+| `npm run build:release` | NSIS / MSI 安装器（内核已嵌入 exe） | 下载二进制 | 需要安装器形态时 |
 
 - 单文件 exe 复制到任意目录即用，数据写 exe 同级 `data/`
-- 便携 ZIP 内含 `Aelux-Launcher.exe` + `aelux_core.dll` + 说明，解压双击即用
+- 便携 ZIP 内含 `Aelux-Launcher.exe` + 说明，解压双击即用
 - 三种形态的数据目录行为完全一致（exe 同级 `data/`，整目录拷走即迁移）
 
 **版本策略**：日常开发 / 本地构建可保持 `0.1.0`；**发 Release 前必须**把

@@ -3,14 +3,14 @@ name: 发布 Windows 便携包
 # 发布 Windows 便携包（免安装，解压即用）。
 #
 # 渠道（channel）：
-#   beta   → tag 必须含 beta（如 v0.2.0-beta.1），产物 …-Beta.zip
-#   stable → tag 不含 beta（如 v0.2.0），产物 …-Stable.zip
-# tag 触发的发布按 tag 名判断渠道；workflow_dispatch 按所选渠道补全 tag
-# （beta 渠道输入 0.1.0 会自动发布 v0.1.0-beta.1）。
+#   beta   → tag 必须含 beta（如 v0.2.0-beta.1），产物 Aelux-Launcher-v0.2.0-beta.1.zip
+#   stable → tag 不含 beta（如 v0.2.0），产物 Aelux-Launcher-v0.2.0.zip
+# tag 触发的发布按 tag 名判断渠道；workflow_dispatch 按所选渠道自动规范化版本号
+# （beta 渠道输入 0.1.0 → v0.1.0-beta.1；stable 渠道输入 0.1.0-beta.1 → v0.1.0）。
 #
-# 发布版本号：tag 必须与 src-tauri/Cargo.toml、package.json、src-tauri/tauri.conf.json
-# 三处版本完全相同（workflow 会校验）。只出 Artifacts 测试包不必发 Release；
-# 要触发客户端自动更新，发布版本必须高于客户端当前版本。
+# 发布版本号：tag 与 src-tauri/Cargo.toml、package.json、src-tauri/tauri.conf.json
+# 三处版本要一致；tag 推送不一致会直接报错，workflow_dispatch 则自动对齐三处版本。
+# 只出 Artifacts 测试包不必发 Release；要触发客户端自动更新，发布版本必须高于客户端当前版本。
 
 on:
   push:
@@ -144,7 +144,7 @@ jobs:
         run: node scripts/fetch-core.mjs
 
       # --no-bundle：只产出裸 exe，不打 NSIS/MSI 安装器（便携分发）
-      - name: 编译启动器（内核 dll 随包分发）
+      - name: 编译启动器（内核 dll 编译期嵌入 exe）
         run: npm run build:portable
 
       - name: 打包便携 ZIP
@@ -154,10 +154,10 @@ jobs:
         run: |
           $stage = "portable/Aelux-Launcher"
           New-Item -ItemType Directory -Force $stage | Out-Null
+          # 单文件分发：内核 dll 已嵌入 exe，不再单独拷入
           Copy-Item "src-tauri/target/release/aelux-launcher-app.exe" "$stage/Aelux-Launcher.exe"
-          Copy-Item "src-tauri/lib/windows-x64/aelux_core.dll" $stage
           # 使用说明：解压后双击 exe 即用；数据写在 exe 同级 data/ 目录
-          "# Aelux Launcher`n`n解压到任意目录，双击 Aelux-Launcher.exe 即可运行（免安装）。`n数据保存在本目录 data/ 下，整目录拷走即可迁移。`n" | Set-Content "$stage/README.txt"
+          "# Aelux Launcher`n`n解压到任意目录，双击 Aelux-Launcher.exe 即可运行（免安装，单文件）。`n数据保存在本目录 data/ 下，整目录拷走即可迁移。`n" | Set-Content "$stage/README.txt"
           Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath $env:ZIP_NAME -Force
 
       # 更新清单：客户端 update_check / 镜像仓库同步都以它为准

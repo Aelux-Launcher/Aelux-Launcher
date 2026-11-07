@@ -19,8 +19,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::dto::{UpdateChannelEntry, UpdateCheckResult, UpdateStatusInfo};
 
-/// 便携包内的主程序 / 内核库文件名（与 release.yml 打包一致）。
+/// 便携包内的主程序文件名（与 release.yml 打包一致）。
 const EXE_NAME: &str = "Aelux-Launcher.exe";
+/// 旧版便携包的内核库文件名。新版内核已嵌入 exe，更新包不再带 dll；
+/// 这里只用于兼容旧包换身与清理历史残留。
 const DLL_NAME: &str = "aelux_core.dll";
 const MANIFEST_NAME: &str = "launcher-update.json";
 
@@ -531,10 +533,9 @@ pub async fn download(entry: &UpdateChannelEntry, task_id: &str) -> Result<Strin
     extract_zip(&zip_path, &staged)?;
 
     let exe_ok = staged.join(EXE_NAME).is_file();
-    let dll_ok = staged.join(DLL_NAME).is_file();
-    if !exe_ok || !dll_ok {
+    if !exe_ok {
         let _ = std::fs::remove_dir_all(&staged);
-        return Err("更新包内容不完整（缺少主程序或内核库）".into());
+        return Err("更新包内容不完整（缺少主程序）".into());
     }
 
     write_staged(&data, &entry.version)?;
@@ -581,7 +582,7 @@ pub fn boot_swap_or_cleanup() {
 
     // 3) 有暂存更新且版本不同 → 换身后用新版本启动
     let staged = staged_dir(&data);
-    if staged.join(EXE_NAME).is_file() && staged.join(DLL_NAME).is_file() {
+    if staged.join(EXE_NAME).is_file() {
         let staged_version = read_staged(&data).unwrap_or_default();
         if staged_version == CURRENT_VERSION || staged_version.is_empty() {
             let _ = std::fs::remove_dir_all(&staged);
@@ -598,8 +599,9 @@ pub fn boot_swap_or_cleanup() {
 
 const EXTRA_APPLY_FLAG: &str = "--aelux-apply-swap";
 
-/// 把 staged 的 exe/dll 移入程序目录：旧文件改名 `.old`，新文件复制就位。
-/// 失败时回滚。内核 dll 被占用时返回 "DLL_LOCKED"。
+/// 把 staged 的 exe 移入程序目录：旧文件改名 `.old`，新文件复制就位。
+/// 失败时回滚。旧版更新包带 dll 时一并替换（被占用返回 "DLL_LOCKED"）；
+/// 新版单文件包只有 exe。
 fn swap_in_place(dir: &Path, staged: &Path) -> Result<(), String> {
     let exe = dir.join(EXE_NAME);
     let dll = dir.join(DLL_NAME);
@@ -608,8 +610,10 @@ fn swap_in_place(dir: &Path, staged: &Path) -> Result<(), String> {
     let _ = std::fs::remove_file(&exe_old);
     let _ = std::fs::remove_file(&dll_old);
 
+    let dll_in_update = staged.join(DLL_NAME).is_file();
+
     std::fs::rename(&exe, &exe_old).map_err(|e| format!("旧主程序重命名失败: {e}"))?;
-    let dll_moved = if dll.exists() {
+    let dll_moved = if dll_in_update && dll.exists() {
         match std::fs::rename(&dll, &dll_old) {
             Ok(()) => true,
             // 运行中进程持有 dll（IO 共享冲突）→ 交给分步方案
@@ -624,7 +628,7 @@ fn swap_in_place(dir: &Path, staged: &Path) -> Result<(), String> {
 
     let copy = |from: &Path, to: &Path| std::fs::copy(from, to).map(|_| ()).map_err(|e| e.to_string());
     let copy_exe = copy(&staged.join(EXE_NAME), &exe);
-    let copy_dll = if dll_moved || !dll.exists() {
+    let copy_dll = if dll_in_update && (dll_moved || !dll.exists()) {
         copy(&staged.join(DLL_NAME), &dll)
     } else {
         Ok(())
@@ -664,8 +668,11 @@ fn rollback(dir: &Path, exe_old: &Path, dll_old: &Path, dll_moved: bool) {
 fn stage_pending_swap(dir: &Path, staged: &Path) -> Result<(), String> {
     std::fs::copy(staged.join(EXE_NAME), dir.join(format!("{EXE_NAME}.new")))
         .map_err(|e| format!("暂存新主程序失败: {e}"))?;
-    std::fs::copy(staged.join(DLL_NAME), dir.join(format!("{DLL_NAME}.new")))
-        .map_err(|e| format!("暂存新内核库失败: {e}"))?;
+    // 单文件更新包没有 dll，只换 exe
+    if staged.join(DLL_NAME).is_file() {
+        std::fs::copy(staged.join(DLL_NAME), dir.join(format!("{DLL_NAME}.new")))
+            .map_err(|e| format!("暂存新内核库失败: {e}"))?;
+    }
     let info = serde_json::to_string(&StagedInfo { version: read_staged(&data_dir_runtime()).unwrap_or_default() })
         .map_err(|e| e.to_string())?;
     std::fs::write(dir.join("swap-pending.json"), info).map_err(|e| e.to_string())
@@ -686,6 +693,8 @@ fn cleanup_old_files(dir: &Path) {
     let _ = std::fs::remove_file(dir.join(format!("{DLL_NAME}.old")));
     let _ = std::fs::remove_file(dir.join(format!("{EXE_NAME}.new")));
     let _ = std::fs::remove_file(dir.join(format!("{DLL_NAME}.new")));
+    // 内核已嵌入 exe：清掉旧版随包分发的 dll（被旧进程占用时下次启动再清）
+    let _ = std::fs::remove_file(dir.join(DLL_NAME));
 }
 
 /// 拉起新进程并退出当前进程。

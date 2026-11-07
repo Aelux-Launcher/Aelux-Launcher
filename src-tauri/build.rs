@@ -23,7 +23,7 @@ fn main() {
     println!("cargo:rustc-env=AELUX_UPDATE_R2_BASE={r2_base}");
     println!("cargo:rerun-if-env-changed=UPDATE_R2_BASE");
 
-    // 发布链路（release-ffi）：内核以 cdylib 随包分发，运行完全离线。
+    // 发布链路（release-ffi）：内核 cdylib 在编译期嵌入 exe（单文件分发，运行完全离线）。
     // 库文件的就位策略（按优先级）：
     //   1. src-tauri/lib/<platform>/ 下已有本地文件（本地打包测试）
     //   2. 由 scripts/fetch-core.mjs 按 manifest.json 下载（CI / 本地补拉）
@@ -36,17 +36,9 @@ fn main() {
 fn require_core_lib() {
     let file = core_lib_path();
     if file.exists() {
-        // 拷贝进资源目录，tauri.conf 的 resources glob 会把它打进安装包
-        let res_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("resources")
-            .join("lib")
-            .join(platform_key());
-        std::fs::create_dir_all(&res_dir).expect("创建内核资源目录失败");
-        let res_file = res_dir.join(core_lib_name());
-        if res_file != file {
-            std::fs::copy(&file, &res_file).expect("拷贝内核动态库失败");
-            println!("cargo:rerun-if-changed={}", res_file.display());
-        }
+        // 只把绝对路径交给 rustc：ffi_backend.rs 用 include_bytes! 把库编译进 exe，
+        // 发布包不再带 dll（运行时释放到应用缓存目录，见 ffi_backend::materialize_embedded）。
+        println!("cargo:rerun-if-changed={}", file.display());
         println!("cargo:rustc-env=AELUX_CORE_LIB={}", file.display());
     } else {
         panic!(
