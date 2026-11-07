@@ -75,6 +75,47 @@ const DEFAULT_SETTINGS: Settings = {
   aiFixMod: false,
 }
 
+/** 联机广场里的服务器房间。 */
+export interface MultiplayerRoom {
+  id: string
+  /** 房间名 */
+  name: string
+  /** 节点标识 */
+  nodeId: string
+  /** 节点显示名 */
+  nodeLabel: string
+  /** 节点地址（展示用） */
+  host: string
+  /** 随机分配端口 */
+  port: number
+  /** 密码房密码（空 = 公开房） */
+  password: string
+  /** 是否为当前用户创建（只会有一个） */
+  mine: boolean
+  /** 退出启动器后是否保留（保留 3 天，再次启动刷新计时） */
+  persist: boolean
+  /** 创建时间（Unix 毫秒） */
+  createdAt: number
+  /** 保留到期时间（Unix 毫秒，0 = 不保留） */
+  expiresAt: number
+}
+
+/** 房间保留时长：3 天。 */
+const ROOM_TTL_MS = 3 * 24 * 60 * 60 * 1000
+
+/** 游戏非正常退出时展示的崩溃信息。 */
+export interface CrashInfo {
+  instanceId: string
+  instanceName: string
+  exitCode: number
+  /** 报告文件路径（空 = 未找到） */
+  path: string
+  /** 末尾日志片段 */
+  content: string
+  /** 是否来自游戏 crash-reports */
+  fromGame: boolean
+}
+
 export const useAppStore = defineStore('app', () => {
   /* 当前路由（模块级 router 单例，避免 store 内 useRoute 的 setup 约束） */
   const route = computed(() => router.currentRoute.value)
@@ -245,13 +286,8 @@ export const useAppStore = defineStore('app', () => {
   const runningInstances = ref<RunningGame[]>([])
 
   /* --------------------------------- 联机 --------------------------------- */
-  interface Server {
-    id: string
-    name: string
-    host: string
-    port?: number
-  }
-  const servers = ref<Server[]>([])
+  /** 联机广场房间（自己的房间排在最前）。 */
+  const rooms = ref<MultiplayerRoom[]>([])
 
   /* ------------------------------ 启动日志 ------------------------------ */
   /** 启动过程日志（任务管理页展示；最多保留 200 条）。 */
@@ -263,6 +299,48 @@ export const useAppStore = defineStore('app', () => {
 
   function clearLaunchLogs() {
     launchLogs.value = []
+  }
+
+  /* ------------------------------ 崩溃报告 ------------------------------ */
+  /** 非 0 退出码时加载的崩溃报告（null = 不显示弹窗）。 */
+  const crashInfo = ref<CrashInfo | null>(null)
+
+  /** 用户主动结束的实例：这类非 0 退出不算崩溃。 */
+  const intentionallyKilled = new Set<string>()
+
+  /** 解析内核退出消息（`游戏进程已退出（实例 xxx，退出码 n）`）。 */
+  function parseExitMessage(text: string): { instanceId: string; code: number } | null {
+    const m = /游戏进程已退出（实例\s*(.+?)，退出码\s*(-?\d+)）/.exec(text)
+    if (!m) return null
+    return { instanceId: m[1], code: Number(m[2]) }
+  }
+
+  /** 读取崩溃报告并弹窗（优先游戏 crash-reports，回退启动器日志）。 */
+  async function loadCrashReport(instanceId: string, exitCode: number) {
+    const inst = instances.value.find((i) => i.id === instanceId)
+    const base = {
+      instanceId,
+      instanceName: inst?.name ?? instanceId,
+      exitCode,
+    }
+    try {
+      const report = await call<{ path: string; content: string; fromGame: boolean }>(
+        'read_crash_report',
+        { instanceId },
+      )
+      crashInfo.value = { ...base, ...report }
+    } catch (e) {
+      crashInfo.value = {
+        ...base,
+        path: '',
+        content: `读取崩溃报告失败：${(e as Error).message}`,
+        fromGame: false,
+      }
+    }
+  }
+
+  function dismissCrash() {
+    crashInfo.value = null
   }
 
   /* ------------------------------- 社区资源 ------------------------------- */
@@ -359,6 +437,12 @@ export const useAppStore = defineStore('app', () => {
         } else if (ev.type === 'Message') {
           pushLaunchLog(`[${ev.level}] ${ev.text}`)
           if (ev.level === 'error') toast.error(ev.text)
+          // 非 0 退出码 → 弹窗展示崩溃日志（用户主动结束进程时跳过）
+          const exit = parseExitMessage(ev.text)
+          if (exit && exit.code !== 0) {
+            if (intentionallyKilled.delete(exit.instanceId)) return
+            void loadCrashReport(exit.instanceId, exit.code)
+          }
         }
       })
     } catch {
@@ -449,7 +533,7 @@ export const useAppStore = defineStore('app', () => {
       /* 设置读取失败用默认值 */
     }
     try {
-      await loadServers()
+      await loadRooms()
     } catch {
       /* 静默 */
     }
@@ -534,6 +618,7 @@ export const useAppStore = defineStore('app', () => {
     try {
       const ok = await call<boolean>('kill_instance', { id })
       if (ok) {
+        intentionallyKilled.add(id)
         runningInstances.value = runningInstances.value.filter((r) => r.instanceId !== id)
         pushLaunchLog('已请求结束游戏进程')
       }
@@ -1158,19 +1243,81 @@ export const useAppStore = defineStore('app', () => {
 
   /* --------------------------------- 联机 --------------------------------- */
 
-  async function loadServers() {
-    const raw = await kvGet('servers')
-    if (raw) servers.value = JSON.parse(raw) as Server[]
+  /** 读取联机广场房间，并按规则清理过期房间。 */
+  async function loadRooms() {
+    const raw = await kvGet('multiplayer-rooms')
+    const list: MultiplayerRoom[] = raw ? (JSON.parse(raw) as MultiplayerRoom[]) : []
+    const now = Date.now()
+    const kept: MultiplayerRoom[] = []
+    let mineSeen = false
+    for (const r of list) {
+      // 其他用户的房间（未来由服务端同步）直接保留
+      if (!r.mine) {
+        kept.push(r)
+        continue
+      }
+      // 只允许一个自己的房间
+      if (mineSeen) continue
+      // 未开启「退出不消失」：重启启动器即销毁
+      if (!r.persist) continue
+      // 超过 3 天未启动：销毁
+      if (!r.expiresAt || r.expiresAt <= now) continue
+      mineSeen = true
+      // 仍在保留期内：重新从头计算 3 天
+      kept.push({ ...r, expiresAt: now + ROOM_TTL_MS })
+    }
+    rooms.value = kept
+    if (kept.length !== list.length) await saveRooms()
   }
 
-  async function addServer(s: Server) {
-    servers.value = [...servers.value, s]
-    await call('kv_set', { key: 'servers', value: JSON.stringify(servers.value) })
+  /** 保存房间列表。 */
+  async function saveRooms() {
+    await call('kv_set', { key: 'multiplayer-rooms', value: JSON.stringify(rooms.value) })
   }
 
-  async function removeServer(id: string) {
-    servers.value = servers.value.filter((x) => x.id !== id)
-    await call('kv_set', { key: 'servers', value: JSON.stringify(servers.value) })
+  /** 创建自己的房间（只能有一个，保存后进入广场最前面）。 */
+  async function createRoom(input: {
+    name: string
+    nodeId: string
+    nodeLabel: string
+    host: string
+    port: number
+    password: string
+    persist: boolean
+  }) {
+    if (rooms.value.some((r) => r.mine)) throw new Error('只能创建一个服务器')
+    const now = Date.now()
+    const room: MultiplayerRoom = {
+      id: `room-${now}`,
+      name: input.name,
+      nodeId: input.nodeId,
+      nodeLabel: input.nodeLabel,
+      host: input.host,
+      port: input.port,
+      password: input.password,
+      mine: true,
+      persist: input.persist,
+      createdAt: now,
+      expiresAt: input.persist ? now + ROOM_TTL_MS : 0,
+    }
+    rooms.value = [room, ...rooms.value.filter((r) => !r.mine)]
+    await saveRooms()
+  }
+
+  /** 删除房间。 */
+  async function removeRoom(id: string) {
+    rooms.value = rooms.value.filter((r) => r.id !== id)
+    await saveRooms()
+  }
+
+  /** 设置自己的房间是否在退出启动器后保留（3 天）。 */
+  async function setRoomPersist(id: string, persist: boolean) {
+    rooms.value = rooms.value.map((r) =>
+      r.id === id && r.mine
+        ? { ...r, persist, expiresAt: persist ? Date.now() + ROOM_TTL_MS : 0 }
+        : r,
+    )
+    await saveRooms()
   }
 
   /* ------------------------------- 社区资源 ------------------------------- */
@@ -1552,7 +1699,7 @@ export const useAppStore = defineStore('app', () => {
     installing,
     installError,
     downloadState,
-    servers,
+    rooms,
     resourceKind,
     resourceQuery,
     resourceTotal,
@@ -1568,6 +1715,7 @@ export const useAppStore = defineStore('app', () => {
     navState,
     pageStack,
     launchLogs,
+    crashInfo,
     /* computed */
     view,
     sideModule,
@@ -1590,6 +1738,8 @@ export const useAppStore = defineStore('app', () => {
     setTheme,
     pushLaunchLog,
     clearLaunchLogs,
+    loadCrashReport,
+    dismissCrash,
     refreshInstances,
     createInstance,
     deleteInstance,
@@ -1637,9 +1787,10 @@ export const useAppStore = defineStore('app', () => {
     logout,
     loadSettings,
     saveSettings,
-    loadServers,
-    addServer,
-    removeServer,
+    loadRooms,
+    createRoom,
+    removeRoom,
+    setRoomPersist,
     setResourceKind,
     setResourceQuery,
     resetResourceFilters,

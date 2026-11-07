@@ -195,6 +195,18 @@ pub struct LogFile {
     pub modified_secs: f64,
 }
 
+/// 崩溃报告：游戏非正常退出时用于弹窗展示的日志片段。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CrashReport {
+    /// 报告或日志文件的绝对路径（空 = 未找到文件）
+    pub path: String,
+    /// 末尾日志片段（供弹窗预览）
+    pub content: String,
+    /// 是否来自游戏的 crash-reports（false = 启动器捕获日志）
+    pub from_game: bool,
+}
+
 /// 实例内的一件本地内容（Mod / 资源包 / 光影包 / 存档 / 原理图）。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

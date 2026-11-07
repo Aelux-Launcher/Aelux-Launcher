@@ -6,9 +6,10 @@
 
 use crate::core_api;
 use crate::dto::{
-    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, InstallResult,
-    JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem, LogFile,
-    ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
+    Account, AccountSession, AuthServer, CrashReport, DeviceCodeSession, GameInstance,
+    InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig,
+    LocalContentItem, LogFile, ModUpdate, ModpackImportResult, OsInfo, RunningGame,
+    StoredAccount, VersionManifest,
 };
 
 /* ------------------------------ 内核命令 ------------------------------ */
@@ -106,6 +107,81 @@ fn push_log(out: &mut Vec<LogFile>, instance_id: &str, source: &str, path: &std:
         size_bytes: meta.len() as f64,
         modified_secs,
     });
+}
+
+/// 读取崩溃报告：优先最近 10 分钟内生成的 `crash-reports/*.txt`，
+/// 否则回退到启动器捕获的 `<id>-latest.log`，只返回末尾片段供弹窗预览。
+#[tauri::command]
+#[specta::specta]
+pub fn read_crash_report(instance_id: String) -> Result<CrashReport, String> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let data = std::path::PathBuf::from(core_api::get_data_dir());
+    let crash_dir = data
+        .join("minecraft")
+        .join("instances")
+        .join(&instance_id)
+        .join("crash-reports");
+
+    // 只认本次启动后产生的崩溃报告，避免展示上一次的旧文件
+    let cutoff = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs().saturating_sub(10 * 60))
+        .unwrap_or(0);
+    let mut newest: Option<(u64, std::path::PathBuf)> = None;
+    if let Ok(entries) = std::fs::read_dir(&crash_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if !name.ends_with(".txt") {
+                continue;
+            }
+            let secs = entry
+                .metadata()
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            if secs < cutoff {
+                continue;
+            }
+            if newest.as_ref().map(|(t, _)| secs > *t).unwrap_or(true) {
+                newest = Some((secs, path));
+            }
+        }
+    }
+
+    let launcher_log = data.join("logs").join(format!("{}-latest.log", instance_id));
+    let (path, from_game) = match newest {
+        Some((_, p)) => (p, true),
+        None if launcher_log.is_file() => (launcher_log, false),
+        None => {
+            return Ok(CrashReport {
+                path: String::new(),
+                content: "没有找到崩溃报告或日志文件，可能是启动器自身出现问题。".into(),
+                from_game: false,
+            })
+        }
+    };
+
+    let raw = std::fs::read_to_string(&path).unwrap_or_else(|e| format!("读取日志失败：{e}"));
+    // 只保留末尾 120 行，避免超长日志撑满弹窗
+    let tail: Vec<&str> = raw.lines().rev().take(120).collect();
+    let content = tail.into_iter().rev().collect::<Vec<_>>().join("\n");
+
+    Ok(CrashReport {
+        path: path.to_string_lossy().into_owned(),
+        content,
+        from_game,
+    })
 }
 
 #[tauri::command]

@@ -7,17 +7,21 @@
  *     about    —— 关于（软件信息 / 特别鸣谢 / 法律信息）
  *     feedback —— 反馈与建议（GitHub Issues / 官方交流群 / 提交前准备）
  *     logs     —— 日志（按版本分组的日志文件，可打开所在文件夹或删除）
- *     online   —— 联机（服务器列表 + 添加表单）
+ *     online   —— 联机（服务器广场 + 右下角加号创建房间）
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useAppStore } from '../stores/app'
 import { call } from '../lib/bridge'
 import { confirmDialog } from '../lib/dialog'
 import { toast } from '../lib/toast'
 import AlxIcon from '../components/AlxIcon.vue'
+import AlxModal from '../components/AlxModal.vue'
+import AlxSelect from '../components/AlxSelect.vue'
+import AlxToggle from '../components/AlxToggle.vue'
 import SettingGroup from '../components/SettingGroup.vue'
+import type { IconName } from '../components/icons'
 import { loaderIconUrl } from '../lib/loaderIcons'
 import type { GameInstance } from '../lib/types'
+import { useAppStore, type MultiplayerRoom } from '../stores/app'
 import { HELP_ENTRIES, type HelpEntry } from './helpEntries'
 
 type Section = 'help' | 'about' | 'feedback' | 'logs' | 'online'
@@ -58,17 +62,27 @@ function readFull(e: HelpEntry) {
 
 /* --------------------------------- 关于 --------------------------------- */
 
-/** 特别鸣谢条目（沿用旧版 AboutPanel 的内容与 aelux.app 链接）。 */
-const THANKS: Array<{ title: string; desc: string; url: string }> = [
-  { title: '镜像源服务商', desc: '提供了版本清单与文件的加速下载服务', url: 'https://aelux.app/mirror/sponsor' },
-  { title: '游戏百科', desc: '整理了 Mod 名称的中文翻译和更多相关信息', url: 'https://aelux.app/wiki' },
-  { title: '社区资源镜像站', desc: '提供了社区资源的镜像分发', url: 'https://aelux.app/mirror/community' },
-  { title: '开源软件镜像站', desc: '提供了启动器及部分开源项目的镜像分发', url: 'https://aelux.app/mirror/opensource' },
-  { title: '图标设计师', desc: '设计并制作了启动器图标', url: '' },
+/** 特别鸣谢：启动器实际使用的项目与数据来源。 */
+const THANKS: Array<{ title: string; desc: string; url: string; icon: IconName }> = [
+  { title: 'Mojang', desc: '提供 Minecraft 版本清单与游戏资源', url: 'https://www.minecraft.net', icon: 'minecraft' },
+  { title: 'BMCLAPI', desc: '提供 Forge / OptiFine 版本清单的镜像加速', url: 'https://bmclapi2.bangbang93.com', icon: 'server' },
+  { title: 'FabricMC', desc: '提供 Fabric 加载器与安装器元数据', url: 'https://fabricmc.net', icon: 'fabric' },
+  { title: 'NeoForge / Forge', desc: '提供 NeoForge 与 Forge 加载器元数据', url: 'https://neoforged.net', icon: 'neoforge' },
+  { title: 'Modrinth', desc: '提供 Mod / 资源包的项目与版本数据', url: 'https://modrinth.com', icon: 'package' },
+  { title: 'Adoptium', desc: '提供 Java 运行时的下载源', url: 'https://adoptium.net', icon: 'coffee' },
+  { title: 'authlib-injector', desc: '提供外置登录与皮肤支持', url: 'https://github.com/yushijinhun/authlib-injector', icon: 'key' },
+  { title: 'Vue / Tauri', desc: '提供界面框架与桌面运行时', url: 'https://v2.tauri.app', icon: 'code' },
 ]
 
 /** 法律信息折叠面板展开态。 */
 const legalOpen = ref(false)
+
+/** 版权起始年份；当前年份大于起始年份时显示区间。 */
+const COPYRIGHT_START = 2026
+const copyrightYears = computed(() => {
+  const year = new Date().getFullYear()
+  return year > COPYRIGHT_START ? `${COPYRIGHT_START} - ${year}` : `${COPYRIGHT_START}`
+})
 
 /* --------------------------------- 反馈 --------------------------------- */
 
@@ -261,59 +275,133 @@ onBeforeUnmount(() => store.setInnerBack(null))
 
 /* --------------------------------- 联机 --------------------------------- */
 
-/** 联机服务器条目（与 store 内 Server 的形状一致）。 */
-interface ServerEntry {
+/** 可选联机节点（ping 为模拟检测值，默认选延迟最低的节点）。 */
+interface NodeOption {
   id: string
-  name: string
+  label: string
   host: string
-  port?: number
+  ping: number
 }
 
-/** 添加表单的本地状态（端口用字符串承接输入）。 */
-const form = ref({ name: '', host: '', port: '' })
+const NODES: NodeOption[] = [
+  { id: 'sh', label: '上海节点', host: 'sh.aelux.app', ping: 18 },
+  { id: 'bj', label: '北京节点', host: 'bj.aelux.app', ping: 32 },
+  { id: 'gz', label: '广州节点', host: 'gz.aelux.app', ping: 45 },
+  { id: 'hk', label: '香港节点', host: 'hk.aelux.app', ping: 62 },
+]
 
-/** 服务器地址展示文本（端口为空时只显示主机名）。 */
-function serverAddress(s: { host: string; port?: number }): string {
-  return s.port ? `${s.host}:${s.port}` : s.host
-}
+/** 延迟最低的节点（自动检测后默认选中）。 */
+const bestNode = computed(() => NODES.reduce((a, b) => (a.ping <= b.ping ? a : b)))
 
-/** 校验并保存新服务器（名称与地址必填，端口留空用默认 25565）。 */
-async function handleAddServer() {
-  const name = form.value.name.trim()
-  const host = form.value.host.trim()
-  if (!name || !host) {
-    toast.warning('请填写服务器名称与地址')
+/** 节点下拉选项（标注推荐节点）。 */
+const nodeOptions = computed(() =>
+  NODES.map((n) => ({
+    value: n.id,
+    label: `${n.label} · ${n.ping} ms${n.id === bestNode.value.id ? '（推荐）' : ''}`,
+  })),
+)
+
+/** 自己创建的房间（最多一个）。 */
+const mineRoom = computed<MultiplayerRoom | null>(
+  () => store.rooms.find((r) => r.mine) ?? null,
+)
+
+/** 创建服务器弹窗与表单状态。 */
+const roomModalOpen = ref(false)
+const roomPort = ref(0)
+const roomForm = ref({
+  name: '',
+  nodeId: '',
+  passwordEnabled: false,
+  password: '',
+  persist: false,
+})
+
+/** 打开创建服务器弹窗（每次重新检测节点并生成随机端口）。 */
+function openRoomModal() {
+  if (store.rooms.some((r) => r.mine)) {
+    toast.info('只能创建一个服务器，请先删除现有房间')
     return
   }
-  const parsed = Number(form.value.port)
-  const port = form.value.port.trim() && Number.isFinite(parsed) ? parsed : undefined
-  await store.addServer({ id: `${Date.now()}`, name, host, port })
-  form.value = { name: '', host: '', port: '' }
-  toast.success(`已保存服务器「${name}」`)
+  roomPort.value = 30000 + Math.floor(Math.random() * 10000)
+  roomForm.value = {
+    name: '',
+    nodeId: bestNode.value.id,
+    passwordEnabled: false,
+    password: '',
+    persist: false,
+  }
+  roomModalOpen.value = true
 }
 
-/** 删除服务器（二级锁确认，避免误删地址）。 */
-async function handleRemoveServer(s: ServerEntry) {
+/** 创建服务器（公开房 / 密码房）。 */
+async function submitRoom() {
+  const name = roomForm.value.name.trim()
+  if (!name) {
+    toast.warning('请填写服务器名称')
+    return
+  }
+  if (roomForm.value.passwordEnabled && !roomForm.value.password.trim()) {
+    toast.warning('请输入房间密码')
+    return
+  }
+  const node = NODES.find((n) => n.id === roomForm.value.nodeId) ?? bestNode.value
+  try {
+    await store.createRoom({
+      name,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      host: node.host,
+      port: roomPort.value,
+      password: roomForm.value.passwordEnabled ? roomForm.value.password.trim() : '',
+      persist: roomForm.value.persist,
+    })
+    roomModalOpen.value = false
+    toast.success(`已创建服务器「${name}」`)
+  } catch (e) {
+    toast.error((e as Error).message)
+  }
+}
+
+/** 删除自己的服务器（二级锁确认）。 */
+async function handleRemoveRoom(r: MultiplayerRoom) {
   const ok = await confirmDialog({
     title: '删除服务器',
-    message: `确定删除服务器「${s.name}」？该操作不可撤销。`,
+    message: `确定删除服务器「${r.name}」？该操作不可撤销。`,
     confirmText: '删除',
     danger: true,
   })
   if (!ok) return
-  await store.removeServer(s.id)
-  toast.success(`已删除服务器「${s.name}」`)
+  await store.removeRoom(r.id)
+  toast.success(`已删除服务器「${r.name}」`)
 }
 
-/** 复制服务器地址到剪贴板（失败时用 toast 兜底展示）。 */
-async function copyAddress(s: ServerEntry) {
-  const addr = serverAddress(s)
-  try {
-    await navigator.clipboard.writeText(addr)
-    toast.success(`已复制地址：${addr}`)
-  } catch {
-    toast.info(`服务器地址：${addr}`)
-  }
+/** 切换自己的房间「退出不消失」（保留 3 天，启动后重新计时）。 */
+async function toggleMinePersist(value: boolean) {
+  const r = mineRoom.value
+  if (!r) return
+  await store.setRoomPersist(r.id, value)
+  toast.success(
+    value ? '已开启保留，房间将在 3 天内有效' : '已关闭保留，退出启动器后房间会销毁',
+  )
+}
+
+/** 房间地址展示。 */
+function roomAddress(r: MultiplayerRoom): string {
+  return `${r.host}:${r.port}`
+}
+
+/** 保留到期时间展示。 */
+function formatExpiry(ms: number): string {
+  if (!ms) return ''
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** 加入他人房间（社区联机尚未开放）。 */
+function joinRoom(r: MultiplayerRoom) {
+  toast.info(`「${r.name}」暂时无法加入，社区联机功能尚未开放`)
 }
 </script>
 
@@ -325,7 +413,6 @@ async function copyAddress(s: ServerEntry) {
         v-for="g in helpGroups"
         :key="g.title"
         :title="g.title"
-        :extra="`${g.items.length} 篇`"
       >
         <div
           v-for="e in g.items"
@@ -334,7 +421,7 @@ async function copyAddress(s: ServerEntry) {
           @click="readFull(e)"
         >
           <div class="item-left">
-            <div class="item-icon"><AlxIcon name="file-text" :size="20" /></div>
+            <div class="item-icon"><AlxIcon :name="e.icon" :size="20" /></div>
             <div class="item-info">
               <div class="item-title">{{ e.title }}</div>
               <div class="item-desc help-desc">{{ e.paragraphs[0] }}</div>
@@ -349,7 +436,7 @@ async function copyAddress(s: ServerEntry) {
     <template v-else-if="section === 'about'">
       <!-- 应用概览卡：图标 + 名称 + 版本标签 -->
       <div class="about-hero">
-        <div class="about-logo"><AlxIcon name="aperture" :size="44" /></div>
+        <div class="about-logo"><img src="/favicon.svg" width="44" height="44" alt="Aelux" /></div>
         <div class="about-hero-info">
           <div class="about-name">Aelux Launcher</div>
           <div class="about-desc">极简风格的 Minecraft 启动器</div>
@@ -388,7 +475,7 @@ async function copyAddress(s: ServerEntry) {
       <SettingGroup title="特别鸣谢" :collapsible="false">
         <div v-for="t in THANKS" :key="t.title" class="list-item">
           <div class="item-left">
-            <div class="item-icon"><AlxIcon name="star" :size="20" /></div>
+            <div class="item-icon"><AlxIcon :name="t.icon" :size="20" /></div>
             <div class="item-info">
               <div class="item-title">{{ t.title }}</div>
               <div class="item-desc">{{ t.desc }}</div>
@@ -407,6 +494,15 @@ async function copyAddress(s: ServerEntry) {
       </SettingGroup>
 
       <SettingGroup title="法律信息" :collapsible="false">
+        <div class="setting-row">
+          <div class="setting-label">
+            版权所有
+            <div class="setting-desc">版权署名不影响 MIT 许可证授予的使用、修改与再分发权利。</div>
+          </div>
+          <div class="setting-controls copyright-text">
+            © {{ copyrightYears }} Re0XIAOPA / 阿Mao嚯嚯及贡献者
+          </div>
+        </div>
         <div
           :class="['accordion-item legal-item', legalOpen ? 'active' : '']"
           @click="legalOpen = !legalOpen"
@@ -421,6 +517,11 @@ async function copyAddress(s: ServerEntry) {
               软件按 MIT 许可证发布，你可以在保留版权声明的前提下自由使用、修改与再分发。
               软件内展示的游戏名称、图标及相关资源归各自权利人所有，本项目仅用于标识与说明用途。
             </p>
+            <p class="legal-text">
+              版权所有 © {{ copyrightYears }} Re0XIAOPA / 阿Mao嚯嚯及贡献者。
+              版权署名与 MIT 许可证并不冲突：MIT 许可证允许商业使用、修改与再分发，
+              仅要求在所有副本或实质性部分中保留上述版权声明与许可声明。
+            </p>
           </div>
         </div>
       </SettingGroup>
@@ -431,7 +532,7 @@ async function copyAddress(s: ServerEntry) {
       <SettingGroup title="反馈渠道" :collapsible="false">
         <div class="list-item feedback-row">
           <div class="item-left">
-            <div class="item-icon"><AlxIcon name="message-square" :size="20" /></div>
+            <div class="item-icon"><AlxIcon name="github" :size="20" /></div>
             <div class="item-info">
               <div class="item-title">GitHub Issues</div>
               <div class="item-desc">遇到问题或有功能建议？欢迎提交 Issue。</div>
@@ -443,7 +544,7 @@ async function copyAddress(s: ServerEntry) {
         </div>
         <div class="list-item feedback-row">
           <div class="item-left">
-            <div class="item-icon"><AlxIcon name="globe" :size="20" /></div>
+            <div class="item-icon"><AlxIcon name="qq" :size="20" /></div>
             <div class="item-info">
               <div class="item-title">官方交流群</div>
               <div class="item-desc">加入官方交流群，与其他玩家交流使用技巧。</div>
@@ -576,64 +677,134 @@ async function copyAddress(s: ServerEntry) {
         <div class="online-notice-info">
           <div class="online-notice-title">社区联机暂未开放</div>
           <div class="online-notice-desc">
-            当前版本暂不支持社区联机匹配。你仍然可以保存常用服务器地址，进入游戏后直接连接。
+            服务器广场用于展示公开房间；当前版本暂不支持加入他人房间，创建后可自行进入游戏连接。
           </div>
         </div>
         <span class="tag">开发中</span>
       </div>
 
       <SettingGroup
-        title="已保存服务器"
+        title="服务器广场"
         :collapsible="false"
-        :extra="`${store.servers.length} 个`"
+        :extra="`${store.rooms.length} 个房间`"
       >
-        <div v-if="store.servers.length === 0" class="empty-state server-empty">
+        <div v-if="store.rooms.length === 0" class="empty-state server-empty">
           <AlxIcon name="globe" :size="28" />
-          <div>还没有保存任何服务器，在下方添加一个吧。</div>
+          <div>广场还空着，点击右下角的加号创建一个服务器吧。</div>
         </div>
-        <div v-for="s in store.servers" :key="s.id" class="list-item server-row">
+
+        <div
+          v-for="r in store.rooms"
+          :key="r.id"
+          :class="['list-item', 'server-row', r.mine ? 'server-mine' : '']"
+        >
           <div class="item-left">
-            <div class="item-icon"><AlxIcon name="globe" :size="20" /></div>
+            <div class="item-icon"><AlxIcon :name="r.mine ? 'server' : 'globe'" :size="20" /></div>
             <div class="item-info">
-              <div class="item-title">{{ s.name }}</div>
-              <div class="item-desc">{{ serverAddress(s) }}</div>
+              <div class="item-title server-title">
+                <span class="server-name">{{ r.name }}</span>
+                <span v-if="r.mine" class="tag">我的服务器</span>
+                <span v-if="r.password" class="tag">密码房</span>
+              </div>
+              <div class="item-desc">{{ r.nodeLabel }} · {{ roomAddress(r) }}</div>
+              <div v-if="r.mine && r.persist" class="server-expiry">
+                保留至 {{ formatExpiry(r.expiresAt) }}
+              </div>
             </div>
           </div>
           <div class="item-right">
-            <button type="button" class="btn-download btn-ghost server-action" @click="copyAddress(s)">
-              复制地址
+            <button type="button" class="btn-download btn-ghost server-action" @click="joinRoom(r)">
+              {{ r.mine ? '进入房间' : '加入' }}
             </button>
-            <button type="button" class="btn-download btn-ghost server-action" @click="handleRemoveServer(s)">
+            <button
+              v-if="r.mine"
+              type="button"
+              class="btn-download btn-ghost server-action danger"
+              @click="handleRemoveRoom(r)"
+            >
               删除
             </button>
           </div>
         </div>
+
+        <!-- 自己房间的保留设置 -->
+        <div v-if="mineRoom" class="server-persist-row">
+          <div class="server-persist-info">
+            <div class="item-title">退出不消失</div>
+            <div class="item-desc">
+              开启后退出启动器仍保留房间，最多 3 天；期间再次启动会重新计时。
+            </div>
+          </div>
+          <AlxToggle :model-value="mineRoom.persist" @update:model-value="toggleMinePersist" />
+        </div>
       </SettingGroup>
 
-      <SettingGroup title="添加服务器" :collapsible="false">
-        <div class="setting-row">
-          <div class="setting-label">名称</div>
-          <input v-model="form.name" class="setting-input" type="text" placeholder="我的服务器" />
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">地址</div>
-          <input v-model="form.host" class="setting-input" type="text" placeholder="mc.example.com" />
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            端口
-            <div class="setting-desc">留空时使用默认端口 25565</div>
+      <!-- 右下角圆形加号：打开创建服务器弹窗 -->
+      <button type="button" class="mp-fab" title="添加服务器" @click="openRoomModal">
+        <AlxIcon name="plus" :size="22" />
+      </button>
+
+      <AlxModal :open="roomModalOpen" title="添加服务器" @close="roomModalOpen = false">
+        <div class="mp-form">
+          <div class="mp-field">
+            <label class="mp-label">名称</label>
+            <input
+              v-model="roomForm.name"
+              class="setting-input"
+              type="text"
+              placeholder="我的服务器"
+            />
           </div>
-          <input v-model="form.port" class="setting-input" type="text" placeholder="25565" />
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            保存
-            <div class="setting-desc">保存后会出现在上方服务器列表</div>
+
+          <div class="mp-field">
+            <label class="mp-label">服务器节点</label>
+            <AlxSelect v-model="roomForm.nodeId" :options="nodeOptions" />
+            <div class="mp-hint">已自动检测节点延迟，默认选中网络最优节点。</div>
           </div>
-          <button type="button" class="btn-download server-action" @click="handleAddServer">保存</button>
+
+          <div class="mp-field">
+            <label class="mp-label">端口</label>
+            <div class="mp-port">{{ roomPort }}</div>
+            <div class="mp-hint">端口由系统随机分配，无需手动填写。</div>
+          </div>
+
+          <div class="mp-field">
+            <div class="mp-switch-row">
+              <div class="mp-switch-info">
+                <div class="item-title">密码房</div>
+                <div class="item-desc">开启后加入房间需要输入密码。</div>
+              </div>
+              <AlxToggle v-model="roomForm.passwordEnabled" />
+            </div>
+            <input
+              v-if="roomForm.passwordEnabled"
+              v-model="roomForm.password"
+              class="setting-input mp-password"
+              type="password"
+              placeholder="设置房间密码"
+            />
+          </div>
+
+          <div class="mp-field">
+            <div class="mp-switch-row">
+              <div class="mp-switch-info">
+                <div class="item-title">退出不消失</div>
+                <div class="item-desc">
+                  退出启动器后保留房间，最多 3 天，再次启动会重新计时。
+                </div>
+              </div>
+              <AlxToggle v-model="roomForm.persist" />
+            </div>
+          </div>
         </div>
-      </SettingGroup>
+
+        <template #actions>
+          <button type="button" class="btn-download btn-ghost" @click="roomModalOpen = false">
+            取消
+          </button>
+          <button type="button" class="btn-download" @click="submitRoom">创建</button>
+        </template>
+      </AlxModal>
     </template>
   </div>
 </template>
@@ -707,6 +878,14 @@ async function copyAddress(s: ServerEntry) {
   margin: 0;
   font-size: 13px;
   line-height: 1.8;
+  color: var(--text-sub);
+}
+.legal-text + .legal-text {
+  margin-top: 10px;
+}
+.copyright-text {
+  text-align: right;
+  font-size: 13px;
   color: var(--text-sub);
 }
 
@@ -800,7 +979,105 @@ async function copyAddress(s: ServerEntry) {
 .server-row {
   padding: 12px 16px;
 }
+.server-mine {
+  background: var(--hover-bg);
+}
+.server-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.server-name {
+  font-weight: 600;
+}
+.server-expiry {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
 .server-action {
   height: 32px;
+}
+.server-action.danger {
+  color: #e5484d;
+}
+.server-persist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-light);
+}
+.server-persist-info {
+  min-width: 0;
+}
+
+/* 右下角圆形加号 */
+.mp-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-light);
+  border-radius: 50%;
+  background: var(--bg-color);
+  color: var(--text-main);
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.mp-fab:hover {
+  background: var(--hover-bg);
+  transform: scale(1.06);
+}
+
+/* 创建服务器弹窗 */
+.mp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.mp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mp-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+.mp-hint {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-sub);
+}
+.mp-port {
+  padding: 8px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--icon-bg);
+  color: var(--text-main);
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+.mp-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.mp-switch-info {
+  min-width: 0;
+}
+.mp-password {
+  margin-top: 4px;
 }
 </style>

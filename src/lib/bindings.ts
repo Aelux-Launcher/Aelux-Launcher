@@ -16,6 +16,11 @@ export const commands = {
 	 *  与实例 Minecraft 目录下的 `logs/*.log(.gz)`。
 	 */
 	listLogs: () => typedError<LogFile[], string>(__TAURI_INVOKE("list_logs")),
+	/**
+	 *  读取崩溃报告：优先最近 10 分钟内生成的 `crash-reports/*.txt`，
+	 *  否则回退到启动器捕获的 `<id>-latest.log`，只返回末尾片段供弹窗预览。
+	 */
+	readCrashReport: (instanceId: string) => typedError<CrashReport, string>(__TAURI_INVOKE("read_crash_report", { instanceId })),
 	getCoreVersion: () => __TAURI_INVOKE<string>("get_core_version"),
 	fetchJson: (url: string) => typedError<string, string>(__TAURI_INVOKE("fetch_json", { url })),
 	downloadFile: (url: string, dest: string, sha1: string | null) => typedError<string, string>(__TAURI_INVOKE("download_file", { url, dest, sha1 })),
@@ -108,6 +113,16 @@ export type AuthServer = {
 	id: string,
 	name: string,
 	url: string,
+};
+
+/**  崩溃报告：游戏非正常退出时用于弹窗展示的日志片段。 */
+export type CrashReport = {
+	/**  报告或日志文件的绝对路径（空 = 未找到文件） */
+	path: string,
+	/**  末尾日志片段（供弹窗预览） */
+	content: string,
+	/**  是否来自游戏的 crash-reports（false = 启动器捕获日志） */
+	fromGame: boolean,
 };
 
 /**  设备码登录会话（轮询时原样回传）。 */

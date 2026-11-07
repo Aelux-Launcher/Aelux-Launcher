@@ -161,6 +161,34 @@ onBeforeUnmount(() => {
 
 const announcement = computed(() => store.pendingAnnouncements[0] ?? null)
 const showPreviewTip = ref(true)
+
+/** 复制崩溃日志到剪贴板。 */
+async function copyCrashLog() {
+  const c = store.crashInfo
+  if (!c) return
+  try {
+    await navigator.clipboard.writeText(c.content)
+    toast.success('崩溃日志已复制到剪贴板')
+  } catch {
+    toast.error('复制失败，请在日志中手动选择文本复制')
+  }
+}
+
+/** 打开崩溃日志所在文件夹。 */
+async function openCrashFolder() {
+  const c = store.crashInfo
+  if (!c) return
+  if (!c.path) {
+    toast.warning('没有找到崩溃日志文件')
+    return
+  }
+  const dir = c.path.replace(/[\\/][^\\/]+$/, '')
+  try {
+    await call('open_folder_in_explorer', { path: dir })
+  } catch (e) {
+    toast.error(`打开失败：${(e as Error).message}`)
+  }
+}
 </script>
 
 <template>
@@ -212,6 +240,30 @@ const showPreviewTip = ref(true)
         >
           知道了
         </button>
+      </template>
+    </AlxModal>
+
+    <!-- 游戏崩溃弹窗（内核上报非 0 退出码时自动弹出） -->
+    <AlxModal :open="!!store.crashInfo" title="游戏崩溃了" @close="store.dismissCrash()">
+      <div v-if="store.crashInfo" class="crash-modal">
+        <div class="crash-meta">
+          <span class="tag">{{ store.crashInfo.instanceName }}</span>
+          <span class="tag">退出码 {{ store.crashInfo.exitCode }}</span>
+          <span class="tag">{{ store.crashInfo.fromGame ? '崩溃报告' : '启动日志' }}</span>
+        </div>
+        <div class="crash-desc">
+          游戏没有正常退出。下面是日志的末尾片段，完整内容可在崩溃日志文件夹中查看。
+        </div>
+        <pre class="crash-log">{{ store.crashInfo.content }}</pre>
+      </div>
+      <template #actions>
+        <button type="button" class="btn-download btn-ghost" @click="store.dismissCrash()">
+          取消
+        </button>
+        <button type="button" class="btn-download btn-ghost" @click="openCrashFolder">
+          打开崩溃日志文件夹
+        </button>
+        <button type="button" class="btn-download" @click="copyCrashLog">复制崩溃日志</button>
       </template>
     </AlxModal>
 

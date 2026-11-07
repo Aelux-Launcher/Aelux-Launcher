@@ -483,6 +483,13 @@ async function mockCall<T>(command: string, args?: Record<string, unknown>): Pro
         },
       ] as T
     }
+    case 'read_crash_report':
+      return {
+        path: '/preview/.aelux/minecraft/instances/preview-1/crash-reports/crash-2026-01-20_12.00.00-client.txt',
+        content:
+          '---- Minecraft Crash Report ----\n// Oh dear, looks like a preview crash\n\nTime: 2026-01-20 12:00:00\nDescription: Rendering overlay\n\njava.lang.NullPointerException: preview\n\tat net.minecraft.client.Minecraft.run(Minecraft.java:1000)\n\n-- System Details --\nMinecraft Version: 1.21.4\nMemory: 2048 MB',
+        fromGame: true,
+      } as T
     case 'fetch_minecraft_manifest':
       return {
         latest: { release: '1.21.4', snapshot: '25w45a' },

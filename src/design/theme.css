@@ -1505,6 +1505,38 @@ svg {
   gap: 10px;
 }
 .alx-modal__actions .btn-sub { flex: none; padding: 0 18px; }
+/* 崩溃弹窗：内容较宽，日志区内部滚动 */
+.alx-modal:has(.crash-modal) .alx-modal__box {
+  width: min(760px, calc(100vw - 64px));
+  max-width: 760px;
+}
+.crash-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.crash-desc {
+  margin-bottom: 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-sub);
+}
+.crash-log {
+  max-height: 300px;
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--icon-bg);
+  color: var(--text-main);
+  font-family: Consolas, 'Cascadia Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
 /* 红色描边按钮（危险操作的第二级确认） */
 .btn-download.btn-danger-outline {
   background: transparent;

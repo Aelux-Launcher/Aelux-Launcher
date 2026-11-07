@@ -83,6 +83,31 @@ export const ICONS = {
   'arrow-left': { vb: V, body: `<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>` },
   /* 日志文件：文档 + 文本行（「更多 → 日志」） */
   'file-text': { vb: V, body: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>` },
+  /* 帮助教程图标：草方块 / 命令方块 / 干草块（等距方块） */
+  'grass-block': {
+    vb: V,
+    body: `<polygon points="12 2 22 7 12 12 2 7" fill="#79c34b" stroke="none"/><polygon points="2 7 12 12 12 22 2 17" fill="#8a6242" stroke="none"/><polygon points="22 7 12 12 12 22 22 17" fill="#6b4930" stroke="none"/><polygon points="2 7 12 12 22 7 22 9.5 12 14.5 2 9.5" fill="#5aa23a" stroke="none"/>`,
+  },
+  'command-block': {
+    vb: V,
+    body: `<polygon points="12 2 22 7 12 12 2 7" fill="#d8a35b" stroke="none"/><polygon points="2 7 12 12 12 22 2 17" fill="#b47a3a" stroke="none"/><polygon points="22 7 12 12 12 22 22 17" fill="#95612c" stroke="none"/><polygon points="15 13 19 15 19 18 15 16" fill="#3b2a1b" stroke="none"/><polygon points="6 12 10 14 10 17 6 15" fill="#3b2a1b" stroke="none"/>`,
+  },
+  'hay-block': {
+    vb: V,
+    body: `<polygon points="12 2 22 7 12 12 2 7" fill="#e8c85a" stroke="none"/><polygon points="2 7 12 12 12 22 2 17" fill="#d3ad3f" stroke="none"/><polygon points="22 7 12 12 12 22 22 17" fill="#b8912f" stroke="none"/><path d="M5 8.5 9 10.5M7 12.5 11 14.5M15 9.5 19 11.5M17 13.5 21 15.5" fill="none" stroke="#8f6d22"/>`,
+  },
+  /* 反馈渠道：GitHub / QQ */
+  github: {
+    vb: V,
+    body: `<path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.17c-3.2.7-3.87-1.36-3.87-1.36-.53-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.47.11-3.05 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.41-2.69 5.38-5.25 5.66.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z" fill="currentColor" stroke="none"/>`,
+  },
+  qq: {
+    vb: V,
+    body: `<path d="M12 3c3.6 0 6 2.6 6 6v1.6c1.1.8 1.8 2 1.8 3.4 0 1.6-1 2.9-2.4 3.4.5 3.7-2 6.6-5.4 6.6s-5.9-2.9-5.4-6.6C5.2 16.3 4.2 15 4.2 13.4c0-1.4.7-2.6 1.8-3.4V9c0-3.4 2.4-6 6-6z"/><circle cx="9.4" cy="10.8" r="1.1" fill="currentColor" stroke="none"/><circle cx="14.6" cy="10.8" r="1.1" fill="currentColor" stroke="none"/><path d="M10.6 13.8h2.8l-1.4 1.4z" fill="currentColor" stroke="none"/><path d="M7.5 16.2c1 .6 1.7 1.9 2 3.2M16.5 16.2c-1 .6-1.7 1.9-2 3.2"/>`,
+  },
+  /* 外置登录 / 授权 */
+  key: { vb: V, body: `<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2M17 6l3 3M14 9l3 3"/>` },
+  'book-open': { vb: V, body: `<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>` },
   'alert-circle': { vb: V, body: `<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>` },
 } satisfies Record<string, IconDef>
 

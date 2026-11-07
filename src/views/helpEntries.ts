@@ -1,19 +1,22 @@
 /**
- * 帮助条目库（原 HelpDetail.tsx 内的 HELP_ENTRIES）。
+ * 帮助条目库（「更多 → 帮助」页的分组与详情页共用）。
  *
- * SFC 无法具名导出，因此数据与查找函数单独放在这个 ts 模块：
- *   - 「更多 → 帮助」页的折叠分组会读它（见 More.vue 的 help 节）；
- *   - 帮助详情副页面按 entryId 取正文（见 HelpDetail.vue）。
+ * 目前只保留与 Aelux Launcher 现有功能对应的三个案例教程：
+ *   Minecraft 教程（草方块）、购买正版账号（命令方块）、手动选择 Java（干草块）。
+ * 图标名来自 components/icons.ts 的图标注册表。
  */
+import type { IconName } from '../components/icons'
 
 /** 帮助条目。 */
 export interface HelpEntry {
   /** 条目标识 */
   id: string
-  /** 所属分组（面包屑用） */
+  /** 所属分组 */
   group: string
   /** 条目标题 */
   title: string
+  /** 条目图标 */
+  icon: IconName
   /** 正文段落 */
   paragraphs: string[]
   /** 相关链接 */
@@ -23,104 +26,37 @@ export interface HelpEntry {
 /** 帮助条目库（更多 → 帮助 页的分组会读它）。 */
 export const HELP_ENTRIES: HelpEntry[] = [
   {
-    id: 'download-install',
-    group: 'Minecraft',
-    title: '下载与安装',
+    id: 'minecraft-guide',
+    group: '指南',
+    title: 'Minecraft 教程',
+    icon: 'grass-block',
     paragraphs: [
-      '在「下载」页选择「原版游戏」，输入需要的游戏版本号，回车即可开始下载。',
-      '下载过程可以在「任务管理」页查看进度；游戏文件会放在你选择的 Minecraft 文件夹下。',
-      '安装完成后，版本会出现在「版本选择」页，随时可以单独调整它的启动参数与 Mod。',
+      '在「下载」页选择原版游戏，输入需要的版本号（例如 1.21.4），回车即可开始下载。',
+      '下载完成后，在「版本选择」页找到该版本，点击行尾的播放按钮启动。首次启动会自动准备 Java 运行时与缺失的依赖库。',
+      '如果启动失败，可以到「更多 → 日志」里查看该版本的启动日志，日志会写明失败原因。',
     ],
   },
   {
-    id: 'version-snapshot',
-    group: 'Minecraft',
-    title: '版本与快照',
+    id: 'buy-account',
+    group: '指南',
+    title: '购买正版账号',
+    icon: 'command-block',
     paragraphs: [
-      '正式版是 Minecraft 官方发布的稳定版本；预览版是官方提前放出的测试版本。',
-      '快照版（版本号里带 w 的那些）来自每周的快照，可能不够稳定，仅建议用于测试。',
+      'Aelux Launcher 不提供账号售卖。请前往 Minecraft 官网或 Microsoft Store 购买 Minecraft: Java & Bedrock Edition。',
+      '购买后回到「账户」页，点击「正版登录」，按提示在浏览器中完成 Microsoft 账号授权。',
+      '登录成功后，启动器会自动读取正版账号的头像与皮肤；如果头像没有立即刷新，可以稍等片刻或重新进入账户页。',
     ],
+    links: [{ label: 'Minecraft 官网', url: 'https://www.minecraft.net/zh-hans/store/minecraft-java-bedrock-edition-pc' }],
   },
   {
-    id: 'multiplayer-server',
-    group: 'Minecraft',
-    title: '联机与服务器',
+    id: 'choose-java',
+    group: '指南',
+    title: '手动选择 Java',
+    icon: 'hay-block',
     paragraphs: [
-      '在「联机」页添加服务器地址，填好端口后即可一键加入。',
-      '如果在「设置 → 联机」里配置了中转节点，联机时会自动走中转，适合直连不顺畅的网络环境。',
-    ],
-  },
-  {
-    id: 'mod-modpack',
-    group: 'Minecraft',
-    title: '模组与整合包',
-    paragraphs: [
-      '在「下载」页的「Mod / 整合包 / 数据包 / 资源包 / 光影包」分类里搜索并安装。',
-      '装好的 Mod 会出现在对应版本的「Mod 管理」页；导出整合包时可以勾选要带走的内容。',
-    ],
-  },
-  {
-    id: 'version-compare',
-    group: '百科',
-    title: '版本号对照',
-    paragraphs: [
-      '版本号里的第一段是 Minecraft 的主版本号（如 1.21）；第二段是补丁号（如 1.21.4）。',
-      '带 w 的是快照版；带 pre / rc 的是预览版；正式发布则不带任何后缀。',
-    ],
-  },
-  {
-    id: 'shader-texture',
-    group: '百科',
-    title: '光影与材质说明',
-    paragraphs: [
-      '光影包负责画面的光照与阴影效果，材质包（资源包）负责贴图与模型。',
-      '两者互不冲突，可以同时安装；性能不足时优先降低光影包的渲染质量。',
-    ],
-  },
-  {
-    id: 'launcher-install',
-    group: '启动器',
-    title: '安装与更新',
-    paragraphs: [
-      '启动器本体不需要联网下载任何组件，下载后直接运行即可。',
-      '只有在取游戏内容（版本、依赖库、材质、社区资源）时才会联网。',
-    ],
-  },
-  {
-    id: 'launcher-troubleshoot',
-    group: '启动器',
-    title: '问题排查',
-    paragraphs: [
-      '启动失败时先看「启动」页的启动日志，日志里会写明失败原因。',
-      '内存不足是最常见的问题，可以在「版本设置 → 内存分配」里调高内存。',
-      '若提示 Java 相关错误，请在「版本设置 → 启动选项」里换一个可用的 Java 版本。',
-    ],
-  },
-  {
-    id: 'launcher-log',
-    group: '启动器',
-    title: '日志与反馈',
-    paragraphs: [
-      '启动日志在「启动」页右下方，点击「清空」可以清空当前日志。',
-      '反馈问题时请附上启动日志，能大幅缩短排查时间。',
-    ],
-  },
-  {
-    id: 'theme-appearance',
-    group: '个性化',
-    title: '主题与外观',
-    paragraphs: [
-      '在「设置 → 个性化」里可以切换浅色 / 深色主题，并调整界面不透明度。',
-      '主题选择会被记住，下次打开时沿用你上次的设定。',
-    ],
-  },
-  {
-    id: 'launch-options',
-    group: '个性化',
-    title: '启动选项',
-    paragraphs: [
-      '「设置 → 启动」是全局启动选项，对所有版本生效。',
-      '「版本设置」里的同名选项只对当前这一个版本生效，优先级更高。',
+      '启动器默认会优先使用自动下载的 Java 运行时，大多数情况下不需要手动设置。',
+      '如果需要指定其他 Java，可以在「设置 → 启动」里关闭自动选择并填写 Java 可执行文件路径；也可以在「版本设置 → 启动选项」里只对当前版本生效。',
+      '版本对应关系：Java 17 适合 1.17 – 1.20.4，Java 21 适合 1.20.5 及以上版本。选择不匹配的 Java 可能导致游戏无法启动。',
     ],
   },
 ]
