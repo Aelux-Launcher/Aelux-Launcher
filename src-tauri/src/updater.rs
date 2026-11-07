@@ -86,6 +86,8 @@ struct MirEntry {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct MirAggregated {
+    /// 仅用于兼容客户端清单的 schema 字段，解析后不参与逻辑。
+    #[allow(dead_code)]
     #[serde(default)]
     schema: Option<u32>,
     #[serde(default)]
