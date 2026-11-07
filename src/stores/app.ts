@@ -509,7 +509,13 @@ export const useAppStore = defineStore('app', () => {
     ds.done = tasks.filter((t) => t.status === 'done').length
     ds.failed = tasks.filter((t) => t.status === 'failed').length
     ds.pending = tasks.filter((t) => t.status === 'pending').length
+    const wasFinished = ds.finished
     ds.finished = tasks.length > 0 && ds.pending === 0 && ds.active === 0
+    // 全部完成（无失败）且用户仍停在任务页 → 自动回首页。
+    // 有失败项时留在任务页，让用户看到失败原因。
+    if (ds.finished && !wasFinished && ds.failed === 0 && route.value.name === 'tasks') {
+      setView('home')
+    }
   }
 
   /**
@@ -931,8 +937,6 @@ export const useAppStore = defineStore('app', () => {
       if (job !== installJobSeq) return false
       finishDownloadTasks('done')
       await refreshInstances()
-      // 在下载进度页完成时同样回到首页。
-      if (route.value.name === 'tasks') setView('home')
       return true
     } catch (e) {
       if (job !== installJobSeq) return false
@@ -1231,8 +1235,6 @@ export const useAppStore = defineStore('app', () => {
       }
       const tab = TAB_BY_KIND[kind]
       if (tab) reloadInstanceTab(tab)
-      // 下载完成后停在任务页的话自动回首页。
-      if (route.value.name === 'tasks') setView('home')
       return item
     } catch (e) {
       finishDownloadTasks('failed')
@@ -1256,7 +1258,6 @@ export const useAppStore = defineStore('app', () => {
       instances.value = [...instances.value, result.instance]
       toast.success(`整合包已安装：${result.instance.name}（${result.files} 个文件）`)
       finishDownloadTasks('done')
-      if (route.value.name === 'tasks') setView('home')
       return result.instance
     } catch (e) {
       finishDownloadTasks('failed')
@@ -2083,17 +2084,23 @@ export const useAppStore = defineStore('app', () => {
 
   /**
    * 下载资源版本文件：Tauri 下弹出保存对话框，浏览器预览落到模拟路径。
+   * `defaultDir` 为预填目录（通常是当前实例的内容目录 mods 等），目录不存在时由系统兜底。
    * 取消返回 null；成功返回保存路径。下载任务在任务管理页可见。
    */
-  async function saveResourceFile(v: ResourceVersion, label = '资源文件'): Promise<string | null> {
+  async function saveResourceFile(
+    v: ResourceVersion,
+    label = '资源文件',
+    defaultDir?: string | null,
+  ): Promise<string | null> {
     if (!v.fileUrl) throw new Error('该版本没有可下载文件')
     const fallbackName = v.fileName || `${v.versionNumber || v.id}.jar`
     let dest: string
     if (isTauri) {
       const { save } = await import('@tauri-apps/plugin-dialog')
       const ext = fallbackName.includes('.') ? fallbackName.split('.').pop() ?? 'jar' : 'jar'
+      const sep = defaultDir?.includes('\\') ? '\\' : '/'
       const picked = await save({
-        defaultPath: fallbackName,
+        defaultPath: defaultDir ? `${defaultDir}${sep}${fallbackName}` : fallbackName,
         filters: [{ name: label, extensions: [ext] }],
       })
       if (!picked) return null

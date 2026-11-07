@@ -8,7 +8,7 @@
  *   名称 / 来源 / 游戏版本 / 加载器 / 类型 → 检索 → 结果列表 → 翻页。
  */
 import { computed, ref, watch } from 'vue'
-import type { ResourceKind, ResourceProject, ResourceSource } from '../lib/types'
+import type { ResourceKind, ResourceQuery, ResourceProject, ResourceSource } from '../lib/types'
 import { useAppStore } from '../stores/app'
 import { categoryLabel, formatDownloads, formatRelativeTime, RESOURCE_CATEGORIES } from '../lib/modrinth'
 import { oldestMcVersion } from '../lib/mcVersion'
@@ -256,22 +256,6 @@ function clearFiltersAndSearch() {
   void store.searchResources(true, true)
 }
 
-/** 进入分类时同步资源类型与结果（setResourceKind 会清空旧结果，避免串类）。 */
-watch(
-  () => props.cat,
-  (c) => {
-    if (c === 'original') return
-    store.setResourceKind(c as ResourceKind)
-    // 世界只有 CurseForge 提供，若当前停在 Modrinth 则自动切回全部
-    if (c === 'world' && store.resourceQuery.source === 'modrinth') {
-      store.setResourceQuery({ source: 'all' })
-    }
-    applyInstancePrefill(c)
-    void store.searchResources()
-  },
-  { immediate: true },
-)
-
 /* --------------------- 按当前实例自动筛选（下载设置开关） --------------------- */
 
 /** 「按当前实例自动筛选」开关：读取界面层偏好，随设置页改动实时生效。 */
@@ -295,6 +279,22 @@ function applyInstancePrefill(kind: string) {
   }
   store.setResourceQuery(patch)
 }
+
+/** 进入分类时同步资源类型与结果（setResourceKind 会清空旧结果，避免串类）。 */
+watch(
+  () => props.cat,
+  (c) => {
+    if (c === 'original') return
+    store.setResourceKind(c as ResourceKind)
+    // 世界只有 CurseForge 提供，若当前停在 Modrinth 则自动切回全部
+    if (c === 'world' && store.resourceQuery.source === 'modrinth') {
+      store.setResourceQuery({ source: 'all' })
+    }
+    applyInstancePrefill(c)
+    void store.searchResources()
+  },
+  { immediate: true },
+)
 
 /** 清空游戏版本时同步清空隐藏的加载器条件，避免「看不见但生效」。 */
 watch(

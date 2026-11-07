@@ -2602,6 +2602,18 @@ select.filter-control { cursor: pointer; }
   color: var(--text-main);
   font-size: 13px;
 }
+/* 资源安装弹窗：实例下拉 + 目录提示 */
+.install-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.install-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-sub);
+}
 .mod-update-list {
   display: flex;
   flex-direction: column;

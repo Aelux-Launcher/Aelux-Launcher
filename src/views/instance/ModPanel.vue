@@ -8,7 +8,7 @@
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { toast } from '../../lib/toast'
-import type { GameInstance, ModUpdate } from '../../lib/types'
+import type { GameInstance, ModUpdate, ResourceQuery } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxModal from '../../components/AlxModal.vue'
 import AlxSearchBar from '../../components/AlxSearchBar.vue'
@@ -327,6 +327,22 @@ async function confirmDelete() {
 
 /* ------------------------- 其它工具 ------------------------- */
 
+/** Mod 搜索页可筛选的加载器（vanilla / optifine 等不参与筛选）。 */
+const MOD_LOADER_FILTERS = ['forge', 'neoforge', 'fabric', 'quilt']
+
+/**
+ * 「下载新 Mod」：前往模组下载页，并默认按当前实例的游戏版本与加载器检索
+ * （显式动作，不受下载设置里的自动筛选开关影响）。
+ */
+function downloadNewMods() {
+  const patch: Partial<ResourceQuery> = { gameVersion: props.instance.version }
+  if (MOD_LOADER_FILTERS.includes(props.instance.loader)) {
+    patch.loader = props.instance.loader
+  }
+  store.setResourceQuery(patch)
+  void store.routerPush('/download/mod')
+}
+
 async function installFromFile() {
   try {
     const { open } = await import('@tauri-apps/plugin-dialog')
@@ -357,7 +373,7 @@ async function installFromFile() {
       <button type="button" class="btn-sub" :disabled="checking" @click="checkUpdates">
         {{ checking ? '检查中…' : '检查更新' }}
       </button>
-      <button type="button" class="btn-sub" @click="store.routerPush('/download/mod')">
+      <button type="button" class="btn-sub" @click="downloadNewMods">
         下载新 Mod
       </button>
       <button type="button" class="btn-sub" @click="selectAll">全选</button>

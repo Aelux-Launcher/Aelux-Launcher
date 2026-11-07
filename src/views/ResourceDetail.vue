@@ -38,6 +38,7 @@ import {
 import AlxIcon from '../components/AlxIcon.vue'
 import AlxLoading from '../components/AlxLoading.vue'
 import AlxModal from '../components/AlxModal.vue'
+import AlxSelect from '../components/AlxSelect.vue'
 /* 版本发布类型图标（Alpha / Beta / Release）。 */
 import ALPHA_ICON from '../assets/release-types/alpha.png'
 import BETA_ICON from '../assets/release-types/beta.png'
@@ -580,6 +581,22 @@ const INSTALL_KIND: Record<string, string> = {
 const installTarget = ref<ResourceVersion | null>(null)
 const installing = ref(false)
 
+/** 安装弹窗：下拉选中的目标实例 id。 */
+const installToId = ref('')
+
+/** 实例下拉选项（名称 + 版本 · 加载器）。 */
+const instanceOptions = computed(() =>
+  store.instances.map((i) => ({ value: i.id, label: `${i.name}（${i.version} · ${i.loader}）` })),
+)
+
+// 打开弹窗时默认选中当前启动实例（失效时回落第一个）。
+watch(installTarget, (v) => {
+  if (!v) return
+  const cur = store.selectedInstance
+  const fallback = store.instances[0]?.id ?? ''
+  installToId.value = cur && store.instances.some((i) => i.id === cur.id) ? cur.id : fallback
+})
+
 /** 是否支持一键安装进实例。 */
 function canInstall(): boolean {
   return props.resourceKind === 'modpack' || !!INSTALL_KIND[props.resourceKind]
@@ -618,7 +635,7 @@ async function installModpack(v: ResourceVersion) {
 /** 安装到所选实例（内核下载并落盘到对应目录）。 */
 async function installTo(instanceId: string) {
   const version = installTarget.value
-  if (!version) return
+  if (!version || !instanceId) return
   installing.value = true
   try {
     await store.installResource(
@@ -634,25 +651,49 @@ async function installTo(instanceId: string) {
   }
 }
 
-/** 保存版本文件（Tauri 下弹出保存对话框）。 */
+/** 下载版本：Mod 等可安装类型直接装进当前启动实例的内容目录（不再弹「另存为」）；
+ * 无当前实例时退回实例选择弹窗；数据包等不可安装类型保留「另存为」。 */
 async function downloadVersion(v: ResourceVersion) {
   if (!v.fileUrl || downloadingIds.value.has(v.id)) return
-  downloadingIds.value = new Set(downloadingIds.value).add(v.id)
+  const kind = INSTALL_KIND[props.resourceKind]
+  const inst = store.selectedInstance
+  if (kind && inst) {
+    downloadingIds.value = new Set(downloadingIds.value).add(v.id)
+    try {
+      await store.installResource(inst.id, kind, v.fileUrl, v.fileName, null)
+    } finally {
+      const next = new Set(downloadingIds.value)
+      next.delete(v.id)
+      downloadingIds.value = next
+    }
+    return
+  }
+  if (kind) {
+    requestInstall(v)
+    return
+  }
   try {
     const path = await store.saveResourceFile(v, KIND_TITLE[props.resourceKind] ?? '资源文件')
     if (path) toast.success(`已保存到 ${path}`)
   } catch (e) {
     toast.error(`下载失败：${(e as Error).message}`)
-  } finally {
-    const next = new Set(downloadingIds.value)
-    next.delete(v.id)
-    downloadingIds.value = next
   }
 }
 
 /** 加载失败后重试。 */
 function retry() {
   void store.loadResourceDetail(props.projectId, props.resourceKind as ResourceKind)
+}
+
+/** ⬇ 按钮提示：可安装类型 = 装进当前实例；其余 = 另存为。 */
+function downloadTitle(v: ResourceVersion): string {
+  const inst = store.selectedInstance
+  if (INSTALL_KIND[props.resourceKind]) {
+    return inst
+      ? `安装到 ${inst.name} 的 ${INSTALL_KIND[props.resourceKind]} 目录（${v.fileName}）`
+      : `选择实例安装（${v.fileName}）`
+  }
+  return `另存为 ${v.fileName}`
 }
 
 /** 封面加载失败时回退到占位图标。 */
@@ -886,7 +927,7 @@ watch(
               <button
                 type="button"
                 class="icon-btn version-file-download"
-                :title="`另存为 ${v.fileName}`"
+                :title="downloadTitle(v)"
                 :disabled="downloadingIds.has(v.id)"
                 @click.stop="downloadVersion(v)"
               >
@@ -898,36 +939,40 @@ watch(
       </section>
     </template>
 
-    <!-- 安装到实例：选择目标实例 -->
+    <!-- 安装到实例：下拉选择目标实例（默认当前启动实例） -->
     <AlxModal
       :open="installTarget !== null"
       :title="`安装 ${installTarget?.fileName ?? ''}`"
       @close="installTarget = null"
     >
-      <p class="mod-update-lead">选择要安装到的实例：</p>
-      <div v-if="store.instances.length === 0" class="empty-state">
-        <AlxIcon name="info" :size="28" />
-        <span>还没有实例，请先创建一个版本</span>
-      </div>
-      <div v-else class="loader-picker-list">
-        <button
-          v-for="inst in store.instances"
-          :key="inst.id"
-          type="button"
-          class="list-item loader-picker-item"
-          :disabled="installing"
-          @click="installTo(inst.id)"
-        >
-          <div class="item-info">
-            <AlxIcon name="minecraft" :size="20" />
-            <div class="item-title">{{ inst.name }}</div>
-            <span class="item-meta">{{ inst.version }} · {{ inst.loader }}</span>
-          </div>
-          <AlxIcon name="chevron-right" :size="16" />
-        </button>
-      </div>
+      <template v-if="installTarget">
+        <p class="mod-update-lead">选择要安装到的实例：</p>
+        <div v-if="store.instances.length === 0" class="empty-state">
+          <AlxIcon name="info" :size="28" />
+          <span>还没有实例，请先创建一个版本</span>
+        </div>
+        <div v-else class="install-picker">
+          <AlxSelect
+            :model-value="installToId"
+            :options="instanceOptions"
+            placeholder="选择实例"
+            @update:model-value="installToId = $event"
+          />
+          <p class="install-hint">
+            将安装到所选实例的 {{ INSTALL_KIND[props.resourceKind] ?? '' }} 目录
+          </p>
+        </div>
+      </template>
       <template #actions>
         <button type="button" class="btn-sub" @click="installTarget = null">取消</button>
+        <button
+          type="button"
+          class="btn-download"
+          :disabled="installing || !installToId"
+          @click="installTo(installToId)"
+        >
+          {{ installing ? '安装中…' : '开始安装' }}
+        </button>
       </template>
     </AlxModal>
   </div>
