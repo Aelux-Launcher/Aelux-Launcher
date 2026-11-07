@@ -139,8 +139,10 @@ export interface LauncherConfig {
   gameArgs: string[]
   gameWidth: number
   gameHeight: number
+  gameFullscreen: boolean
   downloadConcurrency: number
   hideOnLaunch: boolean
+  cacheDir: string
 }
 
 /* ------------------------------ 业务类型 ------------------------------ */

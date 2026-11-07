@@ -1242,9 +1242,14 @@ export const useAppStore = defineStore('app', () => {
     settings.value = { ...settings.value, ...patch }
     const next = settings.value
     // 缓存目录偏好存在界面层扩展字段里（SettingsExtras），只有「自定义」才传给内核
-    const extras = next as unknown as { cacheFolderMode?: string; cacheFolderPath?: string }
+    const extras = next as unknown as {
+      cacheFolderMode?: string
+      cacheFolderPath?: string
+      windowSize?: string
+    }
     const cacheDir =
       extras.cacheFolderMode === 'custom' ? (extras.cacheFolderPath ?? '').trim() : ''
+    const gameFullscreen = extras.windowSize === 'fullscreen'
     await Promise.all([
       call('kv_set', { key: 'settings', value: JSON.stringify(next) }),
       call('save_config', {
@@ -1258,6 +1263,7 @@ export const useAppStore = defineStore('app', () => {
           gameArgs: [],
           gameWidth: 854,
           gameHeight: 480,
+          gameFullscreen,
           downloadConcurrency: 8,
           hideOnLaunch: false,
           cacheDir,

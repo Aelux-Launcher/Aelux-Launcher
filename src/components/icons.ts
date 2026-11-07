@@ -5,6 +5,13 @@
  */
 import grassBlockImg from '../assets/blocks/grass-block.png'
 import commandBlockImg from '../assets/blocks/command-block.png'
+import grassPathImg from '../assets/blocks/grass-path.png'
+import goldBlockImg from '../assets/blocks/gold-block.png'
+import eggImg from '../assets/blocks/egg.png'
+import optifabricImg from '../assets/blocks/optifabric.png'
+import redstoneBlockImg from '../assets/blocks/redstone-block.png'
+import redstoneLampOffImg from '../assets/blocks/redstone-lamp-off.png'
+import redstoneLampOnImg from '../assets/blocks/redstone-lamp-on.png'
 
 export interface IconDef {
   /** viewBox */
@@ -89,13 +96,16 @@ export const ICONS = {
   'arrow-left': { vb: V, body: `<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>` },
   /* 日志文件：文档 + 文本行（「更多 → 日志」） */
   'file-text': { vb: V, body: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>` },
-  /* 帮助教程图标：草方块 / 命令方块使用 PCL 位图素材；干草块无现成素材，保留等距 SVG */
+  /* 帮助教程图标：全部使用 PCL 的方块位图素材 */
   'grass-block': { vb: V, body: '', src: grassBlockImg },
   'command-block': { vb: V, body: '', src: commandBlockImg },
-  'hay-block': {
-    vb: V,
-    body: `<polygon points="12 2 22 7 12 12 2 7" fill="#e8c85a" stroke="none"/><polygon points="2 7 12 12 12 22 2 17" fill="#d3ad3f" stroke="none"/><polygon points="22 7 12 12 12 22 22 17" fill="#b8912f" stroke="none"/><path d="M5 8.5 9 10.5M7 12.5 11 14.5M15 9.5 19 11.5M17 13.5 21 15.5" fill="none" stroke="#8f6d22"/>`,
-  },
+  'hay-block': { vb: V, body: '', src: grassPathImg },
+  'gold-block': { vb: V, body: '', src: goldBlockImg },
+  egg: { vb: V, body: '', src: eggImg },
+  optifabric: { vb: V, body: '', src: optifabricImg },
+  'redstone-block': { vb: V, body: '', src: redstoneBlockImg },
+  'redstone-lamp-off': { vb: V, body: '', src: redstoneLampOffImg },
+  'redstone-lamp-on': { vb: V, body: '', src: redstoneLampOnImg },
   /* 反馈渠道：GitHub / QQ */
   github: {
     vb: V,
