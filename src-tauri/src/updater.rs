@@ -110,6 +110,10 @@ struct MirEntry {
     file: String,
     sha256: String,
     size: f64,
+    /// 裸 exe（可选；新客户端优先使用，空 = 只发 ZIP）
+    exe_file: String,
+    exe_sha256: String,
+    exe_size: f64,
 }
 
 /// 聚合清单（镜像源形态）。deny_unknown_fields 让单渠道清单落不进这个分支
@@ -152,7 +156,12 @@ fn parse_manifest(text: &str, channel: &str) -> Result<MirEntry, String> {
     Ok(entry)
 }
 
-fn entry_to_dto(e: MirEntry, download_url: String, source: &str) -> UpdateChannelEntry {
+fn entry_to_dto(
+    e: MirEntry,
+    download_url: String,
+    exe_download_url: String,
+    source: &str,
+) -> UpdateChannelEntry {
     UpdateChannelEntry {
         version: e.version,
         pub_date: e.pub_date,
@@ -160,7 +169,11 @@ fn entry_to_dto(e: MirEntry, download_url: String, source: &str) -> UpdateChanne
         file: e.file,
         sha256: e.sha256,
         size: e.size,
+        exe_file: e.exe_file,
+        exe_sha256: e.exe_sha256,
+        exe_size: e.exe_size,
         download_url,
+        exe_download_url,
         source: source.into(),
     }
 }
@@ -246,7 +259,24 @@ async fn fetch_github(client: &reqwest::Client, channel: &str) -> Result<UpdateC
             .find(|a| a.name == entry.file)
             .map(|a| a.browser_download_url.clone())
             .unwrap_or_else(|| entry_to_url_fallback(&repo, &best.tag_name, &entry.file));
-        return Ok(entry_to_dto(entry, download_url, "github"));
+        // 裸 exe 资产（可选；新客户端优先它，旧客户端继续用 ZIP）
+        let exe_download_url = if entry.exe_file.trim().is_empty() {
+            String::new()
+        } else {
+            best.assets
+                .iter()
+                .find(|a| a.name == entry.exe_file)
+                .map(|a| a.browser_download_url.clone())
+                .unwrap_or_else(|| {
+                    entry_to_url_fallback(&repo, &best.tag_name, &entry.exe_file)
+                })
+        };
+        return Ok(entry_to_dto(
+            entry,
+            download_url,
+            exe_download_url,
+            "github",
+        ));
     }
 
     // 旧发布没有清单资产：用 zip 资产兜底，sha256 留空（下载后不校验）
@@ -262,7 +292,11 @@ async fn fetch_github(client: &reqwest::Client, channel: &str) -> Result<UpdateC
         file: zip.name.clone(),
         sha256: String::new(),
         size: 0.0,
+        exe_file: String::new(),
+        exe_sha256: String::new(),
+        exe_size: 0.0,
         download_url: zip.browser_download_url.clone(),
+        exe_download_url: String::new(),
         source: "github".into(),
     })
 }
@@ -292,7 +326,12 @@ async fn fetch_base(
         .map_err(|e| e.to_string())?;
     let entry = parse_manifest(&text, channel)?;
     let url = join_base(base, &entry.file);
-    Ok(entry_to_dto(entry, url, source))
+    let exe_url = if entry.exe_file.trim().is_empty() {
+        String::new()
+    } else {
+        join_base(base, &entry.exe_file)
+    };
+    Ok(entry_to_dto(entry, url, exe_url, source))
 }
 
 /* ------------------------------ 源选择 ------------------------------ */
@@ -488,11 +527,70 @@ pub fn status() -> UpdateStatusInfo {
     }
 }
 
-/// 下载 + 校验 + 解压暂存（进度经内核下载任务推送，任务面板可见）。
+/// 下载 + 校验 + 暂存（进度经内核下载任务推送，任务面板可见）。
+///
+/// 清单同时提供 `exeFile` 时优先直接下载裸 exe；否则回退到 ZIP 解压流程，
+/// 保证旧清单 / 旧镜像仍然可用。
 pub async fn download(entry: &UpdateChannelEntry, task_id: &str) -> Result<String, String> {
     let data = data_dir_runtime();
     let root = update_root(&data);
     std::fs::create_dir_all(&root).map_err(|e| format!("创建更新目录失败: {e}"))?;
+    let staged = staged_dir(&data);
+
+    // 裸 exe：一个文件直接进 staged，无需解压
+    let prefer_exe = !entry.exe_file.trim().is_empty()
+        && !entry.exe_download_url.trim().is_empty()
+        && entry.exe_file.to_ascii_lowercase().ends_with(".exe");
+    if prefer_exe {
+        let _ = std::fs::remove_dir_all(&staged);
+        std::fs::create_dir_all(&staged).map_err(|e| format!("创建暂存目录失败: {e}"))?;
+        let dest = staged.join(EXE_NAME);
+
+        // 已有校验通过的 exe → 跳过下载（断点友好）
+        let mut need_download = true;
+        if dest.exists() && !entry.exe_sha256.is_empty() {
+            if let Ok(actual) = sha256_file(&dest) {
+                if actual.eq_ignore_ascii_case(&entry.exe_sha256) {
+                    need_download = false;
+                }
+            }
+        }
+        if need_download {
+            let tmp = staged.join(format!("{EXE_NAME}.download"));
+            let _ = std::fs::remove_file(&tmp);
+            let result = crate::core_api::download_file(
+                entry.exe_download_url.clone(),
+                tmp.to_string_lossy().into_owned(),
+                None,
+                Some(task_id.into()),
+                Some(entry.exe_file.clone()),
+            )
+            .await;
+            if let Err(e) = result {
+                let _ = std::fs::remove_file(&tmp);
+                let _ = std::fs::remove_dir_all(&staged);
+                return Err(e);
+            }
+            if !entry.exe_sha256.is_empty() {
+                let actual = sha256_file(&tmp)?;
+                if !actual.eq_ignore_ascii_case(&entry.exe_sha256) {
+                    let _ = std::fs::remove_file(&tmp);
+                    let _ = std::fs::remove_dir_all(&staged);
+                    return Err(format!(
+                        "sha256 校验失败：期望 {}，实际 {}",
+                        entry.exe_sha256, actual
+                    ));
+                }
+            }
+            std::fs::rename(&tmp, &dest)
+                .map_err(|e| format!("暂存更新文件失败: {e}"))?;
+        }
+
+        write_staged(&data, &entry.version)?;
+        return Ok(entry.version.clone());
+    }
+
+    // ZIP 流程（旧清单 / 只提供 ZIP 的发布）
     let zip_path = root.join(&entry.file);
 
     // 已有同名校验通过的包 → 跳过下载（断点友好）
@@ -525,7 +623,6 @@ pub async fn download(entry: &UpdateChannelEntry, task_id: &str) -> Result<Strin
     }
 
     // 解压到 staged（zip 内顶层目录 Aelux-Launcher/ 剥掉）
-    let staged = staged_dir(&data);
     let _ = std::fs::remove_dir_all(&staged);
     std::fs::create_dir_all(&staged).map_err(|e| format!("创建暂存目录失败: {e}"))?;
     extract_zip(&zip_path, &staged)?;
@@ -788,5 +885,20 @@ mod tests {
         assert_eq!(parse_manifest(single, "release").unwrap().version, "0.2.0");
         // 单渠道清单走 Single 分支，即使带 channel 字段也不误入聚合分支
         assert_eq!(parse_manifest(single, "dev").unwrap().version, "0.2.0");
+    }
+
+    #[test]
+    fn manifest_dual_assets() {
+        // 新清单同时带 ZIP 与裸 exe；旧客户端忽略 exe 字段
+        let single = r#"{"schema":1,"version":"0.2.0","file":"a.zip","sha256":"z","size":1,"exeFile":"a.exe","exeSha256":"e","exeSize":2}"#;
+        let entry = parse_manifest(single, "release").unwrap();
+        assert_eq!(entry.file, "a.zip");
+        assert_eq!(entry.exe_file, "a.exe");
+        assert_eq!(entry.exe_sha256, "e");
+
+        // 聚合清单里的条目同样可以带 exe 字段
+        let agg = r#"{"schema":1,"stable":{"version":"0.2.0","file":"a.zip","exeFile":"a.exe"},"beta":null}"#;
+        let entry = parse_manifest(agg, "release").unwrap();
+        assert_eq!(entry.exe_file, "a.exe");
     }
 }

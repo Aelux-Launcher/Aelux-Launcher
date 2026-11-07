@@ -859,11 +859,15 @@ export const useAppStore = defineStore('app', () => {
   /** 后台下载更新包并暂存（进度进任务面板；完成后下次启动静默生效）。 */
   async function downloadUpdate() {
     const entry = updateInfo.value?.entry
-    if (!entry?.version || !entry.downloadUrl) return
+    if (!entry?.version || (!entry.downloadUrl && !entry.exeDownloadUrl)) return
     if (updateState.value === 'downloading') return
     updatePrompt.value = false
     updateState.value = 'downloading'
-    const taskId = beginDownloadTask(entry.file, entry.downloadUrl)
+    // 新清单优先裸 exe；旧清单 / 镜像没有 exe 时回退 ZIP
+    const preferExe = !!entry.exeFile && !!entry.exeDownloadUrl
+    const fileName = preferExe ? entry.exeFile : entry.file
+    const fileUrl = preferExe ? entry.exeDownloadUrl : entry.downloadUrl
+    const taskId = beginDownloadTask(fileName, fileUrl)
     try {
       await call<string>('update_download', { entry, taskId })
       settleDownloadTask(taskId, 'done')

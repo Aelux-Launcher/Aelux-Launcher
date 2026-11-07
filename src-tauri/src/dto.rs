@@ -323,8 +323,20 @@ pub struct UpdateChannelEntry {
     pub sha256: String,
     /// 文件大小（字节；未知为 0）
     pub size: f64,
-    /// 已解析的下载地址（按更新源拼接）
+    /// 裸 exe 文件名（空 = 该发布只提供 ZIP，旧客户端继续用 `file`）
+    #[serde(default)]
+    pub exe_file: String,
+    /// 裸 exe sha256（空 = 不校验）
+    #[serde(default)]
+    pub exe_sha256: String,
+    /// 裸 exe 文件大小（字节；未知为 0）
+    #[serde(default)]
+    pub exe_size: f64,
+    /// 已解析的下载地址（ZIP，按更新源拼接）
     pub download_url: String,
+    /// 已解析的裸 exe 下载地址（空 = 不提供）
+    #[serde(default)]
+    pub exe_download_url: String,
     /// 来源标识（github / self / r2）
     pub source: String,
 }

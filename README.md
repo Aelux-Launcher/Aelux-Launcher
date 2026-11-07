@@ -69,7 +69,8 @@ release-ffi = ["dep:libloading"]      # 发布打包
 | `npm run build:release` | NSIS / MSI 安装器（内核已嵌入 exe） | 下载二进制 | 需要安装器形态时 |
 
 - 单文件 exe 复制到任意目录即用，数据写 exe 同级目录（见下方目录布局）
-- 便携 ZIP 内含 `Aelux-Launcher.exe` + 说明，解压双击即用
+- 便携 ZIP 只含 `Aelux-Launcher.exe`，不再附带说明文件
+- 发布时同时上传 ZIP 与裸 exe：旧客户端用 ZIP 更新，新客户端优先裸 exe
 - 三种形态的数据目录行为完全一致（exe 同级根目录，整目录拷走即迁移）
 
 ### 目录布局
@@ -166,13 +167,29 @@ npm run build:single      # 产出 src-tauri/target/release/aelux-launcher-app.e
 | Cloudflare | `https://<project>.pages.dev` 或自定义域名 | 与自建服务器共用同一个 `public/` 部署目录 |
 
 镜像仓库 [Aelux-Updates](https://github.com/Aelux-Launcher/Aelux-Updates) 会每 30 分钟
-（或本仓库发版后的 `repository_dispatch`）自动抓取最新 Release 的 zip 与
+（或本仓库发版后的 `repository_dispatch`）自动抓取最新 Release 的 ZIP / 裸 exe 与
 `launcher-update.json`，sha256 校验后提交进 `public/`。该目录可直接：
 
 - **Cloudflare Pages**：连接 Git 后构建命令留空、输出目录 `public`，随同步提交自动部署
   （或配置 `CF_DEPLOY_HOOK`）；
 - **自建服务器**：`git clone` 后交给 `nginx/default.conf`，或 `docker compose up -d`，
   再配一条定时 `git pull`。
+
+清单格式同时兼容两种客户端：
+
+```json
+{
+  "file": "Aelux-Launcher-v0.2.0.zip",
+  "sha256": "...",
+  "size": 123,
+  "exeFile": "Aelux-Launcher-v0.2.0.exe",
+  "exeSha256": "...",
+  "exeSize": 456
+}
+```
+
+- 旧客户端只读 `file`（ZIP），行为不变；
+- 新客户端优先 `exeFile`（裸 exe，直接暂存，不再解压）；缺失时自动回退 ZIP。
 
 发布版本必须高于客户端当前版本，客户端才会提示更新。
 
@@ -185,7 +202,7 @@ npm run build:single      # 产出 src-tauri/target/release/aelux-launcher-app.e
 ## CI（`.github/workflows/`）
 
 - `ci.yml` —— 「CI · 检查（不发布产物）」：前端类型检查与构建、Rust 编译检查（Windows / Linux）、bindings 漂移
-- `release.yml` —— 「发布 Windows 便携包」：tag / 手动触发 → fetch-core → 便携 ZIP → GitHub Release
+- `release.yml` —— 「发布 Windows 便携包」：tag / 手动触发 → fetch-core → ZIP + 裸 exe → GitHub Release
 
 CI 里的内核依赖：`aelux-core` 是 optional path 依赖，而 `src-tauri` 的默认特性 `dev-path`
 会直接编译内核源码，所以 CI 必须拿到真实内核源码——

@@ -517,8 +517,16 @@ export type UpdateChannelEntry = {
 	sha256: string,
 	/**  文件大小（字节；未知为 0） */
 	size: number | null,
-	/**  已解析的下载地址（按更新源拼接） */
+	/**  裸 exe 文件名（空 = 该发布只提供 ZIP，旧客户端继续用 `file`） */
+	exeFile: string,
+	/**  裸 exe sha256（空 = 不校验） */
+	exeSha256: string,
+	/**  裸 exe 文件大小（字节；未知为 0） */
+	exeSize: number | null,
+	/**  已解析的下载地址（ZIP，按更新源拼接） */
 	downloadUrl: string,
+	/**  已解析的裸 exe 下载地址（空 = 不提供） */
+	exeDownloadUrl: string,
 	/**  来源标识（github / self / r2） */
 	source: string,
 };

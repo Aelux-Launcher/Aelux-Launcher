@@ -147,25 +147,29 @@ jobs:
       - name: 编译启动器（内核 dll 编译期嵌入 exe）
         run: npm run build:portable
 
-      - name: 打包便携 ZIP
+      - name: 打包便携 ZIP / 裸 exe
         shell: pwsh
         env:
           ZIP_NAME: ${{ steps.meta.outputs.zip }}
+          TAG: ${{ steps.meta.outputs.tag }}
         run: |
           $stage = "portable/Aelux-Launcher"
           New-Item -ItemType Directory -Force $stage | Out-Null
           # 单文件分发：内核 dll 已嵌入 exe，不再单独拷入
           Copy-Item "src-tauri/target/release/aelux-launcher-app.exe" "$stage/Aelux-Launcher.exe"
           Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath $env:ZIP_NAME -Force
+          # 同时提供裸 exe：新客户端更新时直接下载它，旧客户端继续用 ZIP
+          Copy-Item "src-tauri/target/release/aelux-launcher-app.exe" "Aelux-Launcher-$env:TAG.exe"
 
       # 更新清单：客户端 update_check / 镜像仓库同步都以它为准
       - name: 生成更新清单（launcher-update.json）
         shell: pwsh
         env:
           ZIP_NAME: ${{ steps.meta.outputs.zip }}
+          EXE_NAME: Aelux-Launcher-${{ steps.meta.outputs.tag }}.exe
           TAG: ${{ steps.meta.outputs.tag }}
           MANIFEST_CHANNEL: ${{ steps.meta.outputs.manifest_channel }}
-        run: node scripts/make-update-manifest.mjs --zip $env:ZIP_NAME --tag $env:TAG --channel $env:MANIFEST_CHANNEL
+        run: node scripts/make-update-manifest.mjs --zip $env:ZIP_NAME --exe $env:EXE_NAME --tag $env:TAG --channel $env:MANIFEST_CHANNEL
 
       # 无论后面 Release 步骤成败，构建产物都挂在本次运行的 Artifacts 区可下载（测试取包用）
       - name: 上传构建产物（Actions 运行页可下载）
@@ -174,10 +178,11 @@ jobs:
           name: Aelux-Launcher-portable-windows
           path: |
             ${{ steps.meta.outputs.zip }}
+            Aelux-Launcher-${{ steps.meta.outputs.tag }}.exe
             launcher-update.json
           if-no-files-found: warn
 
-      - name: 创建 GitHub Release 并上传便携 ZIP
+      - name: 创建 GitHub Release 并上传便携包
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
@@ -185,6 +190,7 @@ jobs:
           prerelease: ${{ steps.meta.outputs.channel == 'beta' }}
           files: |
             ${{ steps.meta.outputs.zip }}
+            Aelux-Launcher-${{ steps.meta.outputs.tag }}.exe
             launcher-update.json
 
       # 镜像仓库（Aelux-Updates）监听 repository_dispatch 立即同步；
