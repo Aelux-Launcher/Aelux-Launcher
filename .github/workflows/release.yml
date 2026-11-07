@@ -156,8 +156,6 @@ jobs:
           New-Item -ItemType Directory -Force $stage | Out-Null
           # 单文件分发：内核 dll 已嵌入 exe，不再单独拷入
           Copy-Item "src-tauri/target/release/aelux-launcher-app.exe" "$stage/Aelux-Launcher.exe"
-          # 使用说明：解压后双击 exe 即用；数据写在 exe 同级 data/ 目录
-          "# Aelux Launcher`n`n解压到任意目录，双击 Aelux-Launcher.exe 即可运行（免安装，单文件）。`n数据保存在本目录 data/ 下，整目录拷走即可迁移。`n" | Set-Content "$stage/README.txt"
           Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath $env:ZIP_NAME -Force
 
       # 更新清单：客户端 update_check / 镜像仓库同步都以它为准
