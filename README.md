@@ -72,9 +72,11 @@ release-ffi = ["dep:libloading"]      # 发布打包
 - 便携 ZIP 内含 `Aelux-Launcher.exe` + `aelux_core.dll` + 说明，解压双击即用
 - 三种形态的数据目录行为完全一致（exe 同级 `data/`，整目录拷走即迁移）
 
-**版本策略（测试期）**：版本号统一为 `0.1.0`，不随构建自增，改版本时手动同步三处——
-`package.json`、`src-tauri/tauri.conf.json`（启动器）、`Aelux-Core/Cargo.toml`（内核）。
-「关于」页同时展示启动器版本（Tauri 运行时读取）与内核版本（`get_core_version` 命令）。
+**版本策略**：日常开发 / 本地构建可保持 `0.1.0`；**发 Release 前必须**把
+`package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 三处启动器版本
+同步为发布版本（workflow 会校验 tag 与三处完全一致）。内核版本独立维护在
+`Aelux-Core/Cargo.toml`。「关于」页同时展示启动器版本（Tauri 运行时读取）与内核版本
+（`get_core_version` 命令）。
 
 ## 发布操作手册
 
@@ -103,15 +105,17 @@ npm run build:single      # 产出 src-tauri/target/release/aelux-launcher-app.e
 
 **方式 B：GitHub 出包（走完整发布链路）**
 
-1. 确认上面的「一次性准备」已完成
+1. 确认上面的「一次性准备」已完成，并把三处启动器版本改成与 tag 相同（如 `0.1.1-beta.1`）
 2. 仓库页 → Actions → **发布 Windows 便携包** → Run workflow →
-   版本号填 `0.1.0`、渠道选 `beta` → Run
+   版本号填 `0.2.0`（或 `0.2.0-beta.1`）、渠道选 `beta` → Run
+   - beta 渠道未写 `-beta` 时自动发成 `v0.2.0-beta`，保证 tag / 包名 / 清单渠道一致
+   - 版本号与三处工程版本不一致时 workflow 会直接失败（防止装上新版仍报告旧版本）
 3. 跑完后两处可取包：
    - 该次运行页底部的 **Artifacts**（即时测试用）
-   - **Releases** 页的 `Aelux-Launcher-v0.1.0-Beta.zip`（对外链接）
+   - **Releases** 页的 `Aelux-Launcher-v0.2.0-beta-Beta.zip`（对外链接）
 
-等价命令行方式：`git tag v0.1.0 && git push origin v0.1.0`（tag 名含 beta 才会标 Beta，
-纯数字 tag 默认按 Stable 处理——所以测试版建议直接用 Actions 页面触发）。
+等价命令行方式：`git tag v0.2.0-beta.1 && git push origin v0.2.0-beta.1`（tag 名含 beta 才会标 Beta）。
+要触发现有安装的自动更新，发布版本必须高于客户端当前版本（如客户端 0.1.0 → 发 0.2.0）。
 
 ### 发正式版（Stable）
 
@@ -126,6 +130,27 @@ npm run build:single      # 产出 src-tauri/target/release/aelux-launcher-app.e
 5. 验证 Release 页资产与「关于」页双版本号（启动器 / 内核）
 
 > 日常「测试版」不需要升版本号、不需要动 tag；只有转正式版时才走上面五步。
+
+### 自动更新分发（客户端更新源）
+
+启动器内置自研换身式更新（设置 → 启动器更新），支持三种来源：
+
+| 来源 | 地址 | 说明 |
+| --- | --- | --- |
+| GitHub Releases | 本仓库 Release | 公开仓库，客户端直接读取 `launcher-update.json` 资产 |
+| 自建服务器 | 如 `https://updates.example.com` | 由 [Aelux-Updates](https://github.com/Aelux-Launcher/Aelux-Updates) 镜像提供 |
+| Cloudflare | `https://<project>.pages.dev` 或自定义域名 | 与自建服务器共用同一个 `public/` 部署目录 |
+
+镜像仓库 [Aelux-Updates](https://github.com/Aelux-Launcher/Aelux-Updates) 会每 30 分钟
+（或本仓库发版后的 `repository_dispatch`）自动抓取最新 Release 的 zip 与
+`launcher-update.json`，sha256 校验后提交进 `public/`。该目录可直接：
+
+- **Cloudflare Pages**：连接 Git 后构建命令留空、输出目录 `public`，随同步提交自动部署
+  （或配置 `CF_DEPLOY_HOOK`）；
+- **自建服务器**：`git clone` 后交给 `nginx/default.conf`，或 `docker compose up -d`，
+  再配一条定时 `git pull`。
+
+发布版本必须高于客户端当前版本，客户端才会提示更新。
 
 ### 内核与启动器的版本对应
 

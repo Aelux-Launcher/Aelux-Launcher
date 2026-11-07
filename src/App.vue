@@ -208,31 +208,6 @@ onMounted(() => {
   document.addEventListener('keydown', onShortcut, { capture: true })
   document.addEventListener('scroll', onStageScroll, { capture: true, passive: true })
   resetStageScroll()
-  // TEMP-DIAG: 启动 3 秒后自动触发异步命令探针（验证完删除）
-  if (isTauri) {
-    window.setTimeout(async () => {
-      const t = (window as unknown as Record<string, never>)['__TAURI_INTERNALS__'] as
-        | { invoke: (cmd: string, args?: unknown) => Promise<unknown> }
-        | undefined
-      if (!t) return
-      console.log('[diag] invoking fetch_json (async probe)')
-      try {
-        await t.invoke('fetch_json', { url: 'http://127.0.0.1:1/nope' })
-        console.log('[diag] fetch_json resolved')
-      } catch (e) {
-        console.log('[diag] fetch_json rejected (expected):', String(e))
-      }
-      console.log('[diag] invoking save_file_dialog')
-      try {
-        const r = await t.invoke('save_file_dialog', {
-          options: { defaultPath: 'diag-probe.jar' },
-        })
-        console.log('[diag] save_file_dialog resolved:', r)
-      } catch (e) {
-        console.log('[diag] save_file_dialog rejected:', String(e))
-      }
-    }, 3000)
-  }
   void store.init().then(() => {
     // 启动时恢复自定义窗口图标
     const icon = readExtras(store.settings).iconPath

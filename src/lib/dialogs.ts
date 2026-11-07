@@ -1,6 +1,7 @@
 /**
  * 原生文件对话框：走自有 Rust 命令（rfd 直调），
  * 不再使用 @tauri-apps/plugin-dialog（其事件循环投递管线存在打开延迟/丢失问题）。
+ * 对话框在常驻 STA 工作线程上执行并绑定主窗口，不会阻塞主线程/UI。
  */
 import { call } from './bridge'
 

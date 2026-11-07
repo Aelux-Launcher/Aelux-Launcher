@@ -1,18 +1,24 @@
-//! 原生文件对话框：rfd 同步调用，跑在主线程（经典模态方式）。
+//! 原生文件对话框：常驻工作线程执行，主线程不再被模态消息循环占住。
 //!
-//! 背景：tauri-plugin-dialog 的链路（tokio worker → tao 事件循环 proxy →
-//! 主线程闭包 → rfd AsyncFileDialog 自起线程）在本应用实测中对话框延迟
-//! 15s+ 甚至不出现；rfd async 在本进程自起 STA 线程时，其 COM 调用疑似
-//! 被 WebView2 等组件占用的套间阻塞（独立进程里同样调用 <200ms）。
-//! 因此这里回到经典做法：**rfd 同步 API 直接在主线程执行**——
-//! 对话框与属主窗口同线程，`Show` 的模态循环自己泵消息，天然无死锁，
-//! 且对话框对主窗口保持系统级模态。命令用 spawn_blocking 等 IPC 不占 worker。
+//! 背景：Windows 上 `IFileDialog::Show` 是系统级模态。若在主线程调用，
+//! 弹窗期间（含首次加载 shell 组件的数百毫秒）主线程会被模态循环占住，
+//! 表现为每次打开对话框都「顿一下」。
+//!
+//! 现方案：所有对话框请求投递到一条常驻线程上串行执行——
+//! - 对话框通过 `set_parent` 绑定主窗口，仍然对应用保持系统级模态；
+//! - 主线程只继续跑事件循环、响应取窗口句柄的请求，不执行 `Show`；
+//! - 工作线程启动时即初始化 STA 套间并持有到进程结束，rfd 每次弹窗的
+//!   `CoInitializeEx` 只相当于引用计数，不会反复建立/销毁套间；
+//! - 命令侧 await oneshot 回执，不占用 tokio worker，也不阻塞 UI。
+//!
+//! 注意：工作线程里 `set_parent` 会同步请求主线程取窗口句柄；
+//! 只要主线程没被别的同步操作阻塞，就不会死锁（这正是本方案的前提）。
 
-use std::path::PathBuf;
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Mutex, OnceLock};
 
 use serde::Deserialize;
 use specta::Type;
-use tauri::Manager;
 
 /// 文件类型过滤器（`name` 为显示名，`extensions` 不带点）。
 #[derive(Debug, Clone, Deserialize, Type)]
@@ -43,54 +49,141 @@ pub struct OpenDialogOptions {
   pub directory: Option<bool>,
 }
 
+enum Request {
+  Save {
+    window: tauri::WebviewWindow,
+    options: SaveDialogOptions,
+    reply: tokio::sync::oneshot::Sender<Option<String>>,
+  },
+  Open {
+    window: tauri::WebviewWindow,
+    options: OpenDialogOptions,
+    reply: tokio::sync::oneshot::Sender<Option<Vec<String>>>,
+  },
+}
+
+static DIALOG_TX: OnceLock<Mutex<Sender<Request>>> = OnceLock::new();
+
 /// 去掉 Windows 文件对话框返回的 `\\?\` 逐字前缀。
 fn normalize(path: &std::path::Path) -> String {
   let s = path.to_string_lossy().into_owned();
   s.strip_prefix(r"\\?\").map(String::from).unwrap_or(s)
 }
 
-/// 应用预填路径（与插件 `set_default_path` 逻辑一致）。
-fn apply_default_path(builder: rfd::FileDialog, default_path: &str) -> rfd::FileDialog {
-  let raw = PathBuf::from(default_path);
-  let path: PathBuf = raw.components().collect();
-  if path.is_file() || !path.exists() {
-    match (path.parent(), path.file_name()) {
-      (Some(parent), Some(name)) if parent.components().count() > 0 => builder
-        .set_directory(parent)
-        .set_file_name(name.to_string_lossy()),
-      _ => builder.set_directory(&path),
-    }
-  } else {
-    builder.set_directory(&path)
+/// 构建对话框：绑定主窗口，并应用标题 / 预填路径（预填逻辑与插件一致）/ 过滤器。
+fn build_dialog(
+  window: &tauri::WebviewWindow,
+  title: Option<String>,
+  default_path: Option<String>,
+  filters: Option<Vec<DialogFilter>>,
+) -> rfd::FileDialog {
+  let mut builder = rfd::FileDialog::new().set_parent(window);
+  if let Some(title) = title {
+    builder = builder.set_title(title);
   }
-}
-
-fn apply_filters(builder: rfd::FileDialog, filters: &[DialogFilter]) -> rfd::FileDialog {
-  let mut builder = builder;
-  for f in filters {
-    let exts: Vec<&str> = f.extensions.iter().map(String::as_str).collect();
-    builder = builder.add_filter(&f.name, &exts);
+  if let Some(default_path) = default_path {
+    let raw = std::path::PathBuf::from(default_path);
+    let path: std::path::PathBuf = raw.components().collect();
+    builder = if path.is_file() || !path.exists() {
+      match (path.parent(), path.file_name()) {
+        (Some(parent), Some(name)) if parent.components().count() > 0 => builder
+          .set_directory(parent)
+          .set_file_name(name.to_string_lossy()),
+        _ => builder.set_directory(&path),
+      }
+    } else {
+      builder.set_directory(&path)
+    };
+  }
+  if let Some(filters) = filters {
+    for f in filters {
+      let exts: Vec<&str> = f.extensions.iter().map(String::as_str).collect();
+      builder = builder.add_filter(&f.name, &exts);
+    }
   }
   builder
 }
 
-/// 在主线程执行同步对话框，命令侧用 channel + spawn_blocking 等结果。
-async fn run_dialog<T: Send + 'static>(
-  window: tauri::WebviewWindow,
-  dialog: impl FnOnce() -> T + Send + 'static,
-) -> Result<T, String> {
-  let (tx, rx) = std::sync::mpsc::channel();
-  let app = window.app_handle().clone();
-  app
-    .run_on_main_thread(move || {
-      let out = dialog();
-      let _ = tx.send(out);
+fn show_save(window: &tauri::WebviewWindow, options: SaveDialogOptions) -> Option<String> {
+  build_dialog(window, options.title, options.default_path, options.filters)
+    .save_file()
+    .map(|h| normalize(&h))
+}
+
+fn show_open(window: &tauri::WebviewWindow, options: OpenDialogOptions) -> Option<Vec<String>> {
+  let directory = options.directory.unwrap_or(false);
+  let multiple = options.multiple.unwrap_or(false);
+  let builder = build_dialog(window, options.title, options.default_path, options.filters);
+
+  if directory {
+    builder.pick_folder().map(|f| vec![normalize(&f)])
+  } else if multiple {
+    builder
+      .pick_files()
+      .map(|list| list.iter().map(|f| normalize(f)).collect())
+  } else {
+    builder.pick_file().map(|f| vec![normalize(&f)])
+  }
+}
+
+/// 保持 STA 套间到进程结束：rfd 每次弹窗仍会 `CoInitializeEx`，这里预初始化后
+/// 它的调用只是纯引用计数，首次弹窗的 COM 加载不再落在点击路径上。
+#[cfg(windows)]
+fn init_com_sta() {
+  use windows_sys::Win32::System::Com::{
+    CoInitializeEx, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
+  };
+  unsafe {
+    let _ = CoInitializeEx(
+      std::ptr::null(),
+      (COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) as u32,
+    );
+  }
+}
+
+#[cfg(not(windows))]
+fn init_com_sta() {}
+
+fn spawn_worker() -> Sender<Request> {
+  let (tx, rx) = mpsc::channel();
+  std::thread::Builder::new()
+    .name("aelux-file-dialog".into())
+    .spawn(move || {
+      init_com_sta();
+      worker_loop(rx);
     })
-    .map_err(|e| e.to_string())?;
-  tauri::async_runtime::spawn_blocking(move || rx.recv())
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|_| "对话框通道已关闭".to_string())
+    .expect("无法创建文件对话框线程");
+  tx
+}
+
+fn worker_loop(rx: Receiver<Request>) {
+  for request in rx {
+    match request {
+      Request::Save {
+        window,
+        options,
+        reply,
+      } => {
+        let _ = reply.send(show_save(&window, options));
+      }
+      Request::Open {
+        window,
+        options,
+        reply,
+      } => {
+        let _ = reply.send(show_open(&window, options));
+      }
+    }
+  }
+}
+
+fn dialog_tx() -> &'static Mutex<Sender<Request>> {
+  DIALOG_TX.get_or_init(|| Mutex::new(spawn_worker()))
+}
+
+/// 启动时预热：线程创建与 COM 套间初始化提前完成，不落在首次点击上。
+pub fn warm_up() {
+  let _ = dialog_tx();
 }
 
 /// 原生「另存为」对话框；用户取消返回 `None`。
@@ -100,20 +193,18 @@ pub async fn save_file_dialog(
   window: tauri::WebviewWindow,
   options: SaveDialogOptions,
 ) -> Result<Option<String>, String> {
-  run_dialog(window, move || {
-    let mut builder = rfd::FileDialog::new();
-    if let Some(title) = options.title {
-      builder = builder.set_title(title);
-    }
-    if let Some(default_path) = options.default_path {
-      builder = apply_default_path(builder, &default_path);
-    }
-    if let Some(filters) = options.filters {
-      builder = apply_filters(builder, &filters);
-    }
-    builder.save_file().map(|h| normalize(&h))
-  })
-  .await
+  let (reply, rx) = tokio::sync::oneshot::channel();
+  dialog_tx()
+    .lock()
+    .map_err(|_| "文件对话框线程不可用".to_string())?
+    .send(Request::Save {
+      window,
+      options,
+      reply,
+    })
+    .map_err(|_| "文件对话框线程已退出".to_string())?;
+  rx.await
+    .map_err(|_| "文件对话框线程已退出".to_string())
 }
 
 /// 原生打开对话框（文件 / 文件夹，单个或多个）；取消返回 `None`。
@@ -124,31 +215,16 @@ pub async fn pick_file_dialog(
   window: tauri::WebviewWindow,
   options: OpenDialogOptions,
 ) -> Result<Option<Vec<String>>, String> {
-  run_dialog(window, move || {
-    let directory = options.directory.unwrap_or(false);
-    let multiple = options.multiple.unwrap_or(false);
-
-    let mut builder = rfd::FileDialog::new();
-    if let Some(title) = options.title {
-      builder = builder.set_title(title);
-    }
-    if let Some(default_path) = options.default_path {
-      builder = apply_default_path(builder, &default_path);
-    }
-    if let Some(filters) = options.filters {
-      builder = apply_filters(builder, &filters);
-    }
-
-    let picked = if directory {
-      builder.pick_folder().map(|f| vec![normalize(&f)])
-    } else if multiple {
-      builder
-        .pick_files()
-        .map(|list| list.iter().map(|f| normalize(f)).collect())
-    } else {
-      builder.pick_file().map(|f| vec![normalize(&f)])
-    };
-    picked
-  })
-  .await
+  let (reply, rx) = tokio::sync::oneshot::channel();
+  dialog_tx()
+    .lock()
+    .map_err(|_| "文件对话框线程不可用".to_string())?
+    .send(Request::Open {
+      window,
+      options,
+      reply,
+    })
+    .map_err(|_| "文件对话框线程已退出".to_string())?;
+  rx.await
+    .map_err(|_| "文件对话框线程已退出".to_string())
 }

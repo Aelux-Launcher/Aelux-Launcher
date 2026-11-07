@@ -55,3 +55,7 @@ debug-tools = ["tauri/devtools"]
 lto = true
 codegen-units = 1
 strip = true
+
+# 对话框工作线程的 STA 套间预热（仅 Windows，版本与 rfd/tauri 传递依赖一致）
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Com"] }

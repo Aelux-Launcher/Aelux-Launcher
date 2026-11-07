@@ -3,12 +3,14 @@ name: 发布 Windows 便携包
 # 发布 Windows 便携包（免安装，解压即用）。
 #
 # 渠道（channel）：
-#   beta   → 产物命名 Aelux-Launcher-v0.1.0-Beta.zip（测试版）
-#   stable → 产物命名 Aelux-Launcher-v0.1.0-Stable.zip（正式版）
-# tag 触发时按 tag 名自动判断：tag 含 "beta"（如 v0.2.0-beta.1）→ Beta，否则 Stable。
+#   beta   → tag 必须含 beta（如 v0.2.0-beta.1），产物 …-Beta.zip
+#   stable → tag 不含 beta（如 v0.2.0），产物 …-Stable.zip
+# tag 触发的发布按 tag 名判断渠道；workflow_dispatch 按所选渠道补全 tag
+# （beta 渠道输入 0.2.0 会自动发布 v0.2.0-beta）。
 #
-# 测试期版本号策略：三处版本号统一维护为 0.1.0，不随构建自增——
-#   package.json / src-tauri/tauri.conf.json（启动器）、Aelux-Core/Cargo.toml（内核）。
+# 发布版本号：tag 必须与 src-tauri/Cargo.toml、package.json、src-tauri/tauri.conf.json
+# 三处版本完全相同（workflow 会校验）。只出 Artifacts 测试包不必发 Release；
+# 要触发客户端自动更新，发布版本必须高于客户端当前版本。
 
 on:
   push:
@@ -16,9 +18,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "发布版本号（如 0.1.0；仅用于 Release 命名）"
+        description: "发布版本号（如 0.2.0；beta 渠道可写 0.2.0-beta.1）"
         required: false
-        default: "0.1.0"
+        default: "0.2.0"
       channel:
         description: "发布渠道"
         type: choice
@@ -37,9 +39,47 @@ jobs:
       # 注入更新默认仓库（build.rs → AELUX_UPDATE_REPO，客户端 GitHub 更新源）
       GITHUB_REPO: ${{ github.repository }}
       MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
-      MIRROR_REPO: ${{ secrets.MIRROR_REPO }}
+      MIRROR_REPO: ${{ vars.MIRROR_REPO }}
     steps:
       - uses: actions/checkout@v4
+
+      # tag / 渠道 / 清单渠道 / 包名只有这一处定义，后续步骤全部引用输出，
+      # 避免各步骤各算一套导致命名与清单渠道不一致。
+      - name: 解析发布版本与渠道
+        id: meta
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          INPUT_CHANNEL: ${{ github.event.inputs.channel }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            version="${INPUT_VERSION#v}"
+            channel="$INPUT_CHANNEL"
+            # 镜像仓库 / 客户端都按 tag 是否含 beta 识别渠道；
+            # dispatch 发 beta 时把 beta 补进 tag，保证三处（tag、包名、清单）一致。
+            if [ "$channel" = "beta" ] && [[ "${version,,}" != *beta* ]]; then
+              version="${version}-beta"
+            fi
+          else
+            version="${REF_NAME#v}"
+            if [[ "${REF_NAME,,}" == *beta* ]]; then channel="beta"; else channel="stable"; fi
+          fi
+          if [ "$channel" = "beta" ]; then
+            suffix="Beta"
+            manifest_channel="dev"
+          else
+            suffix="Stable"
+            manifest_channel="release"
+          fi
+          tag="v${version}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "channel=${channel}" >> "$GITHUB_OUTPUT"
+          echo "suffix=${suffix}" >> "$GITHUB_OUTPUT"
+          echo "manifest_channel=${manifest_channel}" >> "$GITHUB_OUTPUT"
+          echo "zip=Aelux-Launcher-${tag}-${suffix}.zip" >> "$GITHUB_OUTPUT"
+          echo "[meta] tag=${tag} channel=${channel} manifest=${manifest_channel}"
 
       # aelux-core 是 optional path 依赖，Cargo resolve 要求路径存在；
       # release-ffi 只消费 cdylib 二进制（fetch-core 下载），不需要内核源码。
@@ -56,6 +96,23 @@ jobs:
           node-version: 22
           cache: npm
 
+      # 客户端 CURRENT_VERSION 来自 Cargo.toml；tag 与三处版本不一致时，
+      # 新包装上后仍报告旧版本，会反复提示更新（换身循环）。
+      - name: 校验发布版本与工程版本一致
+        shell: bash
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          tag_version="${TAG#v}"
+          cargo_version="$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n1)"
+          pkg_version="$(node -p "require('./package.json').version")"
+          conf_version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          echo "[version] tag=${tag_version} cargo=${cargo_version} package=${pkg_version} tauri=${conf_version}"
+          if [ "$tag_version" != "$cargo_version" ] || [ "$cargo_version" != "$pkg_version" ] || [ "$pkg_version" != "$conf_version" ]; then
+            echo "::error::版本不一致：发布 tag 必须与 src-tauri/Cargo.toml、package.json、src-tauri/tauri.conf.json 三处版本完全相同（含 -beta.N 后缀）。"
+            exit 1
+          fi
+
       - uses: dtolnay/rust-toolchain@stable
 
       - run: npm ci
@@ -69,6 +126,8 @@ jobs:
 
       - name: 打包便携 ZIP
         shell: pwsh
+        env:
+          ZIP_NAME: ${{ steps.meta.outputs.zip }}
         run: |
           $stage = "portable/Aelux-Launcher"
           New-Item -ItemType Directory -Force $stage | Out-Null
@@ -76,21 +135,16 @@ jobs:
           Copy-Item "src-tauri/lib/windows-x64/aelux_core.dll" $stage
           # 使用说明：解压后双击 exe 即用；数据写在 exe 同级 data/ 目录
           "# Aelux Launcher`n`n解压到任意目录，双击 Aelux-Launcher.exe 即可运行（免安装）。`n数据保存在本目录 data/ 下，整目录拷走即可迁移。`n" | Set-Content "$stage/README.txt"
-          $tag = "${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}"
-          # 渠道后缀：dispatch 按 input；tag 触发按 tag 名含 beta 判断
-          $channel = "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.channel || '' }}"
-          if ($channel -eq "beta" -or $tag -match "beta") { $suffix = "Beta" } else { $suffix = "Stable" }
-          Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath "Aelux-Launcher-$tag-$suffix.zip" -Force
+          Compress-Archive -Path "portable/Aelux-Launcher" -DestinationPath $env:ZIP_NAME -Force
 
       # 更新清单：客户端 update_check / 镜像仓库同步都以它为准
       - name: 生成更新清单（launcher-update.json）
         shell: pwsh
-        run: |
-          # tag / suffix 与上一步同一套规则
-          $tag = "${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}"
-          $channel = "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.channel || '' }}"
-          if ($channel -eq "beta" -or $tag -match "beta") { $suffix = "Beta" } else { $suffix = "Stable" }
-          node scripts/make-update-manifest.mjs --zip "Aelux-Launcher-$tag-$suffix.zip" --tag "$tag"
+        env:
+          ZIP_NAME: ${{ steps.meta.outputs.zip }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          MANIFEST_CHANNEL: ${{ steps.meta.outputs.manifest_channel }}
+        run: node scripts/make-update-manifest.mjs --zip $env:ZIP_NAME --tag $env:TAG --channel $env:MANIFEST_CHANNEL
 
       # 无论后面 Release 步骤成败，构建产物都挂在本次运行的 Artifacts 区可下载（测试取包用）
       - name: 上传构建产物（Actions 运行页可下载）
@@ -98,16 +152,18 @@ jobs:
         with:
           name: Aelux-Launcher-portable-windows
           path: |
-            Aelux-Launcher-*.zip
+            ${{ steps.meta.outputs.zip }}
             launcher-update.json
           if-no-files-found: warn
 
       - name: 创建 GitHub Release 并上传便携 ZIP
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          prerelease: ${{ steps.meta.outputs.channel == 'beta' }}
           files: |
-            Aelux-Launcher-*.zip
+            ${{ steps.meta.outputs.zip }}
             launcher-update.json
 
       # 镜像仓库（Aelux-Updates）监听 repository_dispatch 立即同步；
@@ -115,11 +171,12 @@ jobs:
       - name: 通知镜像仓库同步（可选）
         if: env.MIRROR_TOKEN != '' && env.MIRROR_REPO != ''
         shell: bash
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          TAG="${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}"
           curl -sf -X POST \
             -H "Authorization: Bearer $MIRROR_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${MIRROR_REPO}/dispatches" \
-            -d "{\"event_type\":\"launcher-release\",\"client_payload\":{\"tag\":\"$TAG\",\"source_repo\":\"${GITHUB_REPO}\"}}" \
+            -d "{\"event_type\":\"launcher-release\",\"client_payload\":{\"tag\":\"${TAG}\",\"source_repo\":\"${GITHUB_REPO}\"}}" \
             || echo "镜像仓库通知失败（可在镜像仓库手动触发 sync）"

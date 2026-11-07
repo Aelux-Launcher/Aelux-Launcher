@@ -144,46 +144,13 @@ pub fn run() {
                     if matches!(event, tauri::WindowEvent::Resized(_)) {
                         commands::on_window_resized(&handle);
                     }
-                    // TEMP-DIAG: 窗口关闭诊断（验证完删除）
-                    if matches!(
-                        event,
-                        tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed
-                    ) {
-                        eprintln!("[diag] window event: {event:?}");
-                    }
                 });
             }
 
             core_api::init(&app.handle().clone());
-            // TEMP-DIAG: Rust 侧直触发对话框链路（验证完删除）
-            {
-                let h = app.handle().clone();
-                std::thread::spawn(move || {
-                    let log = |msg: &str| {
-                        use std::io::Write;
-                        if let Ok(mut f) = std::fs::OpenOptions::new()
-                            .create(true)
-                            .append(true)
-                            .open("D:/TXX/AppData/aelux-diag.log")
-                        {
-                            let _ = writeln!(f, "{msg}");
-                        }
-                    };
-                    log("diag: thread started, sleep 5s");
-                    std::thread::sleep(std::time::Duration::from_secs(5));
-                    log("diag: firing rust-side dialog");
-                    let win = h.get_webview_window("main");
-                    let out = tauri::async_runtime::block_on(dialog::save_file_dialog(
-                        win.expect("no main window"),
-                        dialog::SaveDialogOptions {
-                            title: Some("RUST-SIDE-PROBE".into()),
-                            default_path: Some("rust-side-probe.jar".into()),
-                            filters: None,
-                        },
-                    ));
-                    log(&format!("diag: rust-side dialog returned: {out:?}"));
-                });
-            }
+            // 预热原生文件对话框线程（创建线程 + 初始化 STA 套间），
+            // 避免首次点击「另存为」时才付出这部分启动开销。
+            dialog::warm_up();
             Ok(())
         })
         .run(tauri::generate_context!())

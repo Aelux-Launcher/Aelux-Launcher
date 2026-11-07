@@ -7,7 +7,7 @@ fn main() {
 
     // 更新默认仓库（GitHub 更新源）：CI 里由 GITHUB_REPO 注入，本地用默认值。
     // 运行时可通过 KV `update-github-repo` 覆盖。
-    let repo = std::env::var("GITHUB_REPO").unwrap_or_else(|_| "Aelux-Team/Aelux-Launcher".into());
+    let repo = std::env::var("GITHUB_REPO").unwrap_or_else(|_| "Aelux-Launcher/Aelux-Launcher".into());
     println!("cargo:rustc-env=AELUX_UPDATE_REPO={repo}");
     println!("cargo:rerun-if-env-changed=GITHUB_REPO");
 
