@@ -73,7 +73,7 @@ export interface SettingsExtras {
   updateSource: UpdateSourcePref
   /** 自建更新源地址（如 https://updates.example.com，updateSource 为 self 时必填） */
   updateSelfBase: string
-  /** Cloudflare R2 更新源地址（updateSource 含 r2 / auto 时参与测速） */
+  /** Cloudflare 更新源地址（Pages / R2 等静态托管的根地址，如 https://cdn.example.com） */
   updateR2Base: string
   /** 发现新版本后自动后台下载（无痕更新：就绪后下次启动静默生效） */
   autoDownloadUpdate: boolean
@@ -495,7 +495,7 @@ export const UPDATE_CHANNEL_OPTIONS: Array<{ value: UpdateChannel; label: string
 export const UPDATE_SOURCE_OPTIONS: Array<{ value: UpdateSourcePref; label: string }> = [
   { value: 'auto', label: '自动（测速择优，优先自建源）' },
   { value: 'self', label: '自建服务器' },
-  { value: 'r2', label: 'Cloudflare R2' },
+  { value: 'r2', label: 'Cloudflare 镜像' },
   { value: 'github', label: 'GitHub Releases' },
 ]
 

@@ -1005,8 +1005,8 @@ async function clearDownloadCache() {
         </div>
         <div v-if="extras.updateSource === 'r2' || extras.updateSource === 'auto'" class="setting-row">
           <div class="setting-label">
-            Cloudflare R2 地址
-            <div class="setting-desc">留空则不参与测速；格式同自建源（绑定的自定义域名）</div>
+            Cloudflare 镜像地址
+            <div class="setting-desc">Pages / R2 等静态托管的根地址；留空则不参与测速</div>
           </div>
           <input
             class="setting-input"
