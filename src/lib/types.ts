@@ -141,6 +141,10 @@ export interface LauncherConfig {
   gameHeight: number
   gameFullscreen: boolean
   downloadConcurrency: number
+  /** 文件下载源：mirror / auto / official */
+  fileSource: string
+  /** 版本清单与版本 JSON 下载源：mirror / auto / official */
+  versionSource: string
   hideOnLaunch: boolean
   cacheDir: string
 }

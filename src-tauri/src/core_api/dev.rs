@@ -8,10 +8,9 @@ use serde_json::Value;
 use tauri::Emitter;
 
 use crate::dto::{
-    Account, AccountSession, ApiConfig, ApiConfigView, AuthServer, DeviceCodeSession,
-    GameInstance, InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig,
-    LocalContentItem, ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount,
-    VersionManifest,
+    Account, AccountSession, ApiConfig, ApiConfigView, AuthServer, DeviceCodeSession, GameInstance,
+    InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem,
+    ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
 };
 
 use super::CoreError;
@@ -91,8 +90,13 @@ pub async fn download_file(
 }
 
 pub async fn fetch_minecraft_manifest() -> Result<VersionManifest, CoreError> {
-    let value = serde_json::to_value(core().fetch_minecraft_manifest().await.map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    let value = serde_json::to_value(
+        core()
+            .fetch_minecraft_manifest()
+            .await
+            .map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
@@ -111,8 +115,13 @@ pub async fn mod_api_versions(api: String, mc_version: String) -> Result<Vec<Str
 }
 
 pub async fn auth_start_device_flow() -> Result<DeviceCodeSession, CoreError> {
-    let value = serde_json::to_value(core().start_microsoft_login().await.map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    let value = serde_json::to_value(
+        core()
+            .start_microsoft_login()
+            .await
+            .map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
@@ -120,8 +129,13 @@ pub async fn auth_poll_device_flow(session: DeviceCodeSession) -> Result<Account
     let session: aelux_core::auth::DeviceCodeSession =
         serde_json::from_value(serde_json::to_value(session).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
-    let value = serde_json::to_value(core().poll_microsoft_login(&session).await.map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    let value = serde_json::to_value(
+        core()
+            .poll_microsoft_login(&session)
+            .await
+            .map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
@@ -156,9 +170,15 @@ pub fn create_instance(
     loader_version: Option<String>,
 ) -> Result<GameInstance, CoreError> {
     let inst = core()
-        .create_instance(&name, &version, loader.as_deref(), loader_version.as_deref())
+        .create_instance(
+            &name,
+            &version,
+            loader.as_deref(),
+            loader_version.as_deref(),
+        )
         .map_err(|e| e.to_string())?;
-    serde_json::from_value(serde_json::to_value(inst).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+    serde_json::from_value(serde_json::to_value(inst).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())
 }
 
 pub fn delete_instance(id: String) -> Result<(), CoreError> {
@@ -181,8 +201,11 @@ pub fn accounts_list() -> Result<Vec<StoredAccount>, CoreError> {
 
 pub fn accounts_upsert(account: StoredAccount) -> Result<(), CoreError> {
     let core_account: aelux_core::accounts::StoredAccount =
-        serde_json::from_value(serde_json::to_value(account).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-    core().upsert_account(&core_account).map_err(|e| e.to_string())
+        serde_json::from_value(serde_json::to_value(account).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    core()
+        .upsert_account(&core_account)
+        .map_err(|e| e.to_string())
 }
 
 pub fn accounts_remove(id: String) -> Result<(), CoreError> {
@@ -196,8 +219,11 @@ pub fn account_session_get() -> Result<Option<AccountSession>, CoreError> {
 
 pub fn account_session_set(session: Option<AccountSession>) -> Result<(), CoreError> {
     let core_session: Option<aelux_core::accounts::AccountSession> =
-        serde_json::from_value(serde_json::to_value(session).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-    core().set_account_session(core_session).map_err(|e| e.to_string())
+        serde_json::from_value(serde_json::to_value(session).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    core()
+        .set_account_session(core_session)
+        .map_err(|e| e.to_string())
 }
 
 pub fn account_login_offline(username: String) -> Result<StoredAccount, CoreError> {
@@ -219,8 +245,12 @@ pub fn auth_servers_list() -> Result<Vec<AuthServer>, CoreError> {
 }
 
 pub fn auth_server_add(name: Option<String>, url: String) -> Result<AuthServer, CoreError> {
-    let value = serde_json::to_value(core().add_auth_server(name, &url).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    let value = serde_json::to_value(
+        core()
+            .add_auth_server(name, &url)
+            .map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
@@ -247,7 +277,8 @@ pub fn get_config() -> Result<LauncherConfig, CoreError> {
 
 pub fn save_config(config: LauncherConfig) -> Result<(), CoreError> {
     let core_cfg: aelux_core::config::LauncherConfig =
-        serde_json::from_value(serde_json::to_value(config).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        serde_json::from_value(serde_json::to_value(config).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
     core().save_config(&core_cfg).map_err(|e| e.to_string())
 }
 
@@ -309,13 +340,21 @@ pub fn set_content_enabled(
         .map_err(|e| e.to_string())
 }
 
-pub fn delete_content(instance_id: String, kind: String, file_name: String) -> Result<(), CoreError> {
+pub fn delete_content(
+    instance_id: String,
+    kind: String,
+    file_name: String,
+) -> Result<(), CoreError> {
     core()
         .delete_content(&instance_id, &kind, &file_name)
         .map_err(|e| e.to_string())
 }
 
-pub fn import_content(instance_id: String, kind: String, source: String) -> Result<LocalContentItem, CoreError> {
+pub fn import_content(
+    instance_id: String,
+    kind: String,
+    source: String,
+) -> Result<LocalContentItem, CoreError> {
     let value = serde_json::to_value(
         core()
             .import_content(&instance_id, &kind, &source)
@@ -330,7 +369,9 @@ pub fn read_text(path: String) -> Result<Option<String>, CoreError> {
 }
 
 pub fn write_text(path: String, content: String) -> Result<(), CoreError> {
-    core().write_text(&path, &content).map_err(|e| e.to_string())
+    core()
+        .write_text(&path, &content)
+        .map_err(|e| e.to_string())
 }
 
 pub fn delete_path(path: String) -> Result<(), CoreError> {
@@ -362,7 +403,10 @@ pub async fn install_version(
 }
 
 pub async fn install_instance(id: String) -> Result<InstallResult, CoreError> {
-    let result = core().install_instance(&id).await.map_err(|e| e.to_string())?;
+    let result = core()
+        .install_instance(&id)
+        .await
+        .map_err(|e| e.to_string())?;
     to_dto(result)
 }
 
@@ -379,7 +423,10 @@ pub async fn set_instance_loader(
 }
 
 pub async fn launch_instance(id: String) -> Result<LaunchOutcome, CoreError> {
-    let result = core().launch_instance(&id).await.map_err(|e| e.to_string())?;
+    let result = core()
+        .launch_instance(&id)
+        .await
+        .map_err(|e| e.to_string())?;
     to_dto(result)
 }
 
@@ -392,7 +439,10 @@ pub fn running_instances() -> Result<Vec<RunningGame>, CoreError> {
 }
 
 pub async fn export_launch_script(id: String) -> Result<String, CoreError> {
-    core().export_launch_script(&id).await.map_err(|e| e.to_string())
+    core()
+        .export_launch_script(&id)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 pub fn backup_world(instance_id: String, file_name: String) -> Result<String, CoreError> {
@@ -485,7 +535,10 @@ pub async fn import_modpack_url(
 }
 
 pub async fn install_java(major: u32) -> Result<JavaInstallResult, CoreError> {
-    let result = core().install_java(major).await.map_err(|e| e.to_string())?;
+    let result = core()
+        .install_java(major)
+        .await
+        .map_err(|e| e.to_string())?;
     to_dto(result)
 }
 

@@ -97,7 +97,7 @@ export interface SettingsExtras {
   proxyUser: string
   /** 代理密码 */
   proxyPassword: string
-  /** 最大并行下载线程数（1–256，默认 64） */
+  /** 最大并行下载线程数（1–256，默认 128） */
   maxParallel: number
   /** 文件下载源（游戏文件、资源等） */
   fileSource: DownloadSourcePref
@@ -170,9 +170,9 @@ const DEFAULT_EXTRAS: SettingsExtras = {
   proxyAuth: false,
   proxyUser: '',
   proxyPassword: '',
-  maxParallel: 64,
-  fileSource: 'auto',
-  versionSource: 'auto',
+  maxParallel: 128,
+  fileSource: 'mirror',
+  versionSource: 'mirror',
   speedLimit: 0,
   versionIsolation: 'all',
   iconPath: '',

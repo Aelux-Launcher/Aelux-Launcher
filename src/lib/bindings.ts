@@ -277,6 +277,8 @@ export type LauncherConfig_Deserialize = {
 	gameHeight?: number,
 	gameFullscreen?: boolean,
 	downloadConcurrency?: number,
+	fileSource?: string,
+	versionSource?: string,
 	hideOnLaunch?: boolean,
 	cacheDir?: string,
 };
@@ -294,6 +296,8 @@ export type LauncherConfig_Serialize = {
 	gameHeight: number,
 	gameFullscreen: boolean,
 	downloadConcurrency: number,
+	fileSource: string,
+	versionSource: string,
 	hideOnLaunch: boolean,
 	cacheDir: string,
 };

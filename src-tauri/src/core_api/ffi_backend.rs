@@ -13,16 +13,16 @@ use serde_json::Value;
 use tauri::Manager;
 
 use crate::dto::{
-    Account, AccountSession, ApiConfig, ApiConfigView, AuthServer, DeviceCodeSession,
-    GameInstance, InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig,
-    LocalContentItem, ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount,
-    VersionManifest,
+    Account, AccountSession, ApiConfig, ApiConfigView, AuthServer, DeviceCodeSession, GameInstance,
+    InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem,
+    ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
 };
 
 use super::CoreError;
 
 /// FFI 符号签名（与 aelux-core/src/ffi.rs 的导出一一对应）。
-type InvokeFn = unsafe extern "C" fn(method: *const c_char, payload_json: *const c_char) -> *mut c_char;
+type InvokeFn =
+    unsafe extern "C" fn(method: *const c_char, payload_json: *const c_char) -> *mut c_char;
 type VersionFn = unsafe extern "C" fn() -> *mut c_char;
 type FreeFn = unsafe extern "C" fn(ptr: *mut c_char);
 
@@ -122,14 +122,22 @@ pub fn init(app: &tauri::AppHandle) {
         )
     });
     unsafe {
-        let lib = libloading::Library::new(&path)
-            .unwrap_or_else(|e| panic!("加载 {path:?} 失败: {e}"));
+        let lib =
+            libloading::Library::new(&path).unwrap_or_else(|e| panic!("加载 {path:?} 失败: {e}"));
         // 泄漏：动态库必须活到进程结束
         let lib: &'static libloading::Library = Box::leak(Box::new(lib));
         let invoke: InvokeFn = *lib.get(b"aelux_invoke").expect("缺少符号 aelux_invoke");
-        let version: VersionFn = *lib.get(b"aelux_core_version").expect("缺少符号 aelux_core_version");
-        let free: FreeFn = *lib.get(b"aelux_string_free").expect("缺少符号 aelux_string_free");
-        let _ = LIB.set(CoreLib { invoke, version, free });
+        let version: VersionFn = *lib
+            .get(b"aelux_core_version")
+            .expect("缺少符号 aelux_core_version");
+        let free: FreeFn = *lib
+            .get(b"aelux_string_free")
+            .expect("缺少符号 aelux_string_free");
+        let _ = LIB.set(CoreLib {
+            invoke,
+            version,
+            free,
+        });
     }
     tracing::info!(path = %path.display(), "aelux-core 动态库已加载");
 }
@@ -153,7 +161,9 @@ async fn invoke(method: &str, payload: &Value) -> Result<Value, CoreError> {
                 serde_json::from_str(&json).map_err(|e| format!("内核返回非法 JSON: {e}"))?;
             match parsed.get("ok").and_then(|v| v.as_bool()) {
                 Some(true) => Ok(parsed.get("data").cloned().unwrap_or(Value::Null)),
-                Some(false) => Err(core_error_message(parsed.get("error").unwrap_or(&Value::Null))),
+                Some(false) => Err(core_error_message(
+                    parsed.get("error").unwrap_or(&Value::Null),
+                )),
                 None => Err("内核返回缺少 ok 字段".into()),
             }
         }
@@ -215,7 +225,9 @@ fn invoke_sync(method: &str, payload: &Value) -> Result<Value, CoreError> {
         let parsed: Value = serde_json::from_str(&json).map_err(|e| e.to_string())?;
         match parsed.get("ok").and_then(|v| v.as_bool()) {
             Some(true) => Ok(parsed.get("data").cloned().unwrap_or(Value::Null)),
-            Some(false) => Err(core_error_message(parsed.get("error").unwrap_or(&Value::Null))),
+            Some(false) => Err(core_error_message(
+                parsed.get("error").unwrap_or(&Value::Null),
+            )),
             None => Err("内核返回缺少 ok 字段".into()),
         }
     }
@@ -248,7 +260,10 @@ fn core_error_message(error: &Value) -> String {
         Value::Object(map) => map
             .iter()
             .map(|(k, v)| {
-                let value = v.as_str().map(str::to_string).unwrap_or_else(|| v.to_string());
+                let value = v
+                    .as_str()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| v.to_string());
                 format!("{k}={value}")
             })
             .collect::<Vec<_>>()
@@ -269,7 +284,10 @@ pub fn get_os_info() -> Result<OsInfo, CoreError> {
 
 pub async fn fetch_json(url: String) -> Result<String, CoreError> {
     let value = invoke("fetch.json", &serde_json::json!({ "url": url })).await?;
-    value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
+    value
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| "内核返回类型错误".into())
 }
 
 pub fn api_config() -> Result<ApiConfigView, CoreError> {
@@ -290,7 +308,10 @@ pub fn save_api_config(config: ApiConfig) -> Result<(), CoreError> {
 
 pub async fn curseforge_fetch(path: String) -> Result<String, CoreError> {
     let value = invoke("curseforge.fetch", &serde_json::json!({ "path": path })).await?;
-    value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
+    value
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| "内核返回类型错误".into())
 }
 
 pub async fn download_file(
@@ -311,7 +332,10 @@ pub async fn download_file(
         }),
     )
     .await?;
-    value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
+    value
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| "内核返回类型错误".into())
 }
 
 pub async fn fetch_minecraft_manifest() -> Result<VersionManifest, CoreError> {
@@ -325,7 +349,11 @@ pub async fn auth_start_device_flow() -> Result<DeviceCodeSession, CoreError> {
 }
 
 pub async fn auth_poll_device_flow(session: DeviceCodeSession) -> Result<Account, CoreError> {
-    let value = invoke("auth.ms.poll", &serde_json::to_value(session).map_err(|e| e.to_string())?).await?;
+    let value = invoke(
+        "auth.ms.poll",
+        &serde_json::to_value(session).map_err(|e| e.to_string())?,
+    )
+    .await?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
@@ -386,12 +414,18 @@ pub fn account_session_get() -> Result<Option<AccountSession>, CoreError> {
 }
 
 pub fn account_session_set(session: Option<AccountSession>) -> Result<(), CoreError> {
-    invoke_sync("accounts.session.set", &serde_json::json!({ "session": session }))?;
+    invoke_sync(
+        "accounts.session.set",
+        &serde_json::json!({ "session": session }),
+    )?;
     Ok(())
 }
 
 pub fn account_login_offline(username: String) -> Result<StoredAccount, CoreError> {
-    let value = invoke_sync("accounts.login_offline", &serde_json::json!({ "username": username }))?;
+    let value = invoke_sync(
+        "accounts.login_offline",
+        &serde_json::json!({ "username": username }),
+    )?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
@@ -401,7 +435,10 @@ pub fn auth_servers_list() -> Result<Vec<AuthServer>, CoreError> {
 }
 
 pub fn auth_server_add(name: Option<String>, url: String) -> Result<AuthServer, CoreError> {
-    let value = invoke_sync("authservers.add", &serde_json::json!({ "name": name, "url": url }))?;
+    let value = invoke_sync(
+        "authservers.add",
+        &serde_json::json!({ "name": name, "url": url }),
+    )?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
@@ -457,16 +494,22 @@ pub fn scan_java() -> Result<Vec<JavaRuntime>, CoreError> {
 }
 
 pub fn required_java(mc_version: String) -> u32 {
-    invoke_sync("java.required_major", &serde_json::json!({ "mc_version": mc_version }))
-        .ok()
-        .and_then(|v| v.as_u64())
-        .and_then(|v| u32::try_from(v).ok())
-        .unwrap_or(17)
+    invoke_sync(
+        "java.required_major",
+        &serde_json::json!({ "mc_version": mc_version }),
+    )
+    .ok()
+    .and_then(|v| v.as_u64())
+    .and_then(|v| u32::try_from(v).ok())
+    .unwrap_or(17)
 }
 
 pub fn get_instance_dir(id: String) -> Result<String, CoreError> {
     let value = invoke_sync("instance.dir", &serde_json::json!({ "id": id }))?;
-    value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
+    value
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| "内核返回类型错误".into())
 }
 
 pub fn list_content(instance_id: String, kind: String) -> Result<Vec<LocalContentItem>, CoreError> {
@@ -495,7 +538,11 @@ pub fn set_content_enabled(
     Ok(())
 }
 
-pub fn delete_content(instance_id: String, kind: String, file_name: String) -> Result<(), CoreError> {
+pub fn delete_content(
+    instance_id: String,
+    kind: String,
+    file_name: String,
+) -> Result<(), CoreError> {
     invoke_sync(
         "content.delete",
         &serde_json::json!({ "instance_id": instance_id, "kind": kind, "file_name": file_name }),
@@ -525,7 +572,10 @@ pub fn read_text(path: String) -> Result<Option<String>, CoreError> {
 }
 
 pub fn write_text(path: String, content: String) -> Result<(), CoreError> {
-    invoke_sync("files.write_text", &serde_json::json!({ "path": path, "content": content }))?;
+    invoke_sync(
+        "files.write_text",
+        &serde_json::json!({ "path": path, "content": content }),
+    )?;
     Ok(())
 }
 
@@ -535,7 +585,10 @@ pub fn delete_path(path: String) -> Result<(), CoreError> {
 }
 
 pub fn rename_path(from: String, to: String) -> Result<(), CoreError> {
-    invoke_sync("files.rename", &serde_json::json!({ "from": from, "to": to }))?;
+    invoke_sync(
+        "files.rename",
+        &serde_json::json!({ "from": from, "to": to }),
+    )?;
     Ok(())
 }
 
@@ -595,7 +648,10 @@ pub fn running_instances() -> Result<Vec<RunningGame>, CoreError> {
 
 pub async fn export_launch_script(id: String) -> Result<String, CoreError> {
     let value = invoke("launch.export_script", &serde_json::json!({ "id": id })).await?;
-    value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
+    value
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| "内核返回类型错误".into())
 }
 
 pub fn backup_world(instance_id: String, file_name: String) -> Result<String, CoreError> {
@@ -603,7 +659,10 @@ pub fn backup_world(instance_id: String, file_name: String) -> Result<String, Co
         "content.backup_world",
         &serde_json::json!({ "instance_id": instance_id, "file_name": file_name }),
     )?;
-    value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
+    value
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| "内核返回类型错误".into())
 }
 
 pub async fn authlib_login(
@@ -620,12 +679,20 @@ pub async fn authlib_login(
 }
 
 pub async fn authlib_refresh(account_id: String) -> Result<StoredAccount, CoreError> {
-    let value = invoke("authlib.refresh", &serde_json::json!({ "account_id": account_id })).await?;
+    let value = invoke(
+        "authlib.refresh",
+        &serde_json::json!({ "account_id": account_id }),
+    )
+    .await?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
 pub async fn refresh_microsoft_account(account_id: String) -> Result<StoredAccount, CoreError> {
-    let value = invoke("auth.ms.refresh", &serde_json::json!({ "account_id": account_id })).await?;
+    let value = invoke(
+        "auth.ms.refresh",
+        &serde_json::json!({ "account_id": account_id }),
+    )
+    .await?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
@@ -651,7 +718,11 @@ pub async fn install_resource(
 }
 
 pub async fn check_mod_updates(instance_id: String) -> Result<Vec<ModUpdate>, CoreError> {
-    let value = invoke("market.check_updates", &serde_json::json!({ "instance_id": instance_id })).await?;
+    let value = invoke(
+        "market.check_updates",
+        &serde_json::json!({ "instance_id": instance_id }),
+    )
+    .await?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
@@ -675,15 +746,25 @@ pub async fn install_mod_api(
 }
 
 pub fn export_modpack(instance_id: String) -> Result<String, CoreError> {
-    let value = invoke_sync("modpack.export", &serde_json::json!({ "instance_id": instance_id }))?;
-    value.as_str().map(str::to_string).ok_or_else(|| "内核返回类型错误".into())
+    let value = invoke_sync(
+        "modpack.export",
+        &serde_json::json!({ "instance_id": instance_id }),
+    )?;
+    value
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| "内核返回类型错误".into())
 }
 
 pub async fn import_modpack(
     source: String,
     name: Option<String>,
 ) -> Result<ModpackImportResult, CoreError> {
-    let value = invoke("modpack.import", &serde_json::json!({ "source": source, "name": name })).await?;
+    let value = invoke(
+        "modpack.import",
+        &serde_json::json!({ "source": source, "name": name }),
+    )
+    .await?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
@@ -691,7 +772,11 @@ pub async fn import_modpack_url(
     url: String,
     name: Option<String>,
 ) -> Result<ModpackImportResult, CoreError> {
-    let value = invoke("modpack.import_url", &serde_json::json!({ "url": url, "name": name })).await?;
+    let value = invoke(
+        "modpack.import_url",
+        &serde_json::json!({ "url": url, "name": name }),
+    )
+    .await?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 

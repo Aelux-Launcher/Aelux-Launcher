@@ -20,6 +20,32 @@ import HelpDetail from '../views/HelpDetail.vue'
 import VersionDetail from '../views/VersionDetail.vue'
 import Accounts from '../views/Accounts.vue'
 
+const LAST_ROUTE_KEY = 'aelux:last-route'
+
+/**
+ * 重载（WebView 恢复、dev 重载）会丢掉 hash，路由兜底会落到首页。
+ * 这里把上一次的详情/模块页写回 hash，保证下载中/下载后刷新仍停留在原页面。
+ */
+function restoreLastRoute() {
+  try {
+    const saved = sessionStorage.getItem(LAST_ROUTE_KEY)
+    if (!saved || location.hash) return
+    const path = saved.split(/[?#]/)[0]
+    const allowed =
+      path === '/tasks' ||
+      path.startsWith('/version/') ||
+      path.startsWith('/download') ||
+      path.startsWith('/instance/') ||
+      path.startsWith('/settings') ||
+      path.startsWith('/more/')
+    if (allowed) history.replaceState(null, '', `#${saved}`)
+  } catch {
+    /* sessionStorage 不可用时忽略 */
+  }
+}
+
+restoreLastRoute()
+
 export const router = createRouter({
   history: createWebHashHistory(),
   routes: [
@@ -52,3 +78,17 @@ export const router = createRouter({
     { path: '/:pathMatch(.*)*', redirect: '/home' },
   ],
 })
+
+router.afterEach((to) => {
+  try {
+    sessionStorage.setItem(LAST_ROUTE_KEY, to.fullPath)
+  } catch {
+    /* sessionStorage 不可用时忽略 */
+  }
+})
+
+// 诊断：reload 会保留 sessionStorage，进程重启则清空，便于确认「回首页」的真实来源。
+const navType = (
+  performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+)?.type
+console.info('[aelux] boot', navType ?? 'unknown', location.hash)

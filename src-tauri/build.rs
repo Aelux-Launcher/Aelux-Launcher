@@ -76,11 +76,7 @@ fn platform_key() -> &'static str {
     {
         "linux-arm64"
     }
-    #[cfg(not(any(
-        target_os = "windows",
-        target_os = "macos",
-        target_os = "linux"
-    )))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
         compile_error!("release-ffi 暂不支持该平台");
     }

@@ -88,6 +88,8 @@ pub struct LauncherConfig {
     pub game_height: u32,
     pub game_fullscreen: bool,
     pub download_concurrency: u32,
+    pub file_source: String,
+    pub version_source: String,
     pub hide_on_launch: bool,
     pub cache_dir: String,
 }
@@ -105,7 +107,9 @@ impl Default for LauncherConfig {
             game_width: 854,
             game_height: 480,
             game_fullscreen: false,
-            download_concurrency: 64,
+            download_concurrency: 128,
+            file_source: "mirror".into(),
+            version_source: "mirror".into(),
             hide_on_launch: false,
             cache_dir: String::new(),
         }

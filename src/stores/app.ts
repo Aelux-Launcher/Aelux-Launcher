@@ -181,13 +181,36 @@ export const useAppStore = defineStore('app', () => {
     settings: 'global',
     more: 'help',
   })
-  const pageStack = ref<PageStackEntry[]>([])
+  const PAGE_STACK_KEY = 'aelux:page-stack'
+
+  /** 读取重载前保存的页面栈（失败时按空栈处理）。 */
+  function readPageStack(): PageStackEntry[] {
+    try {
+      const raw = sessionStorage.getItem(PAGE_STACK_KEY)
+      if (!raw) return []
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? (parsed as PageStackEntry[]) : []
+    } catch {
+      return []
+    }
+  }
+
+  function persistPageStack() {
+    try {
+      sessionStorage.setItem(PAGE_STACK_KEY, JSON.stringify(pageStack.value))
+    } catch {
+      /* sessionStorage 不可用时忽略 */
+    }
+  }
+
+  const pageStack = ref<PageStackEntry[]>(readPageStack())
   /** 页面内部层级返回（如日志详情 → 日志列表）；返回 true 表示已拦截。 */
   const innerBack = ref<null | (() => boolean)>(null)
 
   /** 切换一级模块（路由 redirect 会落到该模块的默认分类）。 */
   function setView(v: AppModuleKey) {
     pageStack.value = []
+    persistPageStack()
     void router.push(`/${v}`)
   }
 
@@ -215,6 +238,7 @@ export const useAppStore = defineStore('app', () => {
     } else {
       pageStack.value = [current, ...pageStack.value]
     }
+    persistPageStack()
     void router.push(subPath(p))
   }
 
@@ -239,10 +263,12 @@ export const useAppStore = defineStore('app', () => {
     const [top, ...rest] = pageStack.value
     if (!top) {
       pageStack.value = []
+      persistPageStack()
       void router.push('/home')
       return
     }
     pageStack.value = rest
+    persistPageStack()
     if (top.sub) navState.value = { ...navState.value, [top.view]: top.sub }
     // 有完整路径（如版本详情）时原路返回，避免二级页回退落到模块首页。
     if (top.path) {
@@ -459,28 +485,45 @@ export const useAppStore = defineStore('app', () => {
     recomputeDownloadState()
   }
 
-  /** 内核下载进度 → 任务列表（同 taskId 覆盖，未知则追加）。 */
-  function upsertDownloadTask(ev: Extract<CoreEvent, { type: 'DownloadProgress' }>) {
+  /** 进度事件合并：100ms 内同 taskId 只保留最新值，避免上万条事件逐条触发 Vue 更新。 */
+  type ProgressEvent = Extract<CoreEvent, { type: 'DownloadProgress' }>
+  const pendingProgress = new Map<string, ProgressEvent>()
+  let progressTimer: ReturnType<typeof setTimeout> | null = null
+
+  function queueDownloadProgress(ev: ProgressEvent) {
+    pendingProgress.set(ev.taskId, ev)
+    if (progressTimer === null) progressTimer = setTimeout(flushDownloadProgress, 100)
+  }
+
+  /** 批量写入任务列表（同 taskId 覆盖，未知则追加）并只重算一次总进度。 */
+  function flushDownloadProgress() {
+    progressTimer = null
+    if (pendingProgress.size === 0) return
+    const batch = Array.from(pendingProgress.values())
+    pendingProgress.clear()
     const ds = downloadState.value
     const tasks = ds.tasks.slice()
-    const idx = tasks.findIndex((t) => t.id === ev.taskId)
-    const complete = ev.total > 0 && ev.received >= ev.total
-    const next: DownloadTaskState = {
-      id: ev.taskId,
-      name: ev.name,
-      url: '',
-      received: ev.received,
-      total: ev.total,
-      status: complete ? 'done' : 'downloading',
+    for (const ev of batch) {
+      const idx = tasks.findIndex((t) => t.id === ev.taskId)
+      const complete = ev.total > 0 && ev.received >= ev.total
+      const next: DownloadTaskState = {
+        id: ev.taskId,
+        name: ev.name,
+        url: '',
+        received: ev.received,
+        total: ev.total,
+        status: complete ? 'done' : 'downloading',
+      }
+      if (idx >= 0) tasks[idx] = { ...tasks[idx], ...next, url: tasks[idx].url }
+      else tasks.push(next)
     }
-    if (idx >= 0) tasks[idx] = { ...tasks[idx], ...next, url: tasks[idx].url }
-    else tasks.push(next)
     downloadState.value = { ...ds, tasks }
     recomputeDownloadState()
   }
 
   /** 安装结束（成功 / 失败）时统一收尾仍在下载的任务。 */
   function finishDownloadTasks(status: 'done' | 'failed') {
+    flushDownloadProgress()
     const ds = downloadState.value
     downloadState.value = {
       ...ds,
@@ -499,7 +542,7 @@ export const useAppStore = defineStore('app', () => {
       await listen<CoreEvent>('core-event', (event) => {
         const ev = event.payload
         if (ev.type === 'DownloadProgress') {
-          upsertDownloadTask(ev)
+          queueDownloadProgress(ev)
         } else if (ev.type === 'Log') {
           pushLaunchLog(ev.line)
         } else if (ev.type === 'Message') {
@@ -1351,6 +1394,8 @@ export const useAppStore = defineStore('app', () => {
           gameHeight: 480,
           gameFullscreen,
           downloadConcurrency: extras.maxParallel,
+          fileSource: extras.fileSource,
+          versionSource: extras.versionSource,
           hideOnLaunch: false,
           cacheDir,
         },

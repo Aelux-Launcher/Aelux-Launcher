@@ -1,17 +1,10 @@
-﻿//! 应用入口库：specta 绑定导出 + 插件注册 + 内核链路初始化。
+//! 应用入口库：specta 绑定导出 + 插件注册 + 内核链路初始化。
 
 mod commands;
 mod core_api;
 mod dto;
 
-
-
 use tauri_specta::{collect_commands, Builder};
-
-
-
-
-
 
 /// specta 构建器：命令清单 + TS 绑定导出（run 与测试共用同一份）。
 fn specta_builder() -> Builder<tauri::Wry> {

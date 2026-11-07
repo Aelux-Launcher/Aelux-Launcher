@@ -1,4 +1,4 @@
-﻿//! Tauri 命令层：前端唯一入口。
+//! Tauri 命令层：前端唯一入口。
 //!
 //! 命令本身不含业务：内核命令一律转发 `core_api`（三条链路之一），
 //! 窗口 / 文件命令直接用 Tauri 能力。所有命令经 tauri-specta
@@ -8,8 +8,8 @@ use crate::core_api;
 use crate::dto::{
     Account, AccountSession, ApiConfig, ApiConfigView, AuthServer, CrashReport, DeviceCodeSession,
     GameInstance, InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig,
-    LocalContentItem, LogFile, ModUpdate, ModpackImportResult, OsInfo, RunningGame,
-    StoredAccount, VersionManifest,
+    LocalContentItem, LogFile, ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount,
+    VersionManifest,
 };
 
 /* ------------------------------ 内核命令 ------------------------------ */
@@ -76,7 +76,11 @@ pub fn list_logs() -> Result<Vec<LogFile>, String> {
     }
 
     // 最近修改的排前面
-    out.sort_by(|a, b| b.modified_secs.partial_cmp(&a.modified_secs).unwrap_or(std::cmp::Ordering::Equal));
+    out.sort_by(|a, b| {
+        b.modified_secs
+            .partial_cmp(&a.modified_secs)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     Ok(out)
 }
 
@@ -159,7 +163,9 @@ pub fn read_crash_report(instance_id: String) -> Result<CrashReport, String> {
         }
     }
 
-    let launcher_log = data.join("logs").join(format!("{}-latest.log", instance_id));
+    let launcher_log = data
+        .join("logs")
+        .join(format!("{}-latest.log", instance_id));
     let (path, from_game) = match newest {
         Some((_, p)) => (p, true),
         None if launcher_log.is_file() => (launcher_log, false),
@@ -451,7 +457,11 @@ pub fn delete_content(instance_id: String, kind: String, file_name: String) -> R
 
 #[tauri::command]
 #[specta::specta]
-pub fn import_content(instance_id: String, kind: String, source: String) -> Result<LocalContentItem, String> {
+pub fn import_content(
+    instance_id: String,
+    kind: String,
+    source: String,
+) -> Result<LocalContentItem, String> {
     crate::core_api::import_content(instance_id, kind, source)
 }
 
@@ -590,7 +600,10 @@ pub fn export_modpack(instance_id: String) -> Result<String, String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn import_modpack(source: String, name: Option<String>) -> Result<ModpackImportResult, String> {
+pub async fn import_modpack(
+    source: String,
+    name: Option<String>,
+) -> Result<ModpackImportResult, String> {
     core_api::import_modpack(source, name).await
 }
 
@@ -787,7 +800,10 @@ pub fn write_text(path: String, content: String) -> Result<(), String> {
 pub fn read_bundled_announcements(app: tauri::AppHandle) -> String {
     use tauri::Manager;
     app.path()
-        .resolve("resources/announcements.json", tauri::path::BaseDirectory::Resource)
+        .resolve(
+            "resources/announcements.json",
+            tauri::path::BaseDirectory::Resource,
+        )
         .ok()
         .and_then(|p| std::fs::read_to_string(p).ok())
         .unwrap_or_else(|| "[]".into())
