@@ -38,7 +38,7 @@ import {
 import AlxIcon from '../components/AlxIcon.vue'
 import AlxLoading from '../components/AlxLoading.vue'
 import AlxModal from '../components/AlxModal.vue'
-/* 版本发布类型图标（素材取自 PCL 的 ReleaseTypes：Alpha / Beta / Release）。 */
+/* 版本发布类型图标（Alpha / Beta / Release）。 */
 import ALPHA_ICON from '../assets/release-types/alpha.png'
 import BETA_ICON from '../assets/release-types/beta.png'
 import RELEASE_ICON from '../assets/release-types/release.png'

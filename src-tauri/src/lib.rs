@@ -120,6 +120,12 @@ pub fn run() {
                 let _ = win.center();
 
                 commands::init_window_tracking(&win);
+
+                // 可调试便捷包（--features debug-tools）：release 构建也启用
+                // WebView2 DevTools，启动即自动展开，右键「检查」/ F12 均可用。
+                #[cfg(feature = "debug-tools")]
+                win.open_devtools();
+
                 let handle = win.clone();
                 win.on_window_event(move |event| {
                     // 「贴顶最大化 → 还原」时 WebView2 可能停留在最大化尺寸或不再

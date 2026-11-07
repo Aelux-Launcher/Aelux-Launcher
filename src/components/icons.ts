@@ -1,6 +1,6 @@
 /**
  * 图标注册表：name → SVG 内容（feather 风格线性图标，24 viewBox / 1.5 描边）。
- * 也可配置 `src` 使用位图素材（如 PCL 的方块图标），见下方 grass/command 条目。
+ * 也可配置 `src` 使用位图素材（如方块图标），见下方 grass/command 条目。
  * 通过 <AlxIcon name="..." :size="16" /> 使用。
  */
 import grassBlockImg from '../assets/blocks/grass-block.png'
@@ -111,7 +111,7 @@ export const ICONS = {
   'arrow-up': { vb: V, body: `<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>` },
   /* 日志文件：文档 + 文本行（「更多 → 日志」） */
   'file-text': { vb: V, body: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>` },
-  /* 帮助教程图标：全部使用 PCL 的方块位图素材 */
+  /* 帮助教程图标：全部使用方块位图素材 */
   'grass-block': { vb: V, body: '', src: grassBlockImg },
   'command-block': { vb: V, body: '', src: commandBlockImg },
   'hay-block': { vb: V, body: '', src: grassPathImg },

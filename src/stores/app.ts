@@ -829,6 +829,11 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  /** 关闭启动进度（失败弹窗关闭后调用）：面板回到常规启动页。 */
+  function dismissLaunch() {
+    launchProgress.value = null
+  }
+
   /** 结束实例进程。 */
   async function killInstance(id: string): Promise<boolean> {
     try {
@@ -2134,6 +2139,7 @@ export const useAppStore = defineStore('app', () => {
     cancelRequested,
     launchProgress,
     launchActive,
+    dismissLaunch,
     downloadState,
     downloadActive,
     rooms,

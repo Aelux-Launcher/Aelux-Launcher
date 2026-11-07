@@ -465,9 +465,9 @@ svg {
   align-items: center;
 }
 
-/* 启动进度面板：与首页同一布局，启动时右栏内容切换为进度清单。
-   头 → 大号百分比 + 进度条 → 当前动作 → 八步阶段 → 失败信息。
-   面板高度铺满右栏并垂直居中；内容超高时内部滚动，避免顶出窗口。 */
+/* 启动进度面板：居中的镐动画 + 「正在启动游戏」标题 +
+   实例名 + 细进度条 + 三行信息（当前步骤 / 登录方式 / 启动进度）。
+   面板只在启动进行中显示；失败改由全局弹窗展示，面板随即收起。 */
 .launch-progress-panel {
   width: 100%;
   height: 100%;
@@ -475,129 +475,93 @@ svg {
   padding: 8px 2px;
   display: flex;
   flex-direction: column;
-  /* safe center：内容不超高时垂直居中，超高时退化为顶部对齐，避免顶部被裁掉 */
-  justify-content: safe center;
+  align-items: center;
+  justify-content: center;
   overflow-y: auto;
   animation: alx-fade-in 180ms linear both;
 }
-.launch-progress-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border-light);
-  flex: none;
-}
-.launch-progress-title { font-size: 14px; font-weight: 600; }
-.launch-progress-hero { margin-top: 20px; flex: none; }
-.launch-progress-pct {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-  font-size: 34px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.5px;
-}
-.launch-progress-pct.is-failed { font-size: 20px; }
-.launch-progress-pct .unit {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-sub);
-}
-.launch-progress-target {
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--text-sub);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.launch-progress-hero .progress-track { margin-top: 16px; }
-.launch-progress-current {
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--text-sub);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: none;
-}
-.launch-stage-list {
+.launch-hero {
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 22px;
-  flex: none;
-}
-.launch-stage {
-  display: flex;
   align-items: center;
-  gap: 10px;
-  height: 24px;
-  padding: 0 2px;
-  font-size: 12px;
-  color: var(--text-sub);
+  text-align: center;
 }
-.launch-stage-mark {
+.launch-hero-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--text-main);
+}
+/* 镐动画：绕柄尾左右摆动 */
+.launch-pick {
+  width: 46px;
+  height: 46px;
+  transform-origin: 68% 85%;
+  animation: launch-pick-swing 1.2s ease-in-out infinite;
+}
+@keyframes launch-pick-swing {
+  0%,
+  100% {
+    transform: rotate(-14deg);
+  }
+  50% {
+    transform: rotate(14deg);
+  }
+}
+.launch-pick-line {
   width: 16px;
-  height: 16px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 3px;
+  margin-top: 4px;
+  margin-left: -30px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.85;
 }
-.launch-stage.done { color: var(--text-sub); }
-.launch-stage.done .launch-stage-mark { color: var(--text-main); }
-.launch-stage.active { color: var(--text-main); font-weight: 600; }
-.launch-stage.failed { color: var(--danger); font-weight: 600; }
-.launch-stage.pending { opacity: 0.55; }
-.launch-stage-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--border-light);
+.launch-hero-title {
+  margin-top: 14px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
-.launch-stage-ring {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  border: 2px solid var(--border-light);
-  border-top-color: var(--text-main);
-  animation: alx-spin 0.9s linear infinite;
-}
-.launch-stage-name {
+.launch-hero-name {
+  margin-top: 6px;
+  max-width: 92%;
+  font-size: 13px;
+  color: var(--text-sub);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.launch-failure {
+.launch-hero-bar {
   margin-top: 18px;
-  padding: 14px;
-  border: 1px solid var(--danger);
-  border-radius: 8px;
-  background: rgba(217, 48, 37, 0.06);
-  flex: none;
+  width: 78%;
+  height: 4px;
 }
-.launch-failure-head {
+.launch-info {
+  margin-top: 24px;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--danger);
+  flex-direction: column;
+  gap: 7px;
 }
-.launch-failure-text {
-  margin-top: 8px;
-  max-height: 120px;
-  overflow-y: auto;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--text-main);
-  word-break: break-all;
+.launch-info-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 150px);
+  gap: 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
 }
-.launch-retry { margin-top: 12px; width: 100%; }
+.launch-info-row .k {
+  text-align: right;
+  color: var(--text-sub);
+  opacity: 0.75;
+}
+.launch-info-row .v {
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .login-modes { display: flex; gap: 8px; }
 .login-modes button {

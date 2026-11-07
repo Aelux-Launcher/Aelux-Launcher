@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 世界管理（参考 PCL 的存档页）：
+ * 世界管理：
  * 搜索 + 工具行 + 存档列表（模式 / 版本 / 最近游玩 / 大小）。
  *
  * 数据来自内核 `content.list`（saves），存档元数据由 NBT 解析 level.dat 得到。

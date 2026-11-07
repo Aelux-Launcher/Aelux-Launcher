@@ -3,7 +3,7 @@
  * 统一账户头像：
  *   1. 本地自定义头像（用户上传，Tauri asset 协议）
  *   2. 正版 / 第三方账户的在线皮肤贴图（内核拉取的 Mojang / 认证服务器地址）
- *   3. 离线或在线加载失败 → PCL 内置皮肤按用户名确定性裁切头部
+ *   3. 离线或在线加载失败 → 内置皮肤按用户名确定性裁切头部
  */
 import { computed, ref, watch } from 'vue'
 import { convertFileSrc } from '@tauri-apps/api/core'

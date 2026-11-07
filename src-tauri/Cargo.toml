@@ -41,6 +41,9 @@ default = ["dev-path"]
 dev-path = ["dep:aelux-core"]
 # 发布打包：cargo tauri build --features release-ffi
 release-ffi = ["dep:libloading"]
+# 发布包 + DevTools（可调试的便捷包）：
+# cargo tauri build --features release-ffi,debug-tools --no-bundle
+debug-tools = ["tauri/devtools"]
 
 [profile.release]
 lto = true
