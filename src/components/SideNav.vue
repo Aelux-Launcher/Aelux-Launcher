@@ -75,6 +75,7 @@ const GROUPS: Record<string, Array<{ title: string; items: NavEntry[] }>> = {
         { key: 'help', label: '帮助', icon: 'help-circle' },
         { key: 'about', label: '关于', icon: 'info' },
         { key: 'feedback', label: '反馈', icon: 'message-square' },
+        { key: 'logs', label: '日志', icon: 'file-text' },
       ],
     },
     {

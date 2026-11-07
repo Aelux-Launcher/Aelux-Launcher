@@ -133,6 +133,8 @@ export const useAppStore = defineStore('app', () => {
     more: 'help',
   })
   const pageStack = ref<PageStackEntry[]>([])
+  /** 页面内部层级返回（如日志详情 → 日志列表）；返回 true 表示已拦截。 */
+  const innerBack = ref<null | (() => boolean)>(null)
 
   /** 切换一级模块（路由 redirect 会落到该模块的默认分类）。 */
   function setView(v: AppModuleKey) {
@@ -170,9 +172,11 @@ export const useAppStore = defineStore('app', () => {
 
   /**
    * 返回（顶栏 ← 按钮）：
-   *   详情页 → 逐级回退页面栈；模块态 → 回启动页；启动页 → 无操作。
+   *   页面内部层级 → 先交给页面自己回退；详情页 → 逐级回退页面栈；
+   *   模块态 → 回启动页；启动页 → 无操作。
    */
   function pageBack() {
+    if (innerBack.value && innerBack.value()) return
     const [top, ...rest] = pageStack.value
     if (!top) {
       pageStack.value = []
@@ -183,6 +187,11 @@ export const useAppStore = defineStore('app', () => {
     if (top.sub) navState.value = { ...navState.value, [top.view]: top.sub }
     // 模块页恢复到进入前的分类；无记录则落到默认分类（redirect）
     void router.push(top.view === 'home' || !top.sub ? `/${top.view}` : `/${top.view}/${top.sub}`)
+  }
+
+  /** 注册页面内部返回处理器（如日志详情）；传 null 解除。 */
+  function setInnerBack(fn: (() => boolean) | null) {
+    innerBack.value = fn
   }
 
   /** 版本设置页左栏子项切换（同一副页面内换内容）。 */
@@ -1575,6 +1584,7 @@ export const useAppStore = defineStore('app', () => {
     openSubPage,
     closeSubPage,
     pageBack,
+    setInnerBack,
     setInstanceTab,
     reloadInstanceTab,
     setTheme,

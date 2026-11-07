@@ -12,6 +12,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::get_data_dir,
         commands::detect_official_minecraft,
         commands::get_os_info,
+        commands::list_logs,
         commands::get_core_version,
         commands::fetch_json,
         commands::download_file,

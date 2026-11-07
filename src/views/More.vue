@@ -1,23 +1,26 @@
 <script setup lang="ts">
 /**
- * 更多模块（极简黑白版）：
- *   侧栏分组由 SideNav 负责（帮助 / 关于 / 反馈 / 联机），
+ * 更多模块（与设置页同一套卡片语言）：
+ *   侧栏分组由 SideNav 负责（帮助 / 关于 / 反馈 / 日志 / 联机），
  *   这里按 URL 参数 sec 渲染对应分节内容：
- *     help     —— 帮助文档（折叠条目，点击「阅读全文」进入详情副页面）
+ *     help     —— 帮助文档（单张卡片，折叠条目，阅读全文进入详情副页面）
  *     about    —— 关于（软件信息 / 特别鸣谢 / 法律信息）
- *     feedback —— 反馈与建议（GitHub Issues / 官方交流群）
- *     online   —— 联机（服务器列表 + 添加表单，内联旧 Multiplayer 功能）
+ *     feedback —— 反馈与建议（GitHub Issues / 官方交流群 / 提交前准备）
+ *     logs     —— 日志（按版本分组的日志文件，可打开所在文件夹或删除）
+ *     online   —— 联机（服务器列表 + 添加表单）
  */
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '../stores/app'
 import { call } from '../lib/bridge'
 import { confirmDialog } from '../lib/dialog'
 import { toast } from '../lib/toast'
 import AlxIcon from '../components/AlxIcon.vue'
-import PageHeader from '../components/PageHeader.vue'
+import SettingGroup from '../components/SettingGroup.vue'
+import { loaderIconUrl } from '../lib/loaderIcons'
+import type { GameInstance } from '../lib/types'
 import { HELP_ENTRIES, type HelpEntry } from './helpEntries'
 
-type Section = 'help' | 'about' | 'feedback' | 'online'
+type Section = 'help' | 'about' | 'feedback' | 'logs' | 'online'
 
 const props = defineProps<{ sec: string }>()
 
@@ -25,28 +28,12 @@ const store = useAppStore()
 
 /** 当前分节（非法值回落到帮助）。 */
 const section = computed<Section>(() =>
-  (['help', 'about', 'feedback', 'online'] as const).includes(props.sec as Section)
+  (['help', 'about', 'feedback', 'logs', 'online'] as const).includes(props.sec as Section)
     ? (props.sec as Section)
     : 'help',
 )
 
 /* ------------------------------- 帮助文档 ------------------------------- */
-
-/** 按条目的 group 字段分组（保持 HELP_ENTRIES 里的出现顺序）。 */
-const helpGroups = computed(() => {
-  const groups: Array<{ title: string; items: HelpEntry[] }> = []
-  const index = new Map<string, number>()
-  for (const e of HELP_ENTRIES) {
-    let i = index.get(e.group)
-    if (i === undefined) {
-      i = groups.length
-      index.set(e.group, i)
-      groups.push({ title: e.group, items: [] })
-    }
-    groups[i].items.push(e)
-  }
-  return groups
-})
 
 /** 当前展开的折叠条目（同一时间只展开一条）。 */
 const openHelpId = ref('')
@@ -81,6 +68,13 @@ const ISSUES_URL = 'https://github.com/Aelux-Launcher/Aelux-Launcher/issues'
 /** 官方交流群信息页（TODO：社区落地页确定后替换）。 */
 const GROUP_URL = 'https://aelux.app/community'
 
+/** 提交反馈前建议准备的信息。 */
+const FEEDBACK_TIPS = [
+  { title: '启动器版本号', desc: '可在「关于」页查看当前版本，便于确认问题所在的版本。' },
+  { title: '问题复现步骤', desc: '按顺序说明操作步骤，必要时附上截图或录屏。' },
+  { title: '相关日志文件', desc: '日志能帮助快速定位问题，提交前可以先到日志页确认。' },
+]
+
 /** 打开外部网页（统一走内核 open_external，失败给出提示）。 */
 async function openExternal(url: string) {
   try {
@@ -89,6 +83,172 @@ async function openExternal(url: string) {
     toast.error(`无法打开网页：${(e as Error).message}`)
   }
 }
+
+/** 从「提交前请准备」跳到日志页。 */
+function openLogs() {
+  store.setNav('more', 'logs')
+  void store.routerPush('/more/logs')
+}
+
+/* --------------------------------- 日志 --------------------------------- */
+
+/** 内核返回的一条日志文件。 */
+interface LogEntry {
+  instanceId: string
+  name: string
+  path: string
+  source: string
+  sizeBytes: number
+  modifiedSecs: number
+}
+
+/** 全部日志（按实例 id 分组展示）。 */
+const logs = ref<LogEntry[]>([])
+const logsLoading = ref(false)
+const logsError = ref('')
+
+/** 当前查看日志的实例 id（空 = 显示版本列表）。 */
+const logInstanceId = ref('')
+
+/** 当前实例。 */
+const currentInstance = computed(
+  () => store.instances.find((i) => i.id === logInstanceId.value) ?? null,
+)
+
+/** 当前实例的日志（最近修改的在前，与内核排序一致）。 */
+const currentLogs = computed(() => logs.value.filter((l) => l.instanceId === logInstanceId.value))
+
+/** 每个实例的日志数量。 */
+const logCounts = computed(() => {
+  const map: Record<string, number> = {}
+  for (const l of logs.value) map[l.instanceId] = (map[l.instanceId] ?? 0) + 1
+  return map
+})
+
+/** 读取日志清单（进入日志页时刷新一次）。 */
+async function loadLogs() {
+  if (logsLoading.value) return
+  logsLoading.value = true
+  logsError.value = ''
+  try {
+    logs.value = await call<LogEntry[]>('list_logs')
+  } catch (e) {
+    logsError.value = (e as Error).message
+    toast.error(`读取日志失败：${logsError.value}`)
+  } finally {
+    logsLoading.value = false
+  }
+}
+
+// 切换到日志页时刷新；离开时回到版本列表。
+watch(
+  section,
+  (s) => {
+    logInstanceId.value = ''
+    if (s === 'logs') void loadLogs()
+  },
+  { immediate: true },
+)
+
+/** 加载器显示名。 */
+const LOADER_LABEL: Record<string, string> = {
+  vanilla: '原版',
+  fabric: 'Fabric',
+  forge: 'Forge',
+  neoforge: 'NeoForge',
+  quilt: 'Quilt',
+}
+
+function loaderLabel(i: GameInstance): string {
+  return LOADER_LABEL[i.loader || 'vanilla'] ?? i.loader
+}
+
+/** 实例图标：原版草方块，其余用对应加载器图标。 */
+function loaderIconSrc(i: GameInstance): string | null {
+  return loaderIconUrl(i.loader || 'vanilla')
+}
+
+function loaderIcon(i: GameInstance): string {
+  const key = i.loader || 'vanilla'
+  return key === 'vanilla' ? 'minecraft' : key
+}
+
+/** 实例的日志数量。 */
+function logCount(id: string): number {
+  return logCounts.value[id] ?? 0
+}
+
+/** 日志标题（启动器捕获的输出统一显示为「启动日志」）。 */
+function logTitle(l: LogEntry): string {
+  return l.source === 'launcher' ? '启动日志' : l.name
+}
+
+/** 日志副文本：文件名（启动器日志）+ 大小 + 修改时间。 */
+function logDesc(l: LogEntry): string {
+  const parts = [formatSize(l.sizeBytes), formatTime(l.modifiedSecs)]
+  if (l.source === 'launcher') parts.unshift(l.name)
+  return parts.join(' · ')
+}
+
+/** 文件体积显示。 */
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${Math.round(bytes)} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+/** 时间显示（Unix 秒 → 本地时间）。 */
+function formatTime(sec: number): string {
+  if (!sec) return '时间未知'
+  const d = new Date(sec * 1000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** 日志所在目录（打开文件夹用）。 */
+function logDir(path: string): string {
+  const idx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return idx > 0 ? path.slice(0, idx) : path
+}
+
+/** 打开日志所在文件夹。 */
+async function openLogFolder(l: LogEntry) {
+  try {
+    await call('open_folder_in_explorer', { path: logDir(l.path) })
+  } catch (e) {
+    toast.error(`打开失败：${(e as Error).message}`)
+  }
+}
+
+/** 删除日志（二级锁确认，删除后即时从列表移除）。 */
+async function deleteLog(l: LogEntry) {
+  const ok = await confirmDialog({
+    title: '删除日志',
+    message: `确定删除日志「${logTitle(l)}」？删除后无法恢复。`,
+    confirmText: '删除',
+    danger: true,
+  })
+  if (!ok) return
+  try {
+    await call('delete_path', { path: l.path })
+    logs.value = logs.value.filter((item) => item.path !== l.path)
+    toast.success('日志已删除')
+  } catch (e) {
+    toast.error(`删除失败：${(e as Error).message}`)
+  }
+}
+
+/** 顶栏 ← 返回：日志详情优先回到日志列表，再退才离开模块。 */
+function handleInnerBack(): boolean {
+  if (section.value === 'logs' && logInstanceId.value) {
+    logInstanceId.value = ''
+    return true
+  }
+  return false
+}
+
+onMounted(() => store.setInnerBack(handleInnerBack))
+onBeforeUnmount(() => store.setInnerBack(null))
 
 /* --------------------------------- 联机 --------------------------------- */
 
@@ -149,43 +309,36 @@ async function copyAddress(s: ServerEntry) {
 </script>
 
 <template>
-  <div class="page-view active sub-page">
+  <div class="page-view active sub-page settings-page">
     <!-- ============================ 帮助文档 ============================ -->
     <template v-if="section === 'help'">
-      <PageHeader title="帮助文档" />
-
-      <div v-for="g in helpGroups" :key="g.title" class="setting-group help-group">
-        <div class="setting-group-title">
-          <span>{{ g.title }}</span>
-          <span class="tag">{{ g.items.length }} 篇</span>
-        </div>
-        <div class="help-group-body">
-          <div
-            v-for="e in g.items"
-            :key="e.id"
-            :class="['accordion-item help-item', openHelpId === e.id ? 'active' : '']"
-            @click="toggleHelp(e.id)"
-          >
-            <div class="accordion-header">
-              <span>{{ e.title }}</span>
-              <AlxIcon name="chevron-down" :size="16" />
-            </div>
-            <div class="accordion-content">
-              <!-- 摘要取第一条正文段落，全文进详情副页面看 -->
-              <p class="help-summary">{{ e.paragraphs[0] }}</p>
-              <button type="button" class="btn-download btn-ghost help-read" @click.stop="readFull(e)">
-                阅读全文
-              </button>
-            </div>
+      <SettingGroup title="帮助文档" :collapsible="false" :extra="`${HELP_ENTRIES.length} 篇`">
+        <div
+          v-for="e in HELP_ENTRIES"
+          :key="e.id"
+          :class="['accordion-item help-item', openHelpId === e.id ? 'active' : '']"
+          @click="toggleHelp(e.id)"
+        >
+          <div class="accordion-header">
+            <span class="help-title">
+              {{ e.title }}
+              <span class="tag">{{ e.group }}</span>
+            </span>
+            <AlxIcon name="chevron-down" :size="16" />
+          </div>
+          <div class="accordion-content">
+            <!-- 摘要取第一条正文段落，全文进详情副页面看 -->
+            <p class="help-summary">{{ e.paragraphs[0] }}</p>
+            <button type="button" class="btn-download btn-ghost help-read" @click.stop="readFull(e)">
+              阅读全文
+            </button>
           </div>
         </div>
-      </div>
+      </SettingGroup>
     </template>
 
     <!-- ============================== 关于 ============================== -->
     <template v-else-if="section === 'about'">
-      <PageHeader title="关于" />
-
       <!-- 应用概览卡：图标 + 名称 + 版本标签 -->
       <div class="about-hero">
         <div class="about-logo"><AlxIcon name="aperture" :size="44" /></div>
@@ -201,8 +354,7 @@ async function copyAddress(s: ServerEntry) {
         </div>
       </div>
 
-      <div class="setting-group">
-        <div class="setting-group-title">软件信息</div>
+      <SettingGroup title="软件信息" :collapsible="false">
         <div class="setting-row">
           <div class="setting-label">
             启动器版本
@@ -223,10 +375,9 @@ async function copyAddress(s: ServerEntry) {
           <div class="setting-label">开源协议</div>
           <div class="setting-controls">MIT License</div>
         </div>
-      </div>
+      </SettingGroup>
 
-      <div class="setting-group">
-        <div class="setting-group-title">特别鸣谢</div>
+      <SettingGroup title="特别鸣谢" :collapsible="false">
         <div v-for="t in THANKS" :key="t.title" class="list-item">
           <div class="item-left">
             <div class="item-icon"><AlxIcon name="star" :size="20" /></div>
@@ -245,10 +396,9 @@ async function copyAddress(s: ServerEntry) {
             <span>打开</span>
           </button>
         </div>
-      </div>
+      </SettingGroup>
 
-      <div class="setting-group">
-        <div class="setting-group-title">法律信息</div>
+      <SettingGroup title="法律信息" :collapsible="false">
         <div
           :class="['accordion-item legal-item', legalOpen ? 'active' : '']"
           @click="legalOpen = !legalOpen"
@@ -265,15 +415,12 @@ async function copyAddress(s: ServerEntry) {
             </p>
           </div>
         </div>
-      </div>
+      </SettingGroup>
     </template>
 
     <!-- ============================ 反馈与建议 ============================ -->
     <template v-else-if="section === 'feedback'">
-      <PageHeader title="反馈与建议" />
-
-      <div class="setting-group">
-        <div class="setting-group-title">反馈渠道</div>
+      <SettingGroup title="反馈渠道" :collapsible="false">
         <div class="list-item feedback-row">
           <div class="item-left">
             <div class="item-icon"><AlxIcon name="message-square" :size="20" /></div>
@@ -298,20 +445,123 @@ async function copyAddress(s: ServerEntry) {
             查看群信息
           </button>
         </div>
-      </div>
+      </SettingGroup>
 
-      <div class="setting-group">
-        <div class="setting-group-title">提交前请准备</div>
-        <div class="feedback-tip">启动器版本号（可在「关于」页查看）</div>
-        <div class="feedback-tip">问题复现步骤，必要时附上截图</div>
-        <div class="feedback-tip">相关日志文件，便于快速定位问题</div>
-      </div>
+      <SettingGroup title="提交前请准备" :collapsible="false">
+        <div v-for="(t, i) in FEEDBACK_TIPS" :key="t.title" class="list-item feedback-row">
+          <div class="item-left">
+            <span class="feedback-index">{{ i + 1 }}</span>
+            <div class="item-info">
+              <div class="item-title">{{ t.title }}</div>
+              <div class="item-desc">{{ t.desc }}</div>
+            </div>
+          </div>
+          <button
+            v-if="t.title === '相关日志文件'"
+            type="button"
+            class="btn-download btn-ghost feedback-action"
+            @click="openLogs"
+          >
+            查看日志
+          </button>
+        </div>
+      </SettingGroup>
+    </template>
+
+    <!-- ============================== 日志 ============================== -->
+    <template v-else-if="section === 'logs'">
+      <!-- 某个版本的日志列表 -->
+      <template v-if="currentInstance">
+        <SettingGroup
+          :title="currentInstance.name"
+          :collapsible="false"
+          :extra="`${currentLogs.length} 个日志`"
+        >
+          <p class="setting-note">
+            {{ currentInstance.version }} · {{ loaderLabel(currentInstance) }}
+          </p>
+
+          <div v-if="currentLogs.length === 0" class="empty-state log-empty">
+            <AlxIcon name="file-text" :size="32" />
+            <div>该版本还没有日志，启动一次游戏后就会生成。</div>
+          </div>
+
+          <div v-for="l in currentLogs" :key="l.path" class="list-item log-row">
+            <div class="item-left">
+              <div class="item-icon"><AlxIcon name="file-text" :size="20" /></div>
+              <div class="item-info">
+                <div class="item-title">{{ logTitle(l) }}</div>
+                <div class="item-desc">{{ logDesc(l) }}</div>
+              </div>
+            </div>
+            <div class="item-right">
+              <button type="button" class="btn-download btn-ghost log-action" @click="openLogFolder(l)">
+                打开文件夹
+              </button>
+              <button type="button" class="btn-download btn-ghost log-action danger" @click="deleteLog(l)">
+                删除
+              </button>
+            </div>
+          </div>
+        </SettingGroup>
+      </template>
+
+      <!-- 版本列表 -->
+      <template v-else>
+        <SettingGroup
+          title="日志"
+          :collapsible="false"
+          :extra="`${store.instances.length} 个版本`"
+        >
+          <p class="setting-note">
+            按版本查看启动器与游戏生成的日志；进入后可打开所在文件夹或删除。
+          </p>
+
+          <div v-if="logsLoading" class="empty-state log-empty">
+            <AlxIcon name="clock" :size="32" />
+            <div>正在读取日志…</div>
+          </div>
+
+          <div v-else-if="logsError" class="empty-state log-empty">
+            <AlxIcon name="alert-circle" :size="32" />
+            <div>读取日志失败：{{ logsError }}</div>
+            <button type="button" class="btn-download btn-ghost log-retry" @click="loadLogs">重试</button>
+          </div>
+
+          <div v-else-if="store.instances.length === 0" class="empty-state log-empty">
+            <AlxIcon name="info" :size="32" />
+            <div>还没有安装任何版本，安装后才能查看日志。</div>
+          </div>
+
+          <template v-else>
+            <div
+              v-for="i in store.instances"
+              :key="i.id"
+              class="list-item list-clickable log-instance-row"
+              @click="logInstanceId = i.id"
+            >
+              <div class="item-left">
+                <div class="item-icon">
+                  <img v-if="loaderIconSrc(i)" :src="loaderIconSrc(i) || ''" width="20" height="20" alt="" />
+                  <AlxIcon v-else :name="loaderIcon(i)" :size="20" />
+                </div>
+                <div class="item-info">
+                  <div class="item-title">{{ i.name }}</div>
+                  <div class="item-desc">{{ i.version }} · {{ loaderLabel(i) }}</div>
+                </div>
+              </div>
+              <div class="item-right">
+                <span class="tag">{{ logCount(i.id) }} 个日志</span>
+                <AlxIcon name="chevron-right" :size="16" class="log-chevron" />
+              </div>
+            </div>
+          </template>
+        </SettingGroup>
+      </template>
     </template>
 
     <!-- ============================== 联机 ============================== -->
     <template v-else>
-      <PageHeader title="联机" />
-
       <!-- 社区联机暂未开放提示 -->
       <div class="online-notice">
         <div class="online-notice-icon"><AlxIcon name="globe" :size="22" /></div>
@@ -324,11 +574,11 @@ async function copyAddress(s: ServerEntry) {
         <span class="tag">开发中</span>
       </div>
 
-      <div class="setting-group">
-        <div class="setting-group-title">
-          <span>已保存服务器</span>
-          <span class="tag">{{ store.servers.length }}</span>
-        </div>
+      <SettingGroup
+        title="已保存服务器"
+        :collapsible="false"
+        :extra="`${store.servers.length} 个`"
+      >
         <div v-if="store.servers.length === 0" class="empty-state server-empty">
           <AlxIcon name="globe" :size="28" />
           <div>还没有保存任何服务器，在下方添加一个吧。</div>
@@ -350,10 +600,9 @@ async function copyAddress(s: ServerEntry) {
             </button>
           </div>
         </div>
-      </div>
+      </SettingGroup>
 
-      <div class="setting-group">
-        <div class="setting-group-title">添加服务器</div>
+      <SettingGroup title="添加服务器" :collapsible="false">
         <div class="setting-row">
           <div class="setting-label">名称</div>
           <input v-model="form.name" class="setting-input" type="text" placeholder="我的服务器" />
@@ -376,24 +625,25 @@ async function copyAddress(s: ServerEntry) {
           </div>
           <button type="button" class="btn-download server-action" @click="handleAddServer">保存</button>
         </div>
-      </div>
+      </SettingGroup>
     </template>
   </div>
 </template>
 
 <style scoped>
 /* ------------------------------ 帮助文档 ------------------------------ */
-.help-group-body {
-  padding-bottom: 4px;
-}
-/* 卡片内的条目用分隔线代替悬浮圆角块，视觉更整齐 */
-.help-group-body .help-item {
-  margin: 0;
+.help-item {
   border-radius: 0;
+}
+.help-item + .help-item {
   border-top: 1px solid var(--border-light);
 }
-.help-group-body .help-item:first-child {
-  border-top: none;
+.help-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
 }
 .help-summary {
   margin: 0 0 12px;
@@ -453,7 +703,6 @@ async function copyAddress(s: ServerEntry) {
   height: 32px;
 }
 .legal-item {
-  margin: 0;
   border-radius: 0;
 }
 .legal-text {
@@ -467,26 +716,47 @@ async function copyAddress(s: ServerEntry) {
 .feedback-row {
   padding: 12px 16px;
 }
+.feedback-index {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--icon-bg);
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 600;
+}
 .feedback-action {
   height: 32px;
   flex: none;
 }
-.feedback-tip {
-  position: relative;
-  padding: 8px 16px 8px 30px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--text-sub);
+
+/* -------------------------------- 日志 -------------------------------- */
+.log-instance-row {
+  padding: 10px 16px;
 }
-.feedback-tip::before {
-  content: '';
-  position: absolute;
-  left: 16px;
-  top: 15px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--text-sub);
+.log-row {
+  padding: 10px 16px;
+}
+.log-action {
+  height: 32px;
+}
+.log-action.danger {
+  color: #e5484d;
+}
+.log-chevron {
+  color: var(--text-sub);
+  flex: none;
+}
+.log-empty {
+  padding: 48px 0;
+}
+.log-retry {
+  height: 32px;
+  margin-top: 12px;
 }
 
 /* -------------------------------- 联机 -------------------------------- */

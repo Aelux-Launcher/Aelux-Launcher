@@ -11,6 +11,11 @@ export const commands = {
 	 */
 	detectOfficialMinecraft: () => __TAURI_INVOKE<string | null>("detect_official_minecraft"),
 	getOsInfo: () => typedError<OsInfo, string>(__TAURI_INVOKE("get_os_info")),
+	/**
+	 *  扫描所有实例的日志：启动器捕获的 `data/logs/<id>-latest.log`
+	 *  与实例 Minecraft 目录下的 `logs/*.log(.gz)`。
+	 */
+	listLogs: () => typedError<LogFile[], string>(__TAURI_INVOKE("list_logs")),
 	getCoreVersion: () => __TAURI_INVOKE<string>("get_core_version"),
 	fetchJson: (url: string) => typedError<string, string>(__TAURI_INVOKE("fetch_json", { url })),
 	downloadFile: (url: string, dest: string, sha1: string | null) => typedError<string, string>(__TAURI_INVOKE("download_file", { url, dest, sha1 })),
@@ -286,6 +291,22 @@ export type LocalContentItem_Serialize = {
 	worldDifficulty?: string,
 	/**  存档版本（仅 saves 有值） */
 	worldVersion?: string,
+};
+
+/**  一条日志文件（启动器捕获的启动输出，或实例 Minecraft 目录下的游戏日志）。 */
+export type LogFile = {
+	/**  所属实例 id */
+	instanceId: string,
+	/**  文件名 */
+	name: string,
+	/**  绝对路径（用于打开文件夹与删除） */
+	path: string,
+	/**  来源：launcher（启动器捕获）/ game（游戏自身 logs 目录） */
+	source: string,
+	/**  文件大小（字节） */
+	sizeBytes: number | null,
+	/**  最后修改时间（Unix 秒） */
+	modifiedSecs: number | null,
 };
 
 /**  一条可用的 Mod 更新。 */

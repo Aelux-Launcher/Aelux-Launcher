@@ -454,6 +454,35 @@ async function mockCall<T>(command: string, args?: Record<string, unknown>): Pro
       return 'preview' as T
     case 'get_os_info':
       return { name: 'windows', version: '10.0.19045', arch: 'x86_64' } as T
+    case 'list_logs': {
+      const now = Math.floor(Date.now() / 1000)
+      return [
+        {
+          instanceId: 'preview-1',
+          name: 'preview-1-latest.log',
+          path: '/preview/.aelux/logs/preview-1-latest.log',
+          source: 'launcher',
+          sizeBytes: 2400,
+          modifiedSecs: now - 60 * 20,
+        },
+        {
+          instanceId: 'preview-1',
+          name: 'latest.log',
+          path: '/preview/.aelux/minecraft/instances/preview-1/logs/latest.log',
+          source: 'game',
+          sizeBytes: 9200,
+          modifiedSecs: now - 60 * 20,
+        },
+        {
+          instanceId: 'preview-2',
+          name: '2026-01-20-1.log.gz',
+          path: '/preview/.aelux/minecraft/instances/preview-2/logs/2026-01-20-1.log.gz',
+          source: 'game',
+          sizeBytes: 15000,
+          modifiedSecs: now - 60 * 60 * 24 * 5,
+        },
+      ] as T
+    }
     case 'fetch_minecraft_manifest':
       return {
         latest: { release: '1.21.4', snapshot: '25w45a' },

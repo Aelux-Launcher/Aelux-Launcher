@@ -177,6 +177,24 @@ pub struct JavaRuntime {
     pub arch: String,
 }
 
+/// 一条日志文件（启动器捕获的启动输出，或实例 Minecraft 目录下的游戏日志）。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LogFile {
+    /// 所属实例 id
+    pub instance_id: String,
+    /// 文件名
+    pub name: String,
+    /// 绝对路径（用于打开文件夹与删除）
+    pub path: String,
+    /// 来源：launcher（启动器捕获）/ game（游戏自身 logs 目录）
+    pub source: String,
+    /// 文件大小（字节）
+    pub size_bytes: f64,
+    /// 最后修改时间（Unix 秒）
+    pub modified_secs: f64,
+}
+
 /// 实例内的一件本地内容（Mod / 资源包 / 光影包 / 存档 / 原理图）。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

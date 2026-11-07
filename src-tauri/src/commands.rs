@@ -7,8 +7,8 @@
 use crate::core_api;
 use crate::dto::{
     Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, InstallResult,
-    JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem, ModUpdate,
-    ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
+    JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem, LogFile,
+    ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
 };
 
 /* ------------------------------ 内核命令 ------------------------------ */
@@ -40,6 +40,72 @@ pub fn detect_official_minecraft() -> Option<String> {
 #[specta::specta]
 pub fn get_os_info() -> Result<OsInfo, String> {
     core_api::get_os_info()
+}
+
+/// 扫描所有实例的日志：启动器捕获的 `data/logs/<id>-latest.log`
+/// 与实例 Minecraft 目录下的 `logs/*.log(.gz)`。
+#[tauri::command]
+#[specta::specta]
+pub fn list_logs() -> Result<Vec<LogFile>, String> {
+    let data = std::path::PathBuf::from(core_api::get_data_dir());
+    let mut out = Vec::new();
+
+    for inst in core_api::list_instances()? {
+        // 启动器捕获的启动输出
+        let launcher_log = data.join("logs").join(format!("{}-latest.log", inst.id));
+        push_log(&mut out, &inst.id, "launcher", &launcher_log);
+        // 游戏自身的 logs 目录（latest.log 与按日期滚动的 .log.gz）
+        let game_logs = data
+            .join("minecraft")
+            .join("instances")
+            .join(&inst.id)
+            .join("logs");
+        if let Ok(entries) = std::fs::read_dir(&game_logs) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
+                }
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if name.ends_with(".log") || name.ends_with(".log.gz") {
+                    push_log(&mut out, &inst.id, "game", &path);
+                }
+            }
+        }
+    }
+
+    // 最近修改的排前面
+    out.sort_by(|a, b| b.modified_secs.partial_cmp(&a.modified_secs).unwrap_or(std::cmp::Ordering::Equal));
+    Ok(out)
+}
+
+/// 把存在且为文件的 `path` 追加为一条日志记录。
+fn push_log(out: &mut Vec<LogFile>, instance_id: &str, source: &str, path: &std::path::Path) {
+    use std::time::UNIX_EPOCH;
+    let Ok(meta) = std::fs::metadata(path) else {
+        return;
+    };
+    if !meta.is_file() {
+        return;
+    }
+    let modified_secs = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as f64)
+        .unwrap_or(0.0);
+    out.push(LogFile {
+        instance_id: instance_id.to_string(),
+        name: path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("log")
+            .to_string(),
+        path: path.to_string_lossy().into_owned(),
+        source: source.to_string(),
+        size_bytes: meta.len() as f64,
+        modified_secs,
+    });
 }
 
 #[tauri::command]
