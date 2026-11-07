@@ -16,6 +16,7 @@ import { call } from '../lib/bridge'
 import { toast } from '../lib/toast'
 import { ensureMcmod, mcmodInfo } from '../lib/mcmod'
 import type { McmodInfo } from '../lib/mcmod'
+import { readExtras } from './SettingsModel'
 import AlxIcon from '../components/AlxIcon.vue'
 import AlxLoading from '../components/AlxLoading.vue'
 import AlxSelect from '../components/AlxSelect.vue'
@@ -174,10 +175,15 @@ const category = computed({
 const source = computed(() => store.resourceQuery.source)
 
 /** 下拉选项（首项为「不过滤」的空值）。 */
-const versionChoices = computed(() => [
-  { value: '', label: '全部版本' },
-  ...versionOptions.value.map((id) => ({ value: id, label: id })),
-])
+const versionChoices = computed(() => {
+  const choices = versionOptions.value.map((id) => ({ value: id, label: id }))
+  // 当前筛选 / 实例预填的版本可能不在正式版清单里（快照、加载器组合版本），补进选项避免显示空白
+  const picked = store.resourceQuery.gameVersion.trim()
+  if (picked && !versionOptions.value.includes(picked)) {
+    choices.unshift({ value: picked, label: picked })
+  }
+  return [{ value: '', label: '全部版本' }, ...choices]
+})
 
 const loaderChoices = computed(() => [
   { value: '', label: '任意 Mod 加载器' },
@@ -260,10 +266,35 @@ watch(
     if (c === 'world' && store.resourceQuery.source === 'modrinth') {
       store.setResourceQuery({ source: 'all' })
     }
+    applyInstancePrefill(c)
     void store.searchResources()
   },
   { immediate: true },
 )
+
+/* --------------------- 按当前实例自动筛选（下载设置开关） --------------------- */
+
+/** 「按当前实例自动筛选」开关：读取界面层偏好，随设置页改动实时生效。 */
+const autoFilterEnabled = computed(() => readExtras(store.settings).autoFilterDownload)
+
+/** Mod 筛选可用的加载器集合（vanilla / optifine 等不参与搜索筛选）。 */
+const MOD_LOADER_FILTERS = LOADER_OPTIONS.mod ?? []
+
+/**
+ * 开关开启时，进入资源分类页默认按当前选中实例预填：
+ *   游戏版本一律带上；Mod 页再带上实例的加载器（仅限可筛选的四种）。
+ * 预填后由分类 watch 统一触发检索，手动改筛选不受影响。
+ */
+function applyInstancePrefill(kind: string) {
+  if (!autoFilterEnabled.value) return
+  const inst = store.selectedInstance
+  if (!inst) return
+  const patch: Partial<ResourceQuery> = { gameVersion: inst.version }
+  if (kind === 'mod' && MOD_LOADER_FILTERS.includes(inst.loader)) {
+    patch.loader = inst.loader
+  }
+  store.setResourceQuery(patch)
+}
 
 /** 清空游戏版本时同步清空隐藏的加载器条件，避免「看不见但生效」。 */
 watch(

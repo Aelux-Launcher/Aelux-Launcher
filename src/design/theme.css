@@ -493,30 +493,77 @@ svg {
   align-items: center;
   color: var(--text-main);
 }
-/* 镐动画：绕柄尾左右摆动 */
+/* 挥镐动画（绕柄尾旋转）：抬镐 350ms → 挥下 900ms → 弹性回落 900ms，
+   与桌面启动器加载控件的节奏一致；落镐瞬间火星向外迸出后消散。 */
 .launch-pick {
-  width: 46px;
-  height: 46px;
-  transform-origin: 68% 85%;
-  animation: launch-pick-swing 1.2s ease-in-out infinite;
+  width: 62px;
+  height: 49px;
+  color: var(--text-main);
+}
+.launch-pick-swing {
+  transform-box: view-box;
+  transform-origin: 40px 36px;
+  animation: launch-pick-swing 2.15s infinite;
 }
 @keyframes launch-pick-swing {
-  0%,
-  100% {
-    transform: rotate(-14deg);
+  0% {
+    transform: rotate(0deg);
+    animation-timing-function: cubic-bezier(0.36, 0, 0.66, -0.42);
   }
-  50% {
-    transform: rotate(14deg);
+  16% {
+    transform: rotate(-75deg);
+    animation-timing-function: cubic-bezier(0.15, 0.86, 0.35, 1);
+  }
+  58% {
+    transform: rotate(-25deg);
+    animation-timing-function: cubic-bezier(0.2, 0.85, 0.25, 1.18);
+  }
+  100% {
+    transform: rotate(0deg);
   }
 }
-.launch-pick-line {
-  width: 16px;
-  height: 3px;
-  margin-top: 4px;
-  margin-left: -30px;
-  border-radius: 2px;
-  background: currentColor;
-  opacity: 0.85;
+.launch-spark {
+  opacity: 0;
+  animation-duration: 2.15s;
+  animation-iteration-count: infinite;
+}
+.launch-spark-l {
+  animation-name: launch-spark-left;
+}
+.launch-spark-r {
+  animation-name: launch-spark-right;
+}
+@keyframes launch-spark-left {
+  0%,
+  55% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  58% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  68%,
+  100% {
+    opacity: 0;
+    transform: translate(-5px, -6px);
+  }
+}
+@keyframes launch-spark-right {
+  0%,
+  55% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  58% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  68%,
+  100% {
+    opacity: 0;
+    transform: translate(5px, -6px);
+  }
 }
 .launch-hero-title {
   margin-top: 14px;
@@ -2656,6 +2703,21 @@ select.filter-control { cursor: pointer; }
 .resource-state-card .btn-download { margin-top: 8px; }
 .resource-state-title { font-size: 14px; font-weight: 600; color: var(--text-main); }
 .resource-state-desc { font-size: 12px; line-height: 1.6; max-width: 480px; }
+
+/* 页面渲染错误兜底卡片（App.vue 舞台层）：占满内容区并居中，避免整窗白屏 */
+.stage-error-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-sub);
+}
+.stage-error-card svg { opacity: 0.45; }
+.stage-error-actions { display: flex; gap: 10px; margin-top: 8px; }
 
 /* 原版下载加载态：占满整页，居中显示动画 */
 .download-page-loading {

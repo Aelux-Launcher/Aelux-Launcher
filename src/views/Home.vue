@@ -197,8 +197,12 @@ const LAUNCH_STAGES = [
 
 const launch = computed(() => store.launchProgress)
 
-/** 面板只在启动进行中显示；失败 / 成功后收起（失败原因走弹窗）。 */
-const showLaunchPanel = computed(() => !!launch.value && store.launchActive)
+/** 启动中显示；成功后短暂展示「启动完成」（内核确认拉起进程）再自动收起；失败交由弹窗处理。 */
+const showLaunchPanel = computed(() => {
+  const state = launch.value
+  if (!state) return false
+  return !state.done || !state.error
+})
 
 const launchPct = computed(() => {
   const state = launch.value
@@ -220,6 +224,11 @@ const launchStageLabel = computed(() => {
   if (state.done && !state.error) return '完成'
   return LAUNCH_STAGES[state.current - 1]?.label ?? state.message ?? '准备中'
 })
+
+/** 面板标题：进程被内核确认拉起后才切到「启动完成」，随后面板自动收起。 */
+const launchTitle = computed(() =>
+  launch.value?.done && !launch.value?.error ? '启动完成' : '正在启动游戏',
+)
 
 /** 启动失败 → 弹窗展示原因；关闭后回到常规启动页，可选择一键重试。 */
 watch(
@@ -245,17 +254,27 @@ watch(
       <section v-if="showLaunchPanel" class="launch-progress-panel">
         <div class="launch-hero">
           <div class="launch-hero-icon">
-            <svg class="launch-pick" viewBox="0 0 48 48" aria-hidden="true">
-              <path
-                d="M8.5 17.5 C15 7.5, 33 7.5, 39.5 17.5 C33.5 14, 28.2 12.8, 24 12.8 C19.8 12.8, 14.5 14, 8.5 17.5 Z"
-                fill="currentColor"
-                stroke="none"
-              />
-              <path d="M24 13.5 L33 41" stroke-width="4" />
+            <!-- 挥镐加载动画：镐子路径与节奏照搬同类启动器的加载控件
+                 （抬镐 350ms → 挥下 900ms → 弹性回落 900ms，落镐时迸出火星） -->
+            <svg class="launch-pick" viewBox="0 0 60 47" aria-hidden="true">
+              <g class="launch-pick-swing">
+                <path
+                  d="M 963.6 858.2 410.816 305.504 C 508.116 213.304 609.204 196.8 711.104 128.6 837.11367 49.573762 879.34045 50.334062 751.5 49.5 611.3 52 471.8 96.2 353.3 182.4 309.8 155.7 252.1 161.2 214.5 198.9 176.9 236.6 171.3 294.2 198 337.7 111.8 456.3 67.6 595.8 65.1 735.9 63.315254 883.82034 65.077966 837.29308 144.2 695.488 212.4 593.588 228.888 492.4 321.088 395.2 L 873.9 948 c 0.60001 0.59999 1.6 0.6 2.2 0 l 87.5 -87.5 c 0.6 -0.7 0.6 -1.6 0 -2.3 z"
+                  transform="translate(11, 6) scale(0.0389)"
+                  stroke-width="2"
+                  vector-effect="non-scaling-stroke"
+                />
+              </g>
+              <rect x="0" y="45" width="25" height="2" fill="currentColor" stroke="none" />
+              <g transform="translate(7, 41) rotate(-45)">
+                <path class="launch-spark launch-spark-l" d="M0,0L2,0L1,4" fill="currentColor" stroke="none" />
+              </g>
+              <g transform="translate(14, 41) rotate(45)">
+                <path class="launch-spark launch-spark-r" d="M0,0L2,0L1,4" fill="currentColor" stroke="none" />
+              </g>
             </svg>
-            <span class="launch-pick-line" />
           </div>
-          <div class="launch-hero-title">正在启动游戏</div>
+          <div class="launch-hero-title">{{ launchTitle }}</div>
           <div class="launch-hero-name" :title="launchTargetName">{{ launchTargetName }}</div>
           <div class="progress-track launch-hero-bar">
             <div class="progress-fill" :style="{ width: `${launchPct}%` }" />

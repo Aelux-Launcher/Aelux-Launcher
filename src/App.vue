@@ -5,7 +5,7 @@
  *   + 侧栏（按模块分组切换 + 底部账户区）
  *   + 内容舞台（页面切换直接替换，内容块逐项淡入）
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onErrorCaptured, onMounted, ref, watch, type Component } from 'vue'
 import { router } from './router'
 import { useAppStore } from './stores/app'
 import TopHeader from './components/TopHeader.vue'
@@ -55,7 +55,8 @@ const isFullPage = computed(
 /** 舞台内容键：同键视为同一页（用于判定是否需要切换动画）。 */
 function stageKey(r: (typeof route.value)): string {
   const name = String(r.name ?? 'home')
-  if (name === 'instance') return `instance:${r.params.instanceId}:${r.params.tab ?? 'overall'}`
+  // tab 不进 key：实例子页切换只换面板，不整层重挂（否则每次点子页都全页重载）
+  if (name === 'instance') return `instance:${r.params.instanceId}`
   if (name === 'resource') return `resource:${r.params.projectId}`
   if (name === 'help') return `help:${r.params.entryId}`
   if (name === 'version') return `version:${r.params.versionId}`
@@ -134,6 +135,30 @@ watch(
   () => resetStageScroll(),
   { flush: 'post' },
 )
+
+/**
+ * 页面渲染错误兜底：捕获舞台组件的渲染 / 侦听器错误，
+ * 显示错误卡片而不是让整个窗口白屏；切页时自动清除。
+ */
+const stageError = ref<{ key: string; message: string } | null>(null)
+
+onErrorCaptured((err, _instance, info) => {
+  console.error('[Aelux] 页面渲染出错：', info, err)
+  stageError.value = { key: stage.value.key, message: String((err as Error)?.message ?? err) }
+  return false
+})
+
+watch(
+  () => stage.value.key,
+  () => {
+    stageError.value = null
+  },
+)
+
+function recoverFromStageError() {
+  stageError.value = null
+  store.setView('home')
+}
 
 /** 自定义背景：直接铺在应用根节点上（设置页选择图片后立即生效）。 */
 const appStyle = computed(() => {
@@ -238,7 +263,21 @@ async function openCrashFolder() {
       <div class="content-area">
         <div class="alx-stage">
           <div :key="stage.key" class="alx-stage__layer">
-            <component :is="stage.comp" v-bind="stage.props" />
+            <!-- 渲染出错时展示错误卡片，避免整窗白屏无从恢复 -->
+            <div v-if="stageError" class="stage-error-card">
+              <AlxIcon name="alert-circle" :size="28" />
+              <div class="resource-state-title">页面渲染出错</div>
+              <div class="resource-state-desc">{{ stageError.message }}</div>
+              <div class="stage-error-actions">
+                <button type="button" class="btn-download btn-ghost" @click="stageError = null">
+                  重试渲染
+                </button>
+                <button type="button" class="btn-download" @click="recoverFromStageError">
+                  回到首页
+                </button>
+              </div>
+            </div>
+            <component :is="stage.comp" v-else v-bind="stage.props" />
           </div>
         </div>
 

@@ -652,6 +652,8 @@ export const useAppStore = defineStore('app', () => {
             done: ev.done,
             error: ev.error ?? null,
           }
+          // 内核确认进程已启动后先展示「启动完成」，稍后自动收起面板
+          if (ev.done && !ev.error) scheduleLaunchDismiss()
           pushLaunchLog(`[启动] ${ev.message}`)
         } else if (ev.type === 'Log') {
           pushLaunchLog(ev.line)
@@ -812,6 +814,7 @@ export const useAppStore = defineStore('app', () => {
         done: true,
         error: null,
       }
+      scheduleLaunchDismiss()
       // 内核回写游玩时长，刷新列表让首页显示最新状态
       void refreshInstances().catch(() => {})
       return { ok: true, pid: outcome.pid }
@@ -831,7 +834,26 @@ export const useAppStore = defineStore('app', () => {
 
   /** 关闭启动进度（失败弹窗关闭后调用）：面板回到常规启动页。 */
   function dismissLaunch() {
+    if (launchDismissTimer !== null) {
+      clearTimeout(launchDismissTimer)
+      launchDismissTimer = null
+    }
     launchProgress.value = null
+  }
+
+  /** 启动成功后的延迟收起定时器（先展示「启动完成」，再回到常规启动页）。 */
+  let launchDismissTimer: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * 启动成功收尾：只有内核确认游戏进程已拉起（拿到 pid）后才会走到这里。
+   * 面板先停留展示「启动完成」，约 2 秒后自动收起。
+   */
+  function scheduleLaunchDismiss() {
+    if (launchDismissTimer !== null) clearTimeout(launchDismissTimer)
+    launchDismissTimer = setTimeout(() => {
+      launchDismissTimer = null
+      if (launchProgress.value?.done && !launchProgress.value.error) launchProgress.value = null
+    }, 2000)
   }
 
   /** 结束实例进程。 */
@@ -1198,6 +1220,8 @@ export const useAppStore = defineStore('app', () => {
         sha1: sha1 ?? null,
       })
       toast.success(`已安装 ${item.name}`)
+      // 内核进度事件按节流推送，最后一条可能停在 99%；这里统一收尾任务状态。
+      finishDownloadTasks('done')
       const TAB_BY_KIND: Record<string, string> = {
         mods: 'mod',
         resourcepacks: 'resourcepack',
@@ -1207,8 +1231,11 @@ export const useAppStore = defineStore('app', () => {
       }
       const tab = TAB_BY_KIND[kind]
       if (tab) reloadInstanceTab(tab)
+      // 下载完成后停在任务页的话自动回首页。
+      if (route.value.name === 'tasks') setView('home')
       return item
     } catch (e) {
+      finishDownloadTasks('failed')
       toast.error(`安装失败：${(e as Error).message}`)
       return null
     }
@@ -1228,8 +1255,11 @@ export const useAppStore = defineStore('app', () => {
       })
       instances.value = [...instances.value, result.instance]
       toast.success(`整合包已安装：${result.instance.name}（${result.files} 个文件）`)
+      finishDownloadTasks('done')
+      if (route.value.name === 'tasks') setView('home')
       return result.instance
     } catch (e) {
+      finishDownloadTasks('failed')
       const message = cancelRequested.value ? '下载已取消' : (e as Error).message
       installError.value = message
       if (!cancelRequested.value) reportInstallFailure(name?.trim() || '整合包', message)
@@ -1267,9 +1297,11 @@ export const useAppStore = defineStore('app', () => {
         })
       }
       toast.success(`已更新 ${update.projectTitle} → ${update.latestVersion}`)
+      finishDownloadTasks('done')
       reloadInstanceTab('mod')
       return true
     } catch (e) {
+      finishDownloadTasks('failed')
       toast.error(`更新 ${update.projectTitle} 失败：${(e as Error).message}`)
       return false
     }
@@ -1880,7 +1912,12 @@ export const useAppStore = defineStore('app', () => {
         resourceDetailData.value = await loadCurseForgeDetail(projectId, kind)
         return
       }
-      const raw = await call<string>('fetch_json', { url: buildResourceDetailUrl(projectId) })
+      // 项目与版本列表并行请求（版本地址只依赖项目 id，不必等项目返回），
+      // 团队成员接口依赖 project.team，稍后补发；省一次串行往返，详情页打开更快。
+      const [raw, rawVersions] = await Promise.all([
+        call<string>('fetch_json', { url: buildResourceDetailUrl(projectId) }),
+        call<string>('fetch_json', { url: buildResourceVersionsUrl(projectId) }),
+      ])
       const p = JSON.parse(raw) as {
         id: string
         slug: string
@@ -1897,14 +1934,12 @@ export const useAppStore = defineStore('app', () => {
         /** 预览数据 / 兼容字段（正式接口没有作者名，走团队接口） */
         author?: { username?: string }
       }
-      // 版本列表与团队成员并行请求；团队接口失败不影响主流程（作者名可缺省）。
-      const [rawVersions, rawMembers] = await Promise.all([
-        call<string>('fetch_json', { url: buildResourceVersionsUrl(projectId) }),
-        p.team
-          ? call<string>('fetch_json', { url: buildResourceTeamMembersUrl(p.team) }).catch(() => null)
-          : Promise.resolve(null),
-      ])
+      // 团队接口失败不影响主流程（作者名可缺省）。
+      const teamPromise: Promise<string | null> = p.team
+        ? call<string>('fetch_json', { url: buildResourceTeamMembersUrl(p.team) }).catch(() => null)
+        : Promise.resolve(null)
       let author: string | undefined
+      const rawMembers = await teamPromise
       if (rawMembers) {
         try {
           const members = JSON.parse(rawMembers) as Array<{
@@ -1937,15 +1972,15 @@ export const useAppStore = defineStore('app', () => {
         }>
       }>
       const versions: ResourceVersion[] = vs.map((v) => {
-        const file = v.files.find((f) => f.primary) ?? v.files[0]
+        const file = (v.files ?? []).find((f) => f.primary) ?? v.files?.[0]
         return {
           id: v.id,
           name: v.name,
           versionNumber: v.version_number,
-          gameVersions: v.game_versions,
-          loaders: v.loaders,
+          gameVersions: v.game_versions ?? [],
+          loaders: v.loaders ?? [],
           datePublished: v.date_published,
-          downloads: v.downloads,
+          downloads: v.downloads ?? 0,
           fileUrl: file?.url ?? '',
           fileName: file?.filename ?? '',
           primary: file?.primary ?? false,
@@ -2026,9 +2061,9 @@ export const useAppStore = defineStore('app', () => {
           slug: p.slug,
           title: p.title,
           description: p.description,
-          categories: p.categories,
-          displayCategories: p.display_categories,
-          downloads: p.downloads,
+          categories: p.categories ?? [],
+          displayCategories: p.display_categories ?? [],
+          downloads: p.downloads ?? 0,
           iconUrl: p.icon_url ?? '',
           dateModified: p.date_modified,
           author: p.author?.username ?? author,

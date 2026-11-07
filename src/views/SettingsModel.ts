@@ -105,6 +105,8 @@ export interface SettingsExtras {
   versionSource: DownloadSourcePref
   /** 速度限制（MB/s，0 表示无限制） */
   speedLimit: number
+  /** 下载社区资源时按当前实例的游戏版本 / 加载器自动预填筛选（默认关闭） */
+  autoFilterDownload: boolean
 
   /* -------------------------- 全局设置：启动选项 -------------------------- */
   /** 默认版本隔离策略 */
@@ -174,6 +176,7 @@ const DEFAULT_EXTRAS: SettingsExtras = {
   fileSource: 'auto',
   versionSource: 'auto',
   speedLimit: 0,
+  autoFilterDownload: false,
   versionIsolation: 'all',
   iconPath: '',
   customInfo: '',
@@ -369,6 +372,7 @@ export function readExtras(raw: unknown): SettingsExtras {
   }
   if (typeof obj.maxParallel === 'number') out.maxParallel = clampParallel(obj.maxParallel)
   if (typeof obj.speedLimit === 'number') out.speedLimit = clampSpeedLimit(obj.speedLimit)
+  if (typeof obj.autoFilterDownload === 'boolean') out.autoFilterDownload = obj.autoFilterDownload
   // 兼容旧版单一下载源字段（official-first / mirror-first）
   out.fileSource = readDownloadSource(obj.fileSource ?? obj.downloadSource, out.fileSource)
   out.versionSource = readDownloadSource(obj.versionSource ?? obj.downloadSource, out.versionSource)

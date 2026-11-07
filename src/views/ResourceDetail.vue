@@ -499,7 +499,7 @@ function versionInfo(v: ResourceVersion): string {
 
 /** 依赖条目的类型标签（只显示一个分类标签）。 */
 function dependencyTag(dep: ResourceProject): string {
-  const raw = dep.displayCategories[0] ?? dep.categories[0] ?? ''
+  const raw = dep.displayCategories?.[0] ?? dep.categories?.[0] ?? ''
   return raw ? categoryLabel(raw) : ''
 }
 

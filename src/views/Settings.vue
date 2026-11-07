@@ -1171,6 +1171,21 @@ async function clearDownloadCache() {
         </div>
       </SettingGroup>
 
+      <SettingGroup title="社区资源" :collapsible="false">
+        <div class="setting-row">
+          <div class="setting-label">
+            按当前实例自动筛选
+            <div class="setting-desc">
+              下载模组、资源包等社区资源时，自动按当前选中实例的游戏版本与加载器预填筛选条件并检索；每次进入资源分类页都会重新应用
+            </div>
+          </div>
+          <AlxToggle
+            :model-value="extras.autoFilterDownload"
+            @update:model-value="(v: boolean) => setExtra('autoFilterDownload', v)"
+          />
+        </div>
+      </SettingGroup>
+
       <SettingGroup title="下载性能" :collapsible="false">
         <div class="setting-row stacked">
           <div class="setting-label">

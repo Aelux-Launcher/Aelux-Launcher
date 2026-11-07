@@ -9,7 +9,7 @@
  * loadInstanceSettings / updateInstanceSettings 负责持久化，
  * 视图只通过回调读写；外观偏好走 instanceMeta 的本地 KV。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useAppStore } from '../stores/app'
 import type { GameInstance } from '../lib/types'
 import AlxIcon from '../components/AlxIcon.vue'
@@ -59,6 +59,20 @@ const instance = computed<GameInstance | undefined>(() =>
   store.instances.find((i) => i.id === props.instanceId),
 )
 
+/** 页面根滚动容器（tab 切换时复位滚动用）。 */
+const rootEl = ref<HTMLElement | null>(null)
+
+// 舞台层不再因 tab 变化重挂载（stageKey 只含 instanceId）：
+// 面板切换时自行把滚动复位到顶部，保持与整页重挂时代一致的观感。
+watch(
+  () => props.tab,
+  () => {
+    void nextTick(() => {
+      if (rootEl.value) rootEl.value.scrollTop = 0
+    })
+  },
+)
+
 /** 兜底后的实例设置（控件不会拿到 undefined）。 */
 const settings = computed<InstanceSettings>(() =>
   fallbackInstanceSettings(store.instanceSettings[props.instanceId] as Partial<InstanceSettings>),
@@ -77,7 +91,7 @@ function setUi(p: InstanceUi) {
 </script>
 
 <template>
-  <div class="page-view active sub-page instance-page">
+  <div ref="rootEl" class="page-view active sub-page instance-page">
     <!-- 实例不存在（可能已被删除） -->
     <div v-if="!instance" class="empty-state">
       <AlxIcon name="alert-circle" :size="32" />

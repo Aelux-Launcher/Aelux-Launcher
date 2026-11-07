@@ -38,18 +38,26 @@ function openAccounts() {
 }
 
 /**
- * 账户区刷新：整页重载。除了重新读取账户 / 实例 / 认证服务器外，
- * 主要用于清理 WebView 中长期累积的状态，避免页面卡死。
- * 路由是 hash 模式，reload 后会停留在当前页面。
+ * 账户区刷新：就地重拉账户 / 会话 / 认证服务器 / 实例数据。
+ * 不做整页重载——location.reload 会把头像与列表闪没（白屏 → 重渲染），
+ * 就地刷新只替换数据对象，头像预加载完成后才切换 src，不会闪烁。
  */
 const refreshingAccount = ref(false)
 
-function refreshAccountView() {
+async function refreshAccountView() {
   if (refreshingAccount.value) return
   refreshingAccount.value = true
   toast.info('正在刷新页面…')
-  // 留一点时长给旋转动画，再整页重载。
-  window.setTimeout(() => location.reload(), 300)
+  try {
+    await Promise.allSettled([
+      store.loadAccounts(),
+      store.restoreSession(),
+      store.loadAuthServers(),
+      store.refreshInstances(),
+    ])
+  } finally {
+    refreshingAccount.value = false
+  }
 }
 
 /** 各模块的侧栏分组（key 与路由参数一致）。 */
