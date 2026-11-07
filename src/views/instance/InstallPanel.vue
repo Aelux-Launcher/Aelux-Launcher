@@ -138,7 +138,7 @@ async function installFromFile() {
       filters: [{ name: '加载器安装包', extensions: ['jar', 'zip'] }],
     })
     if (!picked) return
-    toast.info('本地安装包需要手动放入 minecraft/installers 后由内核安装，暂未开放')
+    toast.info('本地安装包需要手动放入 .minecraft/installers 后由内核安装，暂未开放')
   } catch (e) {
     toast.warning(`选择文件失败：${(e as Error).message}`)
   }

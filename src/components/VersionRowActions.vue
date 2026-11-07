@@ -34,7 +34,7 @@ async function openChangelog() {
   }
 }
 
-/** 下载服务端：落到数据目录 minecraft/servers/<id>/server.jar。 */
+/** 下载服务端：落到数据目录 .minecraft/servers/<id>/server.jar。 */
 async function handleServerDownload() {
   try {
     const dest = await store.downloadVersionServer(props.versionId)

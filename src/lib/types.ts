@@ -206,7 +206,7 @@ export interface DeviceFlowState {
 export interface StoredFolder {
   /** 稳定 id（时间戳 + 随机后缀） */
   id: string
-  /** current = 启动器根目录自动生成的 .minecraft；official = 官方启动器文件夹；added = 用户添加 */
+  /** current = 启动器数据目录下的 .minecraft（游戏本体 / 依赖库 / 资源都装在这里）；official = 官方启动器文件夹；added = 用户添加 */
   type: 'current' | 'official' | 'added'
   /** 文件夹绝对路径（official 未检测到时为空串） */
   path: string

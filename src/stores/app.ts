@@ -972,12 +972,12 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  /** 下载服务端 jar 到数据目录 minecraft/servers/<id>/server.jar，返回落盘路径。 */
+  /** 下载服务端 jar 到数据目录 .minecraft/servers/<id>/server.jar，返回落盘路径。 */
   async function downloadVersionServer(id: string): Promise<string> {
     const json = await fetchVersionJson(id)
     const server = json.downloads?.server
     if (!server) throw new Error('该版本没有提供服务端下载')
-    const dest = `minecraft/servers/${id}/server.jar`
+    const dest = `.minecraft/servers/${id}/server.jar`
     const taskId = beginDownloadTask(`server-${id}.jar`, server.url)
     try {
       await call('download_file', {
