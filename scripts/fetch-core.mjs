@@ -21,7 +21,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const srcTauri = join(here, '..')
+const srcTauri = join(here, '..', 'src-tauri')
 
 /** 私有 Release 资产的鉴权头（可选）。 */
 function authHeaders(extra = {}) {
