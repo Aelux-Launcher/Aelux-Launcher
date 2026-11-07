@@ -1,6 +1,6 @@
 [package]
 name = "aelux-launcher-app"
-version = "0.1.0"
+version = "0.1.0-beta.1"
 description = "Aelux Launcher - Minecraft Java Edition Launcher"
 authors = ["Aelux Team"]
 edition = "2021"

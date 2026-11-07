@@ -39,7 +39,7 @@ dependencies = [
 
 [[package]]
 name = "aelux-launcher-app"
-version = "0.1.0"
+version = "0.1.0-beta.1"
 dependencies = [
  "aelux-core",
  "libloading 0.8.9",

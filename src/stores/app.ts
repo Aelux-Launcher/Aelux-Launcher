@@ -70,7 +70,7 @@ export interface PageStackEntry {
 }
 
 /** 测试期版本基线（三处版本号统一维护：package.json / tauri.conf.json / 内核 Cargo.toml）。 */
-const APP_VERSION_FALLBACK = '0.1.0'
+const APP_VERSION_FALLBACK = '0.1.0-beta.1'
 
 /** 展示「前置资源」时忽略的两个基础前置（Fabric API / Quilt API）。 */
 const IGNORED_DEPENDENCIES = new Set(['P7dR8mSH', 'qvIfYCYJ'])

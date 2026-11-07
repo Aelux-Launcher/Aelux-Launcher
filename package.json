@@ -1,6 +1,6 @@
 {
   "name": "aelux-launcher-app",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "description": "Aelux Launcher 桌面启动器壳（Tauri 2 + Vue 3.6 Vapor），消费 Rust 内核 aelux-core。",
   "author": "Aelux",
   "license": "MIT",
