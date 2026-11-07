@@ -38,12 +38,32 @@ const overrideUrl = computed(() =>
 )
 
 /**
- * 皮肤贴图：在线皮肤（Mojang / 认证服务器）或本地素材。
+ * 在线皮肤预加载：下载完成后才切换 src。
+ * 在线地址到手前一直显示本地兜底皮肤，避免头像「本地 → 空白 → 在线」闪一下。
+ */
+const loadedSkinUrl = ref('')
+
+watch(
+  () => props.skinUrl,
+  (url) => {
+    if (!url || url === loadedSkinUrl.value) return
+    const probe = new Image()
+    probe.onload = () => {
+      loadedSkinUrl.value = url
+    }
+    probe.src = url
+  },
+  { immediate: true },
+)
+
+/**
+ * 皮肤贴图：在线皮肤（Mojang / 认证服务器，需预加载完成）或本地素材。
  * 都是 64×64 全身图，由 `.skin-img` 放大 8 倍只露出头部正面。
  */
 const skinSrc = computed(() => {
   if (failed.value) return localSkinUrl(props.name)
-  return props.skinUrl || localSkinUrl(props.name)
+  if (props.skinUrl && props.skinUrl === loadedSkinUrl.value) return props.skinUrl
+  return localSkinUrl(props.name)
 })
 </script>
 

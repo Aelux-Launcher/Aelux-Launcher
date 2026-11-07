@@ -674,6 +674,9 @@ export const useAppStore = defineStore('app', () => {
   async function init() {
     // 先判断运行环境：浏览器预览没有内核，后续 kv/命令读取失败时仍要能正确降级。
     browserMode.value = !('__TAURI_INTERNALS__' in window)
+    // 会话 / 账户是首页最先要显示的数据：立即并行拉起，不等主题读取与版本探测，
+    // 否则头像和用户名要等几百毫秒才出现（刷新时肉眼可见地闪一下）。
+    const sessionBoot = Promise.allSettled([restoreSession(), loadAccounts(), loadAuthServers()])
     let savedTheme: string | null = null
     try {
       savedTheme = await kvGet('theme')
@@ -708,9 +711,7 @@ export const useAppStore = defineStore('app', () => {
     await Promise.allSettled([
       loadVersions(),
       refreshInstances(),
-      restoreSession(),
-      loadAccounts(),
-      loadAuthServers(),
+      sessionBoot,
       kvGet('login-mode').then((savedMode) => {
         if (savedMode === 'official' || savedMode === 'third' || savedMode === 'offline') {
           loginMode.value = savedMode
