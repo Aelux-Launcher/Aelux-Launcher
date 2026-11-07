@@ -69,7 +69,7 @@ export interface SettingsExtras {
   launcherLanguage: string
   /** 启动器更新通道（正式版 / 开发版） */
   updateChannel: UpdateChannel
-  /** 更新源选择（auto / 自建服务器 / Cloudflare R2 / GitHub） */
+  /** 更新源选择（auto / 自建服务器 / Cloudflare 镜像 / GitHub） */
   updateSource: UpdateSourcePref
   /** 自建更新源地址（如 https://updates.example.com，updateSource 为 self 时必填） */
   updateSelfBase: string
