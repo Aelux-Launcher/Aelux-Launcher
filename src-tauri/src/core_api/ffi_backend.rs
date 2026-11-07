@@ -181,6 +181,13 @@ pub fn get_data_dir() -> String {
         .unwrap_or_default()
 }
 
+pub fn get_minecraft_dir() -> String {
+    invoke_sync("minecraft_dir.get", &Value::Null)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_default()
+}
+
 pub fn get_core_version() -> String {
     let lib = LIB.get().expect("内核动态库未初始化");
     unsafe {

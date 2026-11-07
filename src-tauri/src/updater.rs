@@ -2,7 +2,7 @@
 //!
 //! 流程：查清单（按渠道选最新 Release / 镜像聚合清单）→ 比对版本 →
 //! 后台下载 zip（复用内核下载任务，进度进任务面板）→ sha256 校验 →
-//! 解压暂存到 `data/update/staged/` → 下次启动「换身」：
+//! 解压暂存到 `aelux/update/staged/` → 下次启动「换身」：
 //! 运行中的 exe/dll 不能覆盖但**可以重命名**——旧文件改名腾位置，
 //! 新文件移入，拉起新进程后清理 `.old`。
 //!
@@ -399,19 +399,17 @@ async fn futures_join_probe(
 
 /* ------------------------------ 路径工具 ------------------------------ */
 
-/// 数据根目录（镜像内核规则：AELUX_DATA_DIR → exe 同级 data/ → exe 同级 data）。
-/// 启动最早期内核尚未加载，这里独立解析，保证换身路径与下载路径一致。
+/// 启动器数据目录（镜像内核规则：根目录 → `aelux/`）。
+/// 根目录：`AELUX_DATA_DIR` → exe 同级目录。
 fn resolve_data_dir() -> PathBuf {
     if let Ok(dir) = std::env::var("AELUX_DATA_DIR") {
         if !dir.trim().is_empty() {
-            return PathBuf::from(dir);
+            return PathBuf::from(dir).join("aelux");
         }
     }
-    let exe_dir = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(Path::to_path_buf))
-        .unwrap_or_else(|| PathBuf::from("."));
-    exe_dir.join("data")
+    exe_dir()
+        .map(|dir| dir.join("aelux"))
+        .unwrap_or_else(|_| PathBuf::from("aelux"))
 }
 
 fn data_dir_runtime() -> PathBuf {

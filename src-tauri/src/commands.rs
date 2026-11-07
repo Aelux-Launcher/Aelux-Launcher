@@ -20,6 +20,13 @@ pub fn get_data_dir() -> String {
     core_api::get_data_dir()
 }
 
+/// 游戏根目录（`.minecraft`）：版本 / 依赖库 / 资源 / 实例游戏目录。
+#[tauri::command]
+#[specta::specta]
+pub fn get_minecraft_dir() -> String {
+    core_api::get_minecraft_dir()
+}
+
 /// 检测官方启动器的 .minecraft 目录（Windows 下为 %APPDATA%\.minecraft）。
 /// 只有目录里确实存在 Minecraft 数据时才返回；空目录 / 仅创建过文件夹不显示。
 #[tauri::command]
@@ -190,7 +197,16 @@ fn resolve_game_root(raw: &str, require_versions: bool) -> Result<std::path::Pat
         return Ok(nested);
     }
     if require_versions {
-        return Err("该文件夹不是 Minecraft 游戏目录（缺少 versions 文件夹）".into());
+        // 目录本身就是 .minecraft 时允许清空（空目录 / 只有缓存也算），
+        // 其它路径必须能识别出版本目录，避免误删不相干目录。
+        let is_minecraft_dir = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n.eq_ignore_ascii_case(".minecraft"))
+            .unwrap_or(false);
+        if !is_minecraft_dir {
+            return Err("该文件夹不是 Minecraft 游戏目录（缺少 versions 文件夹）".into());
+        }
     }
     Ok(path)
 }
@@ -373,7 +389,7 @@ pub fn list_logs() -> Result<Vec<LogFile>, String> {
     let mut out = Vec::new();
 
     for inst in core_api::list_instances()? {
-        let instance_dir = data.join("minecraft").join("instances").join(&inst.id);
+        let instance_dir = std::path::PathBuf::from(core_api::get_instance_dir(inst.id.clone())?);
         let game_logs = instance_dir.join("logs");
 
         // 启动器捕获的启动输出（与游戏日志同目录）；旧实例回退旧路径
@@ -449,7 +465,7 @@ pub fn read_crash_report(instance_id: String) -> Result<CrashReport, String> {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let data = std::path::PathBuf::from(core_api::get_data_dir());
-    let instance_dir = data.join("minecraft").join("instances").join(&instance_id);
+    let instance_dir = std::path::PathBuf::from(core_api::get_instance_dir(instance_id.clone())?);
     let crash_dir = instance_dir.join("crash-reports");
 
     // 只认本次启动后产生的崩溃报告，避免展示上一次的旧文件

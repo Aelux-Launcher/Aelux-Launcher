@@ -1275,7 +1275,7 @@ async function clearDownloadCache() {
             <div class="setting-desc">
               {{
                 extras.cacheFolderMode === 'default'
-                  ? '.minecraft（启动器根目录），存放下载中的临时文件'
+                  ? 'aelux/cache（启动器数据目录），存放下载中的临时文件'
                   : extras.cacheFolderPath || '未选择目录'
               }}
             </div>

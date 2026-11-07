@@ -774,8 +774,8 @@ export const useAppStore = defineStore('app', () => {
       kvGet('selected-instance').then((savedId) => {
         if (savedId) selectedInstanceId.value = savedId
       }),
-      call<string>('get_data_dir').then((dir) => {
-        dataDir.value = dir
+      call<string>('get_minecraft_dir').then((dir) => {
+        minecraftDir.value = dir
       }),
       call<string | null>('detect_official_minecraft').then((path) => {
         officialFolderPath.value = path ?? ''
@@ -1187,7 +1187,7 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  /** 下载服务端 jar 到数据目录 .minecraft/servers/<id>/server.jar，返回落盘路径。 */
+  /** 下载服务端 jar 到游戏目录 .minecraft/servers/<id>/server.jar，返回落盘路径。 */
   async function downloadVersionServer(id: string): Promise<string> {
     const json = await fetchVersionJson(id)
     const server = json.downloads?.server
@@ -1265,8 +1265,8 @@ export const useAppStore = defineStore('app', () => {
 
   /* ------------------------------- 游戏文件夹 ------------------------------- */
 
-  /** 数据根目录（当前文件夹路径的根，init 时读取）。 */
-  const dataDir = ref('')
+  /** 游戏根目录（`.minecraft`）：所有游戏相关文件的根，也是「当前文件夹」的路径。 */
+  const minecraftDir = ref('')
 
   /** 官方启动器 .minecraft 路径：检测到有数据才非空，未检测到就不显示官方文件夹卡片。 */
   const officialFolderPath = ref('')
@@ -1319,20 +1319,13 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  /** 拼接路径时跟随根路径的分隔符，避免 Windows 下出现 `C:\\a/.minecraft`。 */
-  function joinPath(root: string, name: string): string {
-    if (!root) return ''
-    const sep = root.includes('\\') ? '\\' : '/'
-    return `${root.replace(/[\\/]+$/, '')}${sep}${name}`
-  }
-
   /** 版本选择页的文件夹列表：当前文件夹 + 官方文件夹（仅检测到）+ 添加的文件夹。 */
   const gameFolders = computed<StoredFolder[]>(() => {
     const list: StoredFolder[] = [
       {
         id: 'current',
         type: 'current',
-        path: joinPath(dataDir.value, '.minecraft'),
+        path: minecraftDir.value,
       },
     ]
     if (officialFolderPath.value) {
@@ -1970,7 +1963,7 @@ export const useAppStore = defineStore('app', () => {
 
   /**
    * 保存设置：界面层写 kv（供各页面读取），同时把启动相关字段同步到内核
-   * `data/config/launcher.json` —— 启动器读取的是内核配置，不写这里会不生效。
+   * `aelux/config/launcher.json` —— 启动器读取的是内核配置，不写这里会不生效。
    */
   async function saveSettings(patch: Partial<Settings>) {
     settings.value = { ...settings.value, ...patch }
@@ -2630,7 +2623,7 @@ export const useAppStore = defineStore('app', () => {
     loadLoaderVersions,
     modApiVersions,
     loadModApiVersions,
-    dataDir,
+    minecraftDir,
     gameFolders,
     selectedFolderId,
     selectFolder,

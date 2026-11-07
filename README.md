@@ -68,9 +68,33 @@ release-ffi = ["dep:libloading"]      # 发布打包
 | `npm run build:portable` | **单文件 exe**（内核 dll 编译期嵌入，无需随包分发） | 下载二进制（fetch-core） | 公开 CI / 别的机器打包，源码不外泄 |
 | `npm run build:release` | NSIS / MSI 安装器（内核已嵌入 exe） | 下载二进制 | 需要安装器形态时 |
 
-- 单文件 exe 复制到任意目录即用，数据写 exe 同级 `data/`
+- 单文件 exe 复制到任意目录即用，数据写 exe 同级目录（见下方目录布局）
 - 便携 ZIP 内含 `Aelux-Launcher.exe` + 说明，解压双击即用
-- 三种形态的数据目录行为完全一致（exe 同级 `data/`，整目录拷走即迁移）
+- 三种形态的数据目录行为完全一致（exe 同级根目录，整目录拷走即迁移）
+
+### 目录布局
+
+游戏文件与启动器文件严格分开，根目录就是 exe 所在目录：
+
+```text
+<启动器根目录>/
+├── Aelux-Launcher.exe
+├── .minecraft/            游戏相关：版本 / 依赖库 / 资源 / 实例游戏目录
+│   ├── versions/
+│   ├── libraries/
+│   ├── assets/
+│   └── instances/<id>/    实例的存档 / 配置 / 日志
+└── aelux/                 启动器相关
+    ├── config/launcher.json
+    ├── instances/<id>.json
+    ├── kv/store.json
+    ├── cache/
+    ├── logs/
+    └── java/              启动器下载的 Java 运行时
+```
+
+- 旧版的 `data/` 或 `%APPDATA%\aelux` 会在首次启动时自动拆分迁移到上述两个目录。
+- 官方启动器的 `%APPDATA%\.minecraft` 不会被当作 Aelux 的游戏目录。
 
 **版本策略**：日常开发 / 本地构建可保持 `0.1.0`；**发 Release 前必须**把
 `package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 三处启动器版本

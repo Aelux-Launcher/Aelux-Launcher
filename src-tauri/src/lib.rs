@@ -14,6 +14,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
         dialog::save_file_dialog,
         dialog::pick_file_dialog,
         commands::get_data_dir,
+        commands::get_minecraft_dir,
         commands::detect_official_minecraft,
         commands::scan_folder_versions,
         commands::clear_game_folder,

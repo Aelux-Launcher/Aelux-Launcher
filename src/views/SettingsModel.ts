@@ -518,7 +518,7 @@ export const BACKGROUND_MODE_OPTIONS: Array<{ value: BackgroundMode; label: stri
 
 /** 下载缓存目录来源选项 */
 export const CACHE_FOLDER_OPTIONS: Array<{ value: CacheFolderMode; label: string }> = [
-  { value: 'default', label: '默认（.minecraft）' },
+  { value: 'default', label: '默认（aelux）' },
   { value: 'custom', label: '自定义目录' },
 ]
 

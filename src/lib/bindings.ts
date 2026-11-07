@@ -12,6 +12,8 @@ export const commands = {
 	 */
 	pickFileDialog: (options: OpenDialogOptions_Deserialize) => typedError<string[] | null, string>(__TAURI_INVOKE("pick_file_dialog", { options })),
 	getDataDir: () => __TAURI_INVOKE<string>("get_data_dir"),
+	/**  游戏根目录（`.minecraft`）：版本 / 依赖库 / 资源 / 实例游戏目录。 */
+	getMinecraftDir: () => __TAURI_INVOKE<string>("get_minecraft_dir"),
 	/**
 	 *  检测官方启动器的 .minecraft 目录（Windows 下为 %APPDATA%\.minecraft）。
 	 *  未检测到返回 None，前端据此隐藏「官方文件夹」卡片。

@@ -48,6 +48,10 @@ pub fn get_data_dir() -> String {
     core().get_data_dir().to_string_lossy().into_owned()
 }
 
+pub fn get_minecraft_dir() -> String {
+    core().get_minecraft_dir().to_string_lossy().into_owned()
+}
+
 pub fn get_os_info() -> Result<OsInfo, CoreError> {
     let value = serde_json::to_value(core().get_os_info()).map_err(|e| e.to_string())?;
     serde_json::from_value(value).map_err(|e| e.to_string())
