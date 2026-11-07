@@ -323,6 +323,30 @@ async function openCrashFolder() {
       </template>
     </AlxModal>
 
+    <!-- 下载失败弹窗（下载出错或长时间卡死时自动弹出） -->
+    <AlxModal
+      :open="!!store.installFailure"
+      :title="store.installFailure?.title ?? '下载失败'"
+      @close="store.dismissInstallFailure()"
+    >
+      <p>{{ store.installFailure?.message }}</p>
+      <template #actions>
+        <button type="button" class="btn-download btn-ghost" @click="store.dismissInstallFailure()">
+          关闭
+        </button>
+        <button
+          type="button"
+          class="btn-download"
+          @click="
+            store.dismissInstallFailure();
+            store.setView('download')
+          "
+        >
+          返回下载页重试
+        </button>
+      </template>
+    </AlxModal>
+
     <!-- 微软设备码登录弹窗（全局：启动页 / 账户管理页侧栏均可触发） -->
     <DeviceLoginModal />
 

@@ -49,11 +49,14 @@ export const APRIL_FOOLS = new Set([
 /** 版本号本身就是快照格式（如 `25w45a`），清单 kind 缺失时也能正确归类。 */
 const SNAPSHOT_ID = /^[0-9]+w[0-9]+[a-z]*$/i
 
+/** 远古版本号格式（rd / c0 / inf / a1 / b1 等），清单 kind 缺失时也能显示远古图标。 */
+const LEGACY_ID = /^(rd-|c0\.|inf-|a0\.|a1\.|b0\.|b1\.|alpha|beta)/i
+
 /** 版本 id + 清单 kind → 分类图标 key（release / snapshot / legacy / april）。 */
 export function versionIconKey(id: string, kind?: string): string {
   const lower = id.trim().toLowerCase()
   if (APRIL_FOOLS.has(lower)) return 'april'
-  if (kind === 'old_beta' || kind === 'old_alpha') return 'legacy'
+  if (kind === 'old_beta' || kind === 'old_alpha' || LEGACY_ID.test(lower)) return 'legacy'
   if (kind === 'snapshot' || SNAPSHOT_ID.test(lower)) return 'snapshot'
   return 'release'
 }

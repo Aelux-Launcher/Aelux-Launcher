@@ -346,6 +346,15 @@ export const useAppStore = defineStore('app', () => {
   const versionsError = ref<string | null>(null)
   const installing = ref<string | null>(null)
   const installError = ref<string | null>(null)
+  /** 安装失败弹窗（App.vue 全局展示；用户取消下载时不弹）。 */
+  const installFailure = ref<{ title: string; message: string } | null>(null)
+  /** 卡死判定：连续 60 秒没有收到任何进度事件即视为失败。 */
+  const STALL_TIMEOUT_MS = 60_000
+  /** 安装任务序号：每次安装递增，卡死或新任务开始时让旧任务的收尾失效。 */
+  let installJobSeq = 0
+  /** 最近一次下载进度事件时间（卡死检测用）。 */
+  let lastDownloadEventAt = 0
+  let stallTimer: ReturnType<typeof setInterval> | null = null
   /** 用户是否点了「取消下载」：下载被中止后用于区分「失败」与「已取消」。 */
   const cancelRequested = ref(false)
   const downloadState = ref<DownloadManagerState>({
@@ -536,6 +545,7 @@ export const useAppStore = defineStore('app', () => {
   let progressTimer: ReturnType<typeof setTimeout> | null = null
 
   function queueDownloadProgress(ev: ProgressEvent) {
+    lastDownloadEventAt = Date.now()
     pendingProgress.set(ev.taskId, ev)
     if (progressTimer === null) progressTimer = setTimeout(flushDownloadProgress, 100)
   }
@@ -577,6 +587,50 @@ export const useAppStore = defineStore('app', () => {
       ),
     }
     recomputeDownloadState()
+  }
+
+  /** 弹出下载失败提示（用户取消时不弹）。 */
+  function reportInstallFailure(label: string, message: string) {
+    installFailure.value = {
+      title: '下载失败',
+      message: label ? `「${label}」下载失败：${message}` : `下载失败：${message}`,
+    }
+  }
+
+  function dismissInstallFailure() {
+    installFailure.value = null
+  }
+
+  function stopStallWatch() {
+    if (stallTimer !== null) {
+      clearInterval(stallTimer)
+      stallTimer = null
+    }
+  }
+
+  /**
+   * 安装卡死看门狗：内核请求有 120 秒超时，但界面不能一直停在「下载中」。
+   * 连续 60 秒没有任何进度事件即判定失败，恢复按钮并中止内核下载。
+   */
+  function startStallWatch(seq: number, label: string) {
+    stopStallWatch()
+    lastDownloadEventAt = Date.now()
+    stallTimer = setInterval(() => {
+      if (seq !== installJobSeq || !installing.value) {
+        stopStallWatch()
+        return
+      }
+      if (Date.now() - lastDownloadEventAt < STALL_TIMEOUT_MS) return
+      // 让仍在等待的旧任务在收尾时不再改写状态，同时恢复界面。
+      installJobSeq += 1
+      stopStallWatch()
+      installing.value = null
+      finishDownloadTasks('failed')
+      const message = '下载超时：长时间没有收到任何进度，任务已判定为失败'
+      installError.value = message
+      reportInstallFailure(label, message)
+      void call('cancel_download').catch(() => {})
+    }, 5_000)
   }
 
   /** 订阅内核事件（下载进度 / 游戏日志 / 提示）。 */
@@ -818,8 +872,11 @@ export const useAppStore = defineStore('app', () => {
     },
   ): Promise<boolean> {
     if (installing.value) return false
+    const job = ++installJobSeq
+    const label = meta?.name?.trim() || id
     installing.value = id
     installError.value = null
+    installFailure.value = null
     cancelRequested.value = false
     downloadState.value = {
       tasks: [],
@@ -829,15 +886,11 @@ export const useAppStore = defineStore('app', () => {
       pending: 0,
       finished: false,
     }
+    startStallWatch(job, label)
 
     try {
       const loader = meta?.loader ?? 'vanilla'
-      const inst = await createInstance(
-        meta?.name?.trim() || id,
-        id,
-        loader,
-        meta?.loaderVersion,
-      )
+      const inst = await createInstance(label, id, loader, meta?.loaderVersion)
       await call<InstallResult>('install_instance', { id: inst.id })
       if (meta?.modApi) {
         await call('install_mod_api', {
@@ -847,15 +900,25 @@ export const useAppStore = defineStore('app', () => {
           version: meta.modApi.version ?? null,
         })
       }
+      if (job !== installJobSeq) return false
       finishDownloadTasks('done')
       await refreshInstances()
+      // 在下载进度页完成时同样回到首页。
+      if (route.value.name === 'tasks') setView('home')
       return true
     } catch (e) {
-      installError.value = cancelRequested.value ? '下载已取消' : (e as Error).message
+      if (job !== installJobSeq) return false
+      stopStallWatch()
       finishDownloadTasks('failed')
+      const message = cancelRequested.value ? '下载已取消' : (e as Error).message
+      installError.value = message
+      if (!cancelRequested.value) reportInstallFailure(label, message)
       return false
     } finally {
-      installing.value = null
+      if (job === installJobSeq) {
+        stopStallWatch()
+        installing.value = null
+      }
     }
   }
 
@@ -1090,6 +1153,7 @@ export const useAppStore = defineStore('app', () => {
 
     installing.value = picked
     installError.value = null
+    installFailure.value = null
     cancelRequested.value = false
     try {
       const result = await call<ModpackImportResult>('import_modpack', {
@@ -1100,8 +1164,9 @@ export const useAppStore = defineStore('app', () => {
       toast.success(`整合包已导入：${result.instance.name}（${result.files} 个文件）`)
       return result.instance
     } catch (e) {
-      installError.value = cancelRequested.value ? '下载已取消' : (e as Error).message
-      toast.error(`导入整合包失败：${(e as Error).message}`)
+      const message = cancelRequested.value ? '下载已取消' : (e as Error).message
+      installError.value = message
+      if (!cancelRequested.value) reportInstallFailure('整合包', message)
       return null
     } finally {
       installing.value = null
@@ -1148,6 +1213,7 @@ export const useAppStore = defineStore('app', () => {
     if (installing.value) return null
     installing.value = url
     installError.value = null
+    installFailure.value = null
     cancelRequested.value = false
     try {
       const result = await call<ModpackImportResult>('import_modpack_url', {
@@ -1158,8 +1224,9 @@ export const useAppStore = defineStore('app', () => {
       toast.success(`整合包已安装：${result.instance.name}（${result.files} 个文件）`)
       return result.instance
     } catch (e) {
-      installError.value = cancelRequested.value ? '下载已取消' : (e as Error).message
-      toast.error(`安装整合包失败：${(e as Error).message}`)
+      const message = cancelRequested.value ? '下载已取消' : (e as Error).message
+      installError.value = message
+      if (!cancelRequested.value) reportInstallFailure(name?.trim() || '整合包', message)
       return null
     } finally {
       installing.value = null
@@ -2061,6 +2128,8 @@ export const useAppStore = defineStore('app', () => {
     versionsError,
     installing,
     installError,
+    installFailure,
+    dismissInstallFailure,
     cancelRequested,
     launchProgress,
     launchActive,

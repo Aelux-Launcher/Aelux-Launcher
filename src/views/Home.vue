@@ -368,7 +368,13 @@ function launchStageState(index: number): 'done' | 'active' | 'failed' | 'pendin
             >
               <span class="main-text">{{ selected ? '启动游戏' : '下载游戏' }}</span>
               <span class="sub-text">
-                {{ selected ? `[${selectedLoader}] ${selected.version}` : '未找到可用的游戏版本' }}
+                {{
+                  selected
+                    ? selected.name === selected.version
+                      ? `[${selectedLoader}] ${selected.version}`
+                      : selected.name
+                    : '未找到可用的游戏版本'
+                }}
               </span>
             </button>
 

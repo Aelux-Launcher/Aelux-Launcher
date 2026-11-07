@@ -21,10 +21,16 @@ const store = useAppStore()
 /** 当前版本的清单条目（用于取 kind；未加载到清单时按版本号兜底）。 */
 const versionEntry = computed(() => store.versions.find((v) => v.id === props.versionId))
 
-/** 顶部图标按版本类型显示：正式版 / 快照 / 远古 / 愚人节。 */
-const heroIcon = computed(() =>
+/** 未选加载器时的版本分类图标：正式版 / 快照 / 远古 / 愚人节。 */
+const versionIconSrc = computed(() =>
   versionRowIcon(versionIconKey(props.versionId, versionEntry.value?.kind)),
 )
+
+/** 顶部图标：优先跟随已选加载器，未选加载器时按版本分类（远古版显示远古图标）。 */
+const heroIcon = computed(() => {
+  const loader = primarySelection.value ?? (selectedVersions.value.optifine ? 'optifine' : '')
+  return (loader && loaderIconUrl(loader)) || versionIconSrc.value
+})
 
 /** 可叠加的加载器（有品牌图标则用位图，缺素材回退内置矢量图标）。 */
 const LOADERS = [
@@ -230,8 +236,12 @@ function goBack() {
   store.pageBack()
 }
 
-/** 开始下载：交给内核安装器（实例 + 版本文件 + 可选前置 API），结果在任务页可见。 */
-async function startDownload() {
+/** 开始下载：交给内核安装器（实例 + 版本文件 + 可选前置 API），并立即回到首页。 */
+function startDownload() {
+  if (store.installing) {
+    toast.info('已有安装任务正在进行')
+    return
+  }
   const primary = primarySelection.value
   const loader = primary ?? (selectedVersions.value.optifine ? 'optifine' : 'vanilla')
   const loaderVersion = primary
@@ -244,21 +254,14 @@ async function startDownload() {
           version: modApiSelection.value[loader],
         }
       : undefined
-  const job = store.installVersion(props.versionId, {
-    name: packageName.value,
-    loader,
-    loaderVersion,
-    modApi,
-  })
-  // 不阻塞在当前页：下载进度改由标题栏指示器进入。
-  const ok = await job
-  if (!ok) {
-    const err = store.installError
-    if (err) toast.error(`安装失败：${err}`)
-    else toast.info('已有安装任务正在进行')
-    return
-  }
-  toast.success(`已完成 ${packageName.value} 的安装`)
+  const name = packageName.value
+  // 下载进度由标题栏指示器 / 下载进度页展示：启动任务后立即返回首页。
+  void store
+    .installVersion(props.versionId, { name, loader, loaderVersion, modApi })
+    .then((ok) => {
+      if (ok) toast.success(`已完成 ${name} 的安装`)
+    })
+  store.setView('home')
 }
 </script>
 
