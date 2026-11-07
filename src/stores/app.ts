@@ -184,10 +184,10 @@ export const useAppStore = defineStore('app', () => {
   })
   const PAGE_STACK_KEY = 'aelux:page-stack'
 
-  /** 读取重载前保存的页面栈（失败时按空栈处理）。 */
+  /** 读取重载/重启前保存的页面栈（失败时按空栈处理）。 */
   function readPageStack(): PageStackEntry[] {
     try {
-      const raw = sessionStorage.getItem(PAGE_STACK_KEY)
+      const raw = localStorage.getItem(PAGE_STACK_KEY)
       if (!raw) return []
       const parsed = JSON.parse(raw)
       return Array.isArray(parsed) ? (parsed as PageStackEntry[]) : []
@@ -198,9 +198,9 @@ export const useAppStore = defineStore('app', () => {
 
   function persistPageStack() {
     try {
-      sessionStorage.setItem(PAGE_STACK_KEY, JSON.stringify(pageStack.value))
+      localStorage.setItem(PAGE_STACK_KEY, JSON.stringify(pageStack.value))
     } catch {
-      /* sessionStorage 不可用时忽略 */
+      /* localStorage 不可用时忽略 */
     }
   }
 
@@ -307,6 +307,29 @@ export const useAppStore = defineStore('app', () => {
   const session = ref<Session | null>(null)
   const settings = ref<Settings>({ ...DEFAULT_SETTINGS })
   const instances = ref<GameInstance[]>([])
+
+  /** 当前选中的实例 id（启动页的启动目标）；持久化在 KV，实例列表刷新后按 id 反查。 */
+  const selectedInstanceId = ref('')
+
+  /** 启动页使用的实例：优先用户选中的实例，失效时回退到列表第一项。 */
+  const selectedInstance = computed<GameInstance | null>(
+    () =>
+      instances.value.find((i) => i.id === selectedInstanceId.value) ??
+      instances.value[0] ??
+      null,
+  )
+
+  /** 选中一个实例（实例选择页点击卡片 / 启动前切换）。 */
+  async function selectInstance(id: string) {
+    if (!instances.value.some((i) => i.id === id)) return
+    selectedInstanceId.value = id
+    try {
+      await call('kv_set', { key: 'selected-instance', value: id })
+    } catch {
+      /* 浏览器预览没有内核 KV */
+    }
+  }
+
   const theme = ref<'system' | 'light' | 'dark'>('system')
   const pendingAnnouncements = ref<Announcement[]>([])
   const updateAvailable = ref(false)
@@ -638,6 +661,9 @@ export const useAppStore = defineStore('app', () => {
         if (savedMode === 'official' || savedMode === 'third' || savedMode === 'offline') {
           loginMode.value = savedMode
         }
+      }),
+      kvGet('selected-instance').then((savedId) => {
+        if (savedId) selectedInstanceId.value = savedId
       }),
       call<string>('get_data_dir').then((dir) => {
         dataDir.value = dir
@@ -2085,6 +2111,9 @@ export const useAppStore = defineStore('app', () => {
     refreshInstances,
     createInstance,
     deleteInstance,
+    selectedInstanceId,
+    selectedInstance,
+    selectInstance,
     launchInstance,
     killInstance,
     runningInstances,

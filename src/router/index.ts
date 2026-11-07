@@ -23,24 +23,29 @@ import Accounts from '../views/Accounts.vue'
 const LAST_ROUTE_KEY = 'aelux:last-route'
 
 /**
- * 重载（WebView 恢复、dev 重载）会丢掉 hash，路由兜底会落到首页。
- * 这里把上一次的详情/模块页写回 hash，保证下载中/下载后刷新仍停留在原页面。
+ * 应用重载 / 进程重启会丢掉 hash，路由兜底会落到首页。
+ * 这里把上一次的详情/模块页写回 hash，保证下载中、下载完成或意外重载后仍停留在原页面。
+ * 用 localStorage：WebView 进程重启后 sessionStorage 会被清空，localStorage 才能跨进程保留。
  */
 function restoreLastRoute() {
   try {
-    const saved = sessionStorage.getItem(LAST_ROUTE_KEY)
+    const saved = localStorage.getItem(LAST_ROUTE_KEY)
     if (!saved || location.hash) return
     const path = saved.split(/[?#]/)[0]
     const allowed =
       path === '/tasks' ||
+      path === '/select' ||
+      path === '/accounts' ||
       path.startsWith('/version/') ||
       path.startsWith('/download') ||
       path.startsWith('/instance/') ||
       path.startsWith('/settings') ||
-      path.startsWith('/more/')
+      path.startsWith('/more/') ||
+      path.startsWith('/resource/') ||
+      path.startsWith('/help/')
     if (allowed) history.replaceState(null, '', `#${saved}`)
   } catch {
-    /* sessionStorage 不可用时忽略 */
+    /* localStorage 不可用时忽略 */
   }
 }
 
@@ -81,14 +86,8 @@ export const router = createRouter({
 
 router.afterEach((to) => {
   try {
-    sessionStorage.setItem(LAST_ROUTE_KEY, to.fullPath)
+    localStorage.setItem(LAST_ROUTE_KEY, to.fullPath)
   } catch {
-    /* sessionStorage 不可用时忽略 */
+    /* localStorage 不可用时忽略 */
   }
 })
-
-// 诊断：reload 会保留 sessionStorage，进程重启则清空，便于确认「回首页」的真实来源。
-const navType = (
-  performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
-)?.type
-console.info('[aelux] boot', navType ?? 'unknown', location.hash)

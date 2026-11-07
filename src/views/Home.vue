@@ -6,7 +6,7 @@
  * 启动进度不跳转下载任务页，而是在本页右侧展示阶段清单，
  * 页面布局与首页保持一致。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import { promptDialog } from '../lib/dialog'
@@ -55,7 +55,7 @@ const displayMode = computed<LoginMode>(() => {
   return store.loginMode
 })
 
-const selected = computed(() => store.instances[0] ?? null)
+const selected = computed(() => store.selectedInstance)
 const selectedLoader = computed(() =>
   selected.value ? (LOADER_LABEL[selected.value.loader ?? 'vanilla'] ?? '原版') : null,
 )
@@ -216,16 +216,37 @@ const launchTargetName = computed(() => {
   return store.instances.find((i) => i.id === id)?.name ?? id ?? ''
 })
 
-/** 阶段状态：当前阶段高亮，之前的打勾。 */
-function launchStageClass(index: number): string {
+/**
+ * 最后一次收到的进行中阶段序号。
+ * 内核失败时会把 current 重置为 0，靠它记住失败前进行到哪一步，
+ * 失败面板才能标出「哪一步没过去」。
+ */
+const lastStage = ref(0)
+
+watch(
+  () => store.launchProgress,
+  (state) => {
+    if (!state) {
+      lastStage.value = 0
+      return
+    }
+    if (!state.done) lastStage.value = Math.max(lastStage.value, state.current)
+  },
+  { deep: true },
+)
+
+/** 阶段状态：已完成打勾、进行中旋转、失败标红、未开始留空。 */
+function launchStageState(index: number): 'done' | 'active' | 'failed' | 'pending' {
   const state = launch.value
   if (!state) return 'pending'
-  if (state.done) {
-    if (state.error) return index < state.current ? 'done' : 'pending'
-    return 'done'
+  if (launchFailed.value) {
+    const failedAt = Math.max(1, lastStage.value)
+    if (index < failedAt) return 'done'
+    return index === failedAt ? 'failed' : 'pending'
   }
+  if (state.done) return 'done'
   if (index < state.current) return 'done'
-  if (index === state.current) return 'downloading'
+  if (index === state.current) return 'active'
   return 'pending'
 }
 </script>
@@ -235,48 +256,51 @@ function launchStageClass(index: number): string {
     <div class="launch-side">
       <!-- 启动进度：与首页同一布局，启动时右栏内容切换为启动进度 -->
       <section v-if="showLaunchPanel" class="launch-progress-panel">
-        <div class="task-panel-head">
-          <span class="task-panel-title">启动进度</span>
+        <div class="launch-progress-head">
+          <span class="launch-progress-title">启动进度</span>
           <span class="tag">{{ launchFailed ? '启动失败' : '启动中' }}</span>
         </div>
 
-        <div class="launch-progress-value">
-          <span>{{ launchFailed ? '失败' : `${launchPct} %` }}</span>
-          <span class="launch-progress-target">{{ launchTargetName }}</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill" :style="{ width: `${launchPct}%` }" />
-        </div>
-        <div class="launch-progress-current">{{ launch?.message || '准备中' }}</div>
-
-        <div v-if="launchFailed" class="install-error-card launch-progress-error">
-          <AlxIcon name="alert-circle" :size="20" />
-          <div class="install-error-body">
-            <div class="install-error-title">启动失败</div>
-            <div class="install-error-text">{{ launch?.error }}</div>
+        <div class="launch-progress-hero">
+          <div class="launch-progress-pct" :class="{ 'is-failed': launchFailed }">
+            <template v-if="launchFailed">启动失败</template>
+            <template v-else>{{ launchPct }}<span class="unit">%</span></template>
+          </div>
+          <div class="launch-progress-target" :title="launchTargetName">{{ launchTargetName }}</div>
+          <div v-if="!launchFailed" class="progress-track">
+            <div class="progress-fill" :style="{ width: `${launchPct}%` }" />
           </div>
         </div>
 
-        <div class="task-step-list launch-step-list">
+        <div class="launch-progress-current" :title="launch?.message || '准备中'">
+          {{ launch?.message || '准备中' }}
+        </div>
+
+        <div class="launch-stage-list">
           <div
             v-for="(s, i) in LAUNCH_STAGES"
             :key="s.stage"
-            class="task-step"
-            :class="launchStageClass(i + 1)"
+            class="launch-stage"
+            :class="launchStageState(i + 1)"
           >
-            <span class="task-step-mark">
-              <AlxIcon
-                :name="launchStageClass(i + 1) === 'done' ? 'check' : 'more-horizontal'"
-                :size="14"
-              />
+            <span class="launch-stage-mark">
+              <AlxIcon v-if="launchStageState(i + 1) === 'done'" name="check" :size="13" />
+              <AlxIcon v-else-if="launchStageState(i + 1) === 'failed'" name="x" :size="13" />
+              <span v-else-if="launchStageState(i + 1) === 'active'" class="launch-stage-ring" />
+              <span v-else class="launch-stage-dot" />
             </span>
-            <span class="task-step-name">{{ s.label }}</span>
+            <span class="launch-stage-name">{{ s.label }}</span>
           </div>
         </div>
 
-        <button v-if="launchFailed" type="button" class="btn-sub launch-retry" @click="handleLaunch">
-          重新启动
-        </button>
+        <div v-if="launchFailed" class="launch-failure">
+          <div class="launch-failure-head">
+            <AlxIcon name="alert-circle" :size="16" />
+            <span>启动失败</span>
+          </div>
+          <div class="launch-failure-text">{{ launch?.error }}</div>
+          <button type="button" class="btn-sub launch-retry" @click="handleLaunch">重新启动</button>
+        </div>
       </section>
 
       <div v-else class="launch-side-normal">

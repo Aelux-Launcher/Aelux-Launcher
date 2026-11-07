@@ -91,7 +91,7 @@ release-ffi = ["dep:libloading"]      # 发布打包
    | --- | --- | --- |
    | `CORE_MANIFEST_URL` | `https://github.com/<组织>/Aelux-Core/releases/download/v0.1.0/manifest.json` | 打包时拉内核 dll 清单（**发布必需**） |
    | `CORE_DOWNLOAD_TOKEN` | 对内核仓库有 Contents 只读权限的 fine-grained PAT | 私有 Release 资产下载鉴权（**发布必需**） |
-   | `CORE_ACCESS_TOKEN` + `CORE_REPO` | 同一 token + `<组织>/Aelux-Core` | 可选：CI 里拉源码做 dev-path 集成检查 |
+   | `CORE_ACCESS_TOKEN` + `CORE_REPO` | 同一 token + `<组织>/Aelux-Core` | CI 里拉源码做 dev-path 编译检查（**CI 必需**） |
 
 ### 发测试版（Beta）
 
@@ -138,12 +138,13 @@ npm run build:single      # 产出 src-tauri/target/release/aelux-launcher-app.e
 - `ci.yml` —— 「CI · 检查（不发布产物）」：前端类型检查与构建、Rust 编译检查（Windows / Linux）、bindings 漂移
 - `release.yml` —— 「发布 Windows 便携包」：tag / 手动触发 → fetch-core → 便携 ZIP → GitHub Release
 
-CI 里的内核依赖：`aelux-core` 是 optional path 依赖，Cargo resolve 阶段要求路径存在，因此
-workflow 会先准备它——
+CI 里的内核依赖：`aelux-core` 是 optional path 依赖，而 `src-tauri` 的默认特性 `dev-path`
+会直接编译内核源码，所以 CI 必须拿到真实内核源码——
 
-- **未配置 secrets**（外部贡献者 / fork）：生成空 stub crate 占位，CI 只做前端检查；
-- **配置了 `CORE_ACCESS_TOKEN` + `CORE_REPO` secrets**：拉取私有内核仓库，并顺带执行
-  `cargo check --features dev-path` 验证源码集成。
+- workflow 用 `CORE_ACCESS_TOKEN`（兼容仓库里的历史拼写 `CORE_ACCESS_TOKE`）+ `CORE_REPO`
+  拉取私有内核仓库，然后执行 `cargo check --all-targets`；
+- 两个 secret 缺失或拉取失败时，步骤直接报错退出（不再退化成空 stub crate——
+  空 stub 在 dev-path 下必然编译失败，只会报出一串误导性的「找不到模块」错误）。
 
 ## 目录
 

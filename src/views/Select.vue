@@ -105,9 +105,10 @@ function toggleGroup(key: string) {
   else s.add(key)
 }
 
-/** 点击实例 → 实例详情页。 */
-function openInstance(id: string) {
-  store.openSubPage({ kind: 'instance', instanceId: id, tab: 'overall' })
+/** 点击实例卡片 → 选中该实例并返回启动页；版本设置走行尾齿轮按钮。 */
+async function selectInstance(id: string) {
+  await store.selectInstance(id)
+  store.setView('home')
 }
 
 /* ------------------------------ 行尾操作 ------------------------------ */
@@ -196,7 +197,7 @@ function openSettings(instance: GameInstance) {
               v-for="i in g.items"
               :key="i.id"
               class="list-item list-clickable"
-              @click="openInstance(i.id)"
+              @click="selectInstance(i.id)"
             >
               <div class="item-left">
                 <div class="item-icon">
