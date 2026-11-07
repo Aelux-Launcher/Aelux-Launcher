@@ -23,6 +23,7 @@ import type {
   DeviceFlowState,
   DownloadManagerState,
   DownloadTaskState,
+  FolderScan,
   GameInstance,
   InstallResult,
   InstanceTab,
@@ -38,6 +39,7 @@ import type {
   ResourceQuery,
   ResourceVersion,
   RunningGame,
+  ScannedVersion,
   Session,
   Settings,
   StoredAccount,
@@ -779,6 +781,7 @@ export const useAppStore = defineStore('app', () => {
         officialFolderPath.value = path ?? ''
       }),
       loadAddedFolders(),
+      loadFolderNames(),
       loadSettings(),
       loadRooms(),
       pullAnnouncements().then((list) => {
@@ -1265,19 +1268,62 @@ export const useAppStore = defineStore('app', () => {
   /** 数据根目录（当前文件夹路径的根，init 时读取）。 */
   const dataDir = ref('')
 
-  /** 官方启动器 .minecraft 路径：检测到才非空，未检测到就不显示官方文件夹卡片。 */
+  /** 官方启动器 .minecraft 路径：检测到有数据才非空，未检测到就不显示官方文件夹卡片。 */
   const officialFolderPath = ref('')
 
   /** 用户添加的游戏文件夹（落 kv 'game-folders'；当前/官方文件夹为派生态）。 */
   const addedFolders = ref<StoredFolder[]>([])
 
+  /** 文件夹自定义显示名（落 kv 'game-folder-names'，按文件夹 id 存）。 */
+  const folderNames = ref<Record<string, string>>({})
+
+  /** 文件夹版本扫描状态（按文件夹 id 缓存）。 */
+  interface FolderScanState {
+    loading: boolean
+    loaded: boolean
+    error: string | null
+    items: ScannedVersion[]
+  }
+  const folderScans = ref<Record<string, FolderScanState>>({})
+
   async function loadAddedFolders() {
-    const raw = await kvGet('game-folders')
-    addedFolders.value = raw ? (JSON.parse(raw) as StoredFolder[]) : []
+    try {
+      const raw = await kvGet('game-folders')
+      const parsed = raw ? (JSON.parse(raw) as unknown) : []
+      addedFolders.value = Array.isArray(parsed)
+        ? parsed.filter(
+            (f): f is StoredFolder =>
+              !!f &&
+              typeof f === 'object' &&
+              typeof (f as StoredFolder).path === 'string' &&
+              (f as StoredFolder).type === 'added',
+          )
+        : []
+    } catch {
+      addedFolders.value = []
+    }
   }
 
   async function persistAddedFolders() {
     await call('kv_set', { key: 'game-folders', value: JSON.stringify(addedFolders.value) })
+  }
+
+  async function loadFolderNames() {
+    try {
+      const raw = await kvGet('game-folder-names')
+      const parsed = raw ? (JSON.parse(raw) as unknown) : {}
+      folderNames.value =
+        parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {}
+    } catch {
+      folderNames.value = {}
+    }
+  }
+
+  /** 拼接路径时跟随根路径的分隔符，避免 Windows 下出现 `C:\\a/.minecraft`。 */
+  function joinPath(root: string, name: string): string {
+    if (!root) return ''
+    const sep = root.includes('\\') ? '\\' : '/'
+    return `${root.replace(/[\\/]+$/, '')}${sep}${name}`
   }
 
   /** 版本选择页的文件夹列表：当前文件夹 + 官方文件夹（仅检测到）+ 添加的文件夹。 */
@@ -1286,7 +1332,7 @@ export const useAppStore = defineStore('app', () => {
       {
         id: 'current',
         type: 'current',
-        path: dataDir.value ? `${dataDir.value}/.minecraft` : '',
+        path: joinPath(dataDir.value, '.minecraft'),
       },
     ]
     if (officialFolderPath.value) {
@@ -1296,19 +1342,129 @@ export const useAppStore = defineStore('app', () => {
     return list
   })
 
-  /** 版本选择页当前选中的文件夹（决定内容区显示哪个文件夹的实例）。 */
+  /** 版本选择页当前选中的文件夹（决定内容区显示哪个文件夹的版本）。 */
   const selectedFolderId = ref('current')
 
   function selectFolder(id: string) {
     selectedFolderId.value = id
+    const folder = gameFolders.value.find((f) => f.id === id)
+    // 外部文件夹需要扫描版本；当前文件夹的实例列表由内核直接提供
+    if (folder && folder.type !== 'current' && folder.path) {
+      void scanFolder(id).catch(() => {})
+    }
   }
 
-  /** 文件夹展示名：内置类型用固定名，添加的取路径末段。 */
+  /** 文件夹展示名：自定义名 > 内置固定名 > 路径末段。 */
   function folderDisplayName(f: StoredFolder): string {
+    const custom = folderNames.value[f.id]?.trim()
+    if (custom) return custom
     if (f.type === 'current') return '当前文件夹'
     if (f.type === 'official') return '官方文件夹'
     const tail = f.path.split(/[\\/]/).filter(Boolean).pop()
     return tail || f.path || '文件夹'
+  }
+
+  /** 重命名文件夹（只改展示名，不动磁盘目录）。 */
+  async function renameGameFolder(id: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('文件夹名称不能为空')
+    if (trimmed.length > 30) throw new Error('文件夹名称不能超过 30 个字符')
+    folderNames.value = { ...folderNames.value, [id]: trimmed }
+    await call('kv_set', {
+      key: 'game-folder-names',
+      value: JSON.stringify(folderNames.value),
+    })
+  }
+
+  /** 扫描文件夹里的版本，结果按文件夹 id 缓存；force = 跳过缓存。 */
+  async function scanFolder(id: string, force = false): Promise<ScannedVersion[]> {
+    const folder = gameFolders.value.find((f) => f.id === id)
+    if (!folder || !folder.path) {
+      folderScans.value = {
+        ...folderScans.value,
+        [id]: { loading: false, loaded: true, error: '该文件夹路径不可用', items: [] },
+      }
+      return []
+    }
+    const state = folderScans.value[id]
+    if (!force && state?.loaded && !state.error) return state.items
+    folderScans.value = {
+      ...folderScans.value,
+      [id]: { loading: true, loaded: false, error: null, items: state?.items ?? [] },
+    }
+    try {
+      const scan = await call<FolderScan>('scan_folder_versions', { path: folder.path })
+      // 用户选到父目录时，内核会解析出真正的游戏根目录：顺手修正已添加文件夹的路径
+      if (scan.root && scan.root !== folder.path && folder.type === 'added') {
+        addedFolders.value = addedFolders.value.map((f) =>
+          f.id === folder.id ? { ...f, path: scan.root } : f,
+        )
+        await persistAddedFolders()
+      }
+      folderScans.value = {
+        ...folderScans.value,
+        [id]: { loading: false, loaded: true, error: null, items: scan.versions },
+      }
+      return scan.versions
+    } catch (e) {
+      folderScans.value = {
+        ...folderScans.value,
+        [id]: {
+          loading: false,
+          loaded: true,
+          error: (e as Error).message,
+          items: state?.items ?? [],
+        },
+      }
+      throw e
+    }
+  }
+
+  /** 文件夹里扫描到的版本数（尚未扫描完成时为 null，界面据此隐藏计数）。 */
+  function folderVersionCount(id: string): number | null {
+    const state = folderScans.value[id]
+    return state?.loaded && !state.error ? state.items.length : null
+  }
+
+  /** 刷新文件夹：重新扫描版本；当前文件夹同时刷新内核实例列表。 */
+  async function refreshGameFolder(id: string): Promise<number> {
+    const folder = gameFolders.value.find((f) => f.id === id)
+    if (!folder) throw new Error('文件夹不存在')
+    const jobs: Array<Promise<unknown>> = [scanFolder(id, true)]
+    if (folder.type === 'current') jobs.push(refreshInstances())
+    const results = await Promise.allSettled(jobs)
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+    if (failed) {
+      throw failed.reason instanceof Error ? failed.reason : new Error(String(failed.reason))
+    }
+    // 当前文件夹的“条目”是内核实例；外部文件夹才是扫描到的版本
+    if (folder.type === 'current') return instances.value.length
+    return folderVersionCount(id) ?? 0
+  }
+
+  /** 清空文件夹（删除版本 / 存档 / 配置等全部内容，文件夹本身保留）。 */
+  async function clearGameFolder(id: string): Promise<number> {
+    const folder = gameFolders.value.find((f) => f.id === id)
+    if (!folder?.path) throw new Error('该文件夹路径不可用')
+    const removed = await call<number>('clear_game_folder', { path: folder.path })
+    if (folder.type === 'current') {
+      // 当前文件夹是内核实例的存放处：文件夹清空后实例描述也一并移除，
+      // 避免留下永远无法启动的条目（游戏目录随清空一起消失）。
+      for (const inst of [...instances.value]) {
+        try {
+          await deleteInstance(inst.id)
+        } catch {
+          /* 游戏目录已经被清空，删除失败不影响后续 */
+        }
+      }
+      selectedInstanceId.value = ''
+      await refreshInstances().catch(() => {})
+    }
+    folderScans.value = {
+      ...folderScans.value,
+      [id]: { loading: false, loaded: true, error: null, items: [] },
+    }
+    return removed
   }
 
   /** 添加已有文件夹（Tauri 目录对话框；浏览器预览退化为路径输入）。 */
@@ -1328,21 +1484,52 @@ export const useAppStore = defineStore('app', () => {
       path = r?.path.trim() || null
     }
     if (!path) return
-    if (addedFolders.value.some((f) => f.path === path)) {
+    const normalized = normalizeFolderPath(path)
+    if (
+      gameFolders.value.some((f) => f.path && sameFolderPath(f.path, normalized))
+    ) {
       toast.info('该文件夹已在列表中')
       return
     }
-    addedFolders.value = [
-      ...addedFolders.value,
-      { id: `folder-${Date.now()}`, type: 'added', path },
-    ]
+    const folder: StoredFolder = {
+      id: `folder-${Date.now()}`,
+      type: 'added',
+      path: normalized,
+    }
+    addedFolders.value = [...addedFolders.value, folder]
+    await persistAddedFolders()
+    // 添加后直接选中并扫描，用户能立刻看到里面的版本
+    selectedFolderId.value = folder.id
+    try {
+      const items = await scanFolder(folder.id, true)
+      toast.success(
+        items.length > 0
+          ? `已添加文件夹，找到 ${items.length} 个版本`
+          : '已添加文件夹，但目录下没有找到版本',
+      )
+    } catch (e) {
+      toast.warning(`已添加文件夹，但扫描失败：${(e as Error).message}`)
+    }
+  }
+
+  /** 删除已添加的文件夹（只从列表移除，不删除磁盘文件）。 */
+  async function removeGameFolder(id: string) {
+    addedFolders.value = addedFolders.value.filter((f) => f.id !== id)
+    const scans = { ...folderScans.value }
+    delete scans[id]
+    folderScans.value = scans
     await persistAddedFolders()
   }
 
-  /** 删除已添加的文件夹（当前 / 官方文件夹不可删）。 */
-  async function removeGameFolder(id: string) {
-    addedFolders.value = addedFolders.value.filter((f) => f.id !== id)
-    await persistAddedFolders()
+  /** 统一路径比较：去掉首尾引号 / 末尾分隔符，Windows 下忽略大小写。 */
+  function normalizeFolderPath(path: string): string {
+    return path.trim().replace(/^"|"$/g, '').replace(/[\\/]+$/, '')
+  }
+
+  function sameFolderPath(a: string, b: string): boolean {
+    const left = normalizeFolderPath(a).replace(/\\/g, '/').toLowerCase()
+    const right = normalizeFolderPath(b).replace(/\\/g, '/').toLowerCase()
+    return left === right
   }
 
   /** 导入整合包（.mrpack / 自导出 ZIP）：内核创建实例并落盘内容。 */
@@ -2448,6 +2635,12 @@ export const useAppStore = defineStore('app', () => {
     selectedFolderId,
     selectFolder,
     folderDisplayName,
+    folderScans,
+    folderVersionCount,
+    renameGameFolder,
+    scanFolder,
+    refreshGameFolder,
+    clearGameFolder,
     addGameFolder,
     removeGameFolder,
     importModpack,

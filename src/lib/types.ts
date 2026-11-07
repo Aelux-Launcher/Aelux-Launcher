@@ -212,6 +212,30 @@ export interface StoredFolder {
   path: string
 }
 
+/** 文件夹里扫描到的一个 Minecraft 版本（只读展示）。 */
+export interface ScannedVersion {
+  /** 版本目录名 / 版本 JSON 里的 id */
+  id: string
+  /** 对应的 Minecraft 版本（modded 版本取 inheritsFrom） */
+  version: string
+  /** vanilla / fabric / forge / neoforge / quilt */
+  loader: string
+  /** 加载器版本（可能为空） */
+  loaderVersion: string | null
+  /** release / snapshot / old_beta / old_alpha */
+  kind: string
+  /** 版本目录绝对路径 */
+  path: string
+  /** 最后修改时间（Unix 毫秒） */
+  lastModified: number
+}
+
+/** 文件夹扫描结果（root = 实际识别出的游戏根目录）。 */
+export interface FolderScan {
+  root: string
+  versions: ScannedVersion[]
+}
+
 /** 公告。 */
 export interface Announcement {
   id: string

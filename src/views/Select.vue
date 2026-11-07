@@ -1,16 +1,17 @@
 <script setup lang="ts">
 /**
  * 版本选择页（副页面）：
- *   侧栏 = 文件夹列表（见 SideNav 的子页面板）；本页内容 = 按加载器分组的实例，
- *   跟随侧栏选中的文件夹（当前文件夹显示实例，其余文件夹待内核扫描支持）。
+ *   侧栏 = 文件夹列表（见 SideNav 的子页面板）；本页内容 = 按加载器分组的版本，
+ *   当前文件夹显示内核实例，其它文件夹显示扫描到的本地版本（只读）。
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '../stores/app'
 import AlxIcon from '../components/AlxIcon.vue'
 import AlxModal from '../components/AlxModal.vue'
 import { toast } from '../lib/toast'
+import { call } from '../lib/bridge'
 import { loaderIconUrl } from '../lib/loaderIcons'
-import type { GameInstance } from '../lib/types'
+import type { GameInstance, ScannedVersion } from '../lib/types'
 import { loadInstanceUiMap, saveInstanceUi } from './instanceMeta'
 
 const store = useAppStore()
@@ -105,6 +106,71 @@ function toggleGroup(key: string) {
   else s.add(key)
 }
 
+/* ------------------------------ 文件夹扫描 ------------------------------ */
+
+/** 当前文件夹（侧栏选中项）。 */
+const currentFolder = computed(
+  () => store.gameFolders.find((f) => f.id === store.selectedFolderId) ?? null,
+)
+const isCurrentFolder = computed(() => currentFolder.value?.type === 'current')
+const scanState = computed(() => store.folderScans[store.selectedFolderId] ?? null)
+const scannedVersions = computed(() => scanState.value?.items ?? [])
+const scanLoading = computed(() => scanState.value?.loading ?? false)
+const scanError = computed(() => scanState.value?.error ?? null)
+
+const LOADER_SET = new Set<string>(LOADER_ORDER)
+
+function normalizeLoader(loader: string): string {
+  return LOADER_SET.has(loader) ? loader : 'vanilla'
+}
+
+/** 外部文件夹版本按加载器分组（空组隐藏）。 */
+const scannedGroups = computed(() =>
+  LOADER_ORDER.map((key) => ({
+    key: key as string,
+    title: LOADER_TITLE[key],
+    items: scannedVersions.value.filter((v) => normalizeLoader(v.loader) === key),
+  })).filter((g) => g.items.length > 0),
+)
+
+/** 扫描版本副文本：`正式版 1.21.4，Fabric_0.16.9`。 */
+function scannedDesc(v: ScannedVersion): string {
+  const kind = KIND_LABEL[v.kind] ?? v.kind ?? '正式版'
+  const key = normalizeLoader(v.loader)
+  const label = LOADER_SHORT[key] ?? key
+  const loaderText = key === 'vanilla' ? '' : v.loaderVersion ? `${label}_${v.loaderVersion}` : label
+  return [`${kind} ${v.version}`, loaderText].filter(Boolean).join('，')
+}
+
+/** 打开外部版本的目录（外部版本只读展示，不支持直接启动）。 */
+async function openScannedVersion(v: ScannedVersion) {
+  try {
+    await call('open_folder_in_explorer', { path: v.path })
+  } catch (e) {
+    toast.error(`打开失败：${(e as Error).message}`)
+  }
+}
+
+/** 重新扫描当前文件夹。 */
+async function retryScan() {
+  try {
+    await store.scanFolder(store.selectedFolderId, true)
+  } catch (e) {
+    toast.error(`扫描失败：${(e as Error).message}`)
+  }
+}
+
+watch(
+  () => store.selectedFolderId,
+  (id) => {
+    const folder = store.gameFolders.find((f) => f.id === id)
+    if (folder && folder.type !== 'current' && folder.path) {
+      void store.scanFolder(id).catch(() => {})
+    }
+  },
+  { immediate: true },
+)
+
 /** 点击实例卡片 → 选中该实例并返回启动页；版本设置走行尾齿轮按钮。 */
 async function selectInstance(id: string) {
   await store.selectInstance(id)
@@ -168,13 +234,8 @@ function openSettings(instance: GameInstance) {
 
 <template>
   <div class="page-view active sub-page">
-    <!-- 非当前文件夹：暂无实例信息（内核扫描接入前） -->
-    <div v-if="store.selectedFolderId !== 'current'" class="empty-state">
-      <AlxIcon name="folder" :size="32" />
-      <div>该文件夹暂无实例信息，扫描已有实例即将开放</div>
-    </div>
-
-    <template v-else>
+    <!-- 当前文件夹：内核管理的实例 -->
+    <template v-if="isCurrentFolder">
       <div v-if="store.instances.length === 0" class="empty-state">
         <AlxIcon name="info" :size="32" />
         <div>当前文件夹还没有实例，去「下载」页安装一个版本吧</div>
@@ -233,6 +294,86 @@ function openSettings(instance: GameInstance) {
       </div>
     </template>
 
+    <!-- 外部文件夹：扫描 versions 目录得到的本地版本（只读） -->
+    <template v-else>
+      <div v-if="scanLoading && scannedVersions.length === 0" class="empty-state">
+        <AlxIcon name="refresh" :size="32" class="spinning" />
+        <div>正在扫描文件夹…</div>
+      </div>
+
+      <div v-else-if="scanError" class="empty-state">
+        <AlxIcon name="info" :size="32" />
+        <div>{{ scanError }}</div>
+        <button type="button" class="btn-sub" @click="retryScan">重新扫描</button>
+      </div>
+
+      <div v-else-if="scannedVersions.length === 0" class="empty-state">
+        <AlxIcon name="folder" :size="32" />
+        <div>该文件夹下没有找到可用的 Minecraft 版本</div>
+        <button type="button" class="btn-sub" @click="retryScan">重新扫描</button>
+      </div>
+
+      <template v-else>
+        <div class="folder-hint">
+          外部文件夹中的版本仅供查看，点击版本行可在资源管理器中打开版本目录。
+        </div>
+
+        <div
+          v-for="g in scannedGroups"
+          :key="'scan-' + g.key"
+          class="version-card version-group"
+          :class="{ open: isGroupOpen('scan-' + g.key) }"
+        >
+          <button
+            type="button"
+            class="version-group-header"
+            @click="toggleGroup('scan-' + g.key)"
+          >
+            <span>{{ g.title }}（{{ g.items.length }}）</span>
+            <AlxIcon name="chevron-down" :size="18" class="version-group-chevron" />
+          </button>
+          <div class="version-group-body">
+            <div class="version-group-inner" :inert="!isGroupOpen('scan-' + g.key)">
+              <div
+                v-for="v in g.items"
+                :key="v.path"
+                class="list-item list-clickable"
+                :title="v.path"
+                @click="openScannedVersion(v)"
+              >
+                <div class="item-left">
+                  <div class="item-icon">
+                    <img
+                      v-if="loaderIconUrl(normalizeLoader(v.loader))"
+                      :src="loaderIconUrl(normalizeLoader(v.loader)) || ''"
+                      width="20"
+                      height="20"
+                      alt=""
+                    />
+                    <AlxIcon v-else name="minecraft" :size="20" />
+                  </div>
+                  <div class="item-info">
+                    <div class="item-title">{{ v.id }}</div>
+                    <div class="item-desc">{{ scannedDesc(v) }}</div>
+                  </div>
+                </div>
+                <div class="item-actions" @click.stop>
+                  <button
+                    type="button"
+                    class="item-action"
+                    title="打开版本文件夹"
+                    @click="openScannedVersion(v)"
+                  >
+                    <AlxIcon name="folder" :size="16" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </template>
+
     <!-- 删除确认（二级锁） -->
     <AlxModal
       :open="pendingDelete !== null"
@@ -254,6 +395,17 @@ function openSettings(instance: GameInstance) {
 </template>
 
 <style scoped>
+/* 外部文件夹只读提示 */
+.folder-hint {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--icon-bg);
+  color: var(--text-sub);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 /* 行尾操作：默认淡显，悬停整行时完全显形；已收藏的星标常显 */
 .item-actions {
   display: flex;

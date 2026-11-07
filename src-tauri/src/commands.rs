@@ -21,7 +21,7 @@ pub fn get_data_dir() -> String {
 }
 
 /// 检测官方启动器的 .minecraft 目录（Windows 下为 %APPDATA%\.minecraft）。
-/// 未检测到返回 None，前端据此隐藏「官方文件夹」卡片。
+/// 只有目录里确实存在 Minecraft 数据时才返回；空目录 / 仅创建过文件夹不显示。
 #[tauri::command]
 #[specta::specta]
 pub fn detect_official_minecraft() -> Option<String> {
@@ -29,12 +29,333 @@ pub fn detect_official_minecraft() -> Option<String> {
     {
         if let Ok(appdata) = std::env::var("APPDATA") {
             let dir = std::path::Path::new(&appdata).join(".minecraft");
-            if dir.is_dir() {
+            if has_minecraft_data(&dir) {
                 return Some(dir.to_string_lossy().into_owned());
             }
         }
     }
     None
+}
+
+/// 判定目录里是否存在可用的 Minecraft 数据（官方启动器配置文件 / 版本目录 / 资源索引）。
+fn has_minecraft_data(dir: &std::path::Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    if dir.join("launcher_profiles.json").is_file()
+        || dir.join("launcher_accounts.json").is_file()
+    {
+        return true;
+    }
+    // versions 下至少有一个带同名 JSON 的版本目录
+    if let Ok(entries) = std::fs::read_dir(dir.join("versions")) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default();
+            if path.join(format!("{name}.json")).is_file()
+                || path.join(format!("{name}.jar")).is_file()
+            {
+                return true;
+            }
+        }
+    }
+    // 只有资源文件、尚未安装版本的官方目录也算“有数据”
+    if let Ok(entries) = std::fs::read_dir(dir.join("assets").join("indexes")) {
+        if entries.flatten().any(|e| e.path().is_file()) {
+            return true;
+        }
+    }
+    false
+}
+
+/// 文件夹里扫描到的一个 Minecraft 版本（只读展示，不写入磁盘）。
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ScannedVersion {
+    /// 版本目录名 / 版本 JSON 里的 id
+    pub id: String,
+    /// 对应的 Minecraft 版本（modded 版本取 inheritsFrom）
+    pub version: String,
+    /// vanilla / fabric / forge / neoforge / quilt
+    pub loader: String,
+    /// 加载器版本（可能为空）
+    pub loader_version: Option<String>,
+    /// release / snapshot / old_beta / old_alpha
+    pub kind: String,
+    /// 版本目录绝对路径
+    pub path: String,
+    /// 最后修改时间（Unix 毫秒）
+    pub last_modified: f64,
+}
+
+/// 文件夹扫描结果（root = 实际识别出的游戏根目录）。
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderScan {
+    pub root: String,
+    pub versions: Vec<ScannedVersion>,
+}
+
+/// 扫描游戏文件夹里的全部 Minecraft 版本。
+///
+/// `path` 可以是游戏根目录（含 versions）或它的父目录（含 .minecraft/versions）；
+/// 没有 versions 目录时返回空列表，供界面展示空状态。
+#[tauri::command]
+#[specta::specta]
+pub fn scan_folder_versions(path: String) -> Result<FolderScan, String> {
+    let root = resolve_game_root(&path, false)?;
+    let versions_dir = root.join("versions");
+    let mut out = Vec::new();
+
+    if let Ok(entries) = std::fs::read_dir(&versions_dir) {
+        for entry in entries.flatten() {
+            let dir = entry.path();
+            if !dir.is_dir() {
+                continue;
+            }
+            let name = dir
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default()
+                .to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let json_path = dir.join(format!("{name}.json"));
+            // 既没有版本 JSON 也没有客户端 jar 的目录视为无关目录
+            if !json_path.is_file() && !dir.join(format!("{name}.jar")).is_file() {
+                continue;
+            }
+            out.push(scan_one_version(&dir, &name, &json_path));
+        }
+    }
+
+    // 最近安装 / 修改的排前面
+    out.sort_by(|a, b| {
+        b.last_modified
+            .partial_cmp(&a.last_modified)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.id.cmp(&b.id))
+    });
+
+    Ok(FolderScan {
+        root: root.to_string_lossy().into_owned(),
+        versions: out,
+    })
+}
+
+/// 清空游戏文件夹内容（版本 / 资源 / 存档 / 配置等全部删除，文件夹本身保留）。
+///
+/// 只接受能识别为 Minecraft 游戏目录的路径，且拒绝磁盘根目录，
+/// 避免误传路径把不相干的东西删掉。
+#[tauri::command]
+#[specta::specta]
+pub fn clear_game_folder(path: String) -> Result<u32, String> {
+    let root = resolve_game_root(&path, true)?;
+    if root.parent().is_none() {
+        return Err("不能清空磁盘根目录".into());
+    }
+    let mut removed = 0u32;
+    for entry in std::fs::read_dir(&root).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let target = entry.path();
+        let result = if target.is_dir() {
+            std::fs::remove_dir_all(&target)
+        } else {
+            std::fs::remove_file(&target)
+        };
+        result.map_err(|e| format!("删除 {} 失败：{e}", target.display()))?;
+        removed += 1;
+    }
+    Ok(removed)
+}
+
+/// 解析游戏根目录：优先 path 自身（含 versions），其次 path/.minecraft。
+fn resolve_game_root(raw: &str, require_versions: bool) -> Result<std::path::PathBuf, String> {
+    let path = std::path::PathBuf::from(raw);
+    if !path.is_dir() {
+        return Err(format!("文件夹不存在：{raw}"));
+    }
+    if path.join("versions").is_dir() {
+        return Ok(path);
+    }
+    let nested = path.join(".minecraft");
+    if nested.join("versions").is_dir() {
+        return Ok(nested);
+    }
+    if require_versions {
+        return Err("该文件夹不是 Minecraft 游戏目录（缺少 versions 文件夹）".into());
+    }
+    Ok(path)
+}
+
+/// 读取单个版本目录的元数据；JSON 缺失或损坏时按目录名兜底。
+fn scan_one_version(dir: &std::path::Path, name: &str, json_path: &std::path::Path) -> ScannedVersion {
+    let mut id = name.to_string();
+    let mut kind = "release".to_string();
+    let mut loader = "vanilla".to_string();
+    let mut loader_version = None;
+    let mut version = name.to_string();
+
+    if let Ok(text) = std::fs::read_to_string(json_path) {
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+            if let Some(s) = json.get("id").and_then(|v| v.as_str()) {
+                if !s.trim().is_empty() {
+                    id = s.to_string();
+                }
+            }
+            if let Some(s) = json.get("type").and_then(|v| v.as_str()) {
+                if !s.trim().is_empty() {
+                    kind = s.to_string();
+                }
+            }
+            version = json
+                .get("inheritsFrom")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.trim().is_empty())
+                .map(str::to_string)
+                .unwrap_or_else(|| guess_mc_version(&id));
+            (loader, loader_version) = detect_loader(&json, &id, &version);
+        }
+    } else {
+        version = guess_mc_version(&id);
+    }
+
+    let modified = std::fs::metadata(if json_path.is_file() { json_path } else { dir })
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as f64)
+        .unwrap_or(0.0);
+
+    ScannedVersion {
+        id,
+        version,
+        loader,
+        loader_version,
+        kind,
+        path: dir.to_string_lossy().into_owned(),
+        last_modified: modified,
+    }
+}
+
+/// 按版本 id / mainClass / 依赖库判断加载器，并尽量解析加载器版本。
+fn detect_loader(
+    json: &serde_json::Value,
+    id: &str,
+    mc_version: &str,
+) -> (String, Option<String>) {
+    let id_lower = id.to_ascii_lowercase();
+    let main = json
+        .get("mainClass")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let has_library = |needle: &str| {
+        json.get("libraries")
+            .and_then(|v| v.as_array())
+            .map(|libs| {
+                libs.iter().any(|lib| {
+                    lib.get("name")
+                        .and_then(|v| v.as_str())
+                        .map(|n| n.to_ascii_lowercase().contains(needle))
+                        .unwrap_or(false)
+                })
+            })
+            .unwrap_or(false)
+    };
+
+    // 顺序很重要：neoforge 含 "forge"，quilt 与 fabric 需要先判 quilt
+    let loader = if id_lower.contains("neoforge")
+        || main.contains("neoforge")
+        || has_library("net.neoforged")
+    {
+        "neoforge"
+    } else if id_lower.contains("quilt") || main.contains("quilt") || has_library("org.quiltmc") {
+        "quilt"
+    } else if id_lower.contains("fabric") || main.contains("fabric") || has_library("net.fabricmc") {
+        "fabric"
+    } else if id_lower.contains("forge") || main.contains("forge") || has_library("net.minecraftforge")
+    {
+        "forge"
+    } else {
+        "vanilla"
+    };
+
+    if loader == "vanilla" {
+        return (loader.to_string(), None);
+    }
+    (
+        loader.to_string(),
+        loader_version_from_id(id, loader, mc_version),
+    )
+}
+
+/// 从版本目录名解析加载器版本：
+/// `fabric-loader-0.16.9-1.21.4`、`1.21.4-forge-54.1.0`、`forge-1.20.1-47.2.0`、`neoforge-21.1.9`。
+fn loader_version_from_id(id: &str, loader: &str, mc_version: &str) -> Option<String> {
+    match loader {
+        "fabric" | "quilt" => {
+            let prefix = format!("{loader}-loader-");
+            let rest = id.to_ascii_lowercase();
+            let rest = rest.strip_prefix(&prefix)?;
+            let suffix = format!("-{mc_version}");
+            let ver = rest.strip_suffix(&suffix).unwrap_or(rest);
+            (!ver.is_empty()).then(|| ver.to_string())
+        }
+        "forge" | "neoforge" => {
+            let tokens: Vec<&str> = id.split('-').collect();
+            let index = tokens
+                .iter()
+                .position(|t| (*t).eq_ignore_ascii_case(loader))?;
+            // `1.21.4-forge-54.1.0` → 加载器后一项；`forge-1.20.1-47.2.0` → 跳过 MC 版本再取一项
+            tokens
+                .get(index + 1)
+                .filter(|s| **s != mc_version)
+                .or_else(|| tokens.get(index + 2))
+                .map(|s| s.to_string())
+        }
+        _ => None,
+    }
+}
+
+/// 没有 inheritsFrom 时从版本目录名猜测 MC 版本。
+fn guess_mc_version(id: &str) -> String {
+    let tokens: Vec<&str> = id.split('-').collect();
+    // forge / neoforge 常见前缀：`1.21.4-forge-…`
+    if let Some(first) = tokens.first() {
+        if looks_like_mc_version(first) {
+            return (*first).to_string();
+        }
+    }
+    // fabric / quilt：MC 版本在末尾
+    if let Some(last) = tokens.iter().rev().find(|t| looks_like_mc_version(t)) {
+        return (*last).to_string();
+    }
+    id.to_string()
+}
+
+/// MC 版本形态：`1.x[.y]` 或快照 `24w14a`。
+fn looks_like_mc_version(text: &str) -> bool {
+    if text.starts_with("1.") {
+        return text
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == '.')
+            && text.matches('.').count() >= 1;
+    }
+    let bytes = text.as_bytes();
+    bytes.len() >= 5
+        && bytes[0].is_ascii_digit()
+        && bytes[1].is_ascii_digit()
+        && bytes[2].eq_ignore_ascii_case(&b'w')
+        && bytes[3].is_ascii_digit()
+        && bytes[4].is_ascii_digit()
 }
 
 #[tauri::command]

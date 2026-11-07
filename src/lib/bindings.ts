@@ -17,6 +17,18 @@ export const commands = {
 	 *  未检测到返回 None，前端据此隐藏「官方文件夹」卡片。
 	 */
 	detectOfficialMinecraft: () => __TAURI_INVOKE<string | null>("detect_official_minecraft"),
+	/**
+	 *  扫描游戏文件夹里的全部 Minecraft 版本。
+	 *  `path` 可以是游戏根目录（含 versions）或它的父目录（含 .minecraft/versions）；
+	 *  没有 versions 目录时返回空列表，供界面展示空状态。
+	 */
+	scanFolderVersions: (path: string) => typedError<FolderScan, string>(__TAURI_INVOKE("scan_folder_versions", { path })),
+	/**
+	 *  清空游戏文件夹内容（版本 / 资源 / 存档 / 配置等全部删除，文件夹本身保留）。
+	 *  只接受能识别为 Minecraft 游戏目录的路径，且拒绝磁盘根目录，
+	 *  避免误传路径把不相干的东西删掉。
+	 */
+	clearGameFolder: (path: string) => typedError<number, string>(__TAURI_INVOKE("clear_game_folder", { path })),
 	getOsInfo: () => typedError<OsInfo, string>(__TAURI_INVOKE("get_os_info")),
 	/**
 	 *  扫描所有实例的日志：启动器捕获的 `<实例>/logs/launcher-latest.log`
@@ -160,6 +172,12 @@ export type DeviceCodeSession = {
 export type DialogFilter = {
 	name: string,
 	extensions: string[],
+};
+
+/**  文件夹扫描结果（root = 实际识别出的游戏根目录）。 */
+export type FolderScan = {
+	root: string,
+	versions: ScannedVersion[],
 };
 
 /**  游戏实例。 */
@@ -436,6 +454,24 @@ export type OsInfo = {
 export type RunningGame = {
 	instanceId: string,
 	pid: number,
+};
+
+/**  文件夹里扫描到的一个 Minecraft 版本（只读展示，不写入磁盘）。 */
+export type ScannedVersion = {
+	/**  版本目录名 / 版本 JSON 里的 id */
+	id: string,
+	/**  对应的 Minecraft 版本（modded 版本取 inheritsFrom） */
+	version: string,
+	/**  vanilla / fabric / forge / neoforge / quilt */
+	loader: string,
+	/**  加载器版本（可能为空） */
+	loaderVersion: string | null,
+	/**  release / snapshot / old_beta / old_alpha */
+	kind: string,
+	/**  版本目录绝对路径 */
+	path: string,
+	/**  最后修改时间（Unix 毫秒） */
+	lastModified: number,
 };
 
 /**  「另存为」选项。 */

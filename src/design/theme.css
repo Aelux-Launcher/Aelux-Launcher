@@ -302,6 +302,9 @@ svg {
 .nav-item-action:disabled:hover { background: transparent; }
 .nav-item-action svg.spinning { animation: nav-refresh-spin 0.8s linear infinite; }
 
+/* 通用旋转图标：文件夹刷新 / 扫描进行中 */
+svg.spinning { animation: nav-refresh-spin 0.8s linear infinite; }
+
 @keyframes nav-refresh-spin {
   to { transform: rotate(360deg); }
 }

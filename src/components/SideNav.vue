@@ -263,12 +263,17 @@ function closeFolderMenu() {
 onMounted(() => document.addEventListener('click', closeFolderMenu))
 onBeforeUnmount(() => document.removeEventListener('click', closeFolderMenu))
 
-/** 文件夹动作：重命名 / 打开 / 刷新 / 清空（内核文件夹管线接入前仅开放「打开」）。 */
+/** 正在刷新的文件夹 id（null = 空闲，同时防止重复点击）。 */
+const refreshingFolderId = ref<string | null>(null)
+
+/** 文件夹动作：重命名 / 打开 / 刷新 / 清空。 */
 async function folderAction(action: 'rename' | 'open' | 'refresh' | 'clear', folderId: string) {
   folderMenuId.value = null
   const folder = store.gameFolders.find((f) => f.id === folderId)
+  if (!folder) return
+
   if (action === 'open') {
-    if (!folder?.path) {
+    if (!folder.path) {
       toast.warning('该文件夹路径不可用')
       return
     }
@@ -279,8 +284,84 @@ async function folderAction(action: 'rename' | 'open' | 'refresh' | 'clear', fol
     }
     return
   }
-  const HINT = { rename: '重命名', refresh: '刷新', clear: '清空' } as const
-  toast.info(`「${HINT[action]}」将在内核文件夹管理就绪后开放`)
+
+  if (action === 'rename') {
+    const r = await promptDialog({
+      title: '重命名文件夹',
+      message: '只修改启动器里显示的名称，不会改动磁盘目录。',
+      fields: [
+        {
+          key: 'name',
+          label: '文件夹名称',
+          value: store.folderDisplayName(folder),
+          placeholder: '例如 我的生存',
+        },
+      ],
+      confirmText: '保存',
+    })
+    if (!r) return
+    try {
+      await store.renameGameFolder(folder.id, r.name ?? '')
+      toast.success('文件夹名称已更新')
+    } catch (e) {
+      toast.error(`重命名失败：${(e as Error).message}`)
+    }
+    return
+  }
+
+  if (action === 'refresh') {
+    if (refreshingFolderId.value) return
+    refreshingFolderId.value = folder.id
+    const started = performance.now()
+    try {
+      const count = await store.refreshGameFolder(folder.id)
+      const unit = folder.type === 'current' ? '个实例' : '个版本'
+      toast.success(`已刷新「${store.folderDisplayName(folder)}」，共 ${count} ${unit}`)
+    } catch (e) {
+      toast.error(`刷新失败：${(e as Error).message}`)
+    } finally {
+      const remain = 600 - (performance.now() - started)
+      if (remain > 0) await new Promise((resolve) => setTimeout(resolve, remain))
+      refreshingFolderId.value = null
+    }
+    return
+  }
+
+  // 清空：危险操作，要求输入确认词后再执行
+  const isCurrent = folder.type === 'current'
+  const warning = isCurrent
+    ? '\n这是启动器当前使用的游戏目录，清空后需要重新下载游戏本体。'
+    : folder.type === 'official'
+      ? '\n这是官方启动器的数据目录，清空会影响官方启动器中的游戏与存档。'
+      : ''
+  const r = await promptDialog({
+    title: '清空文件夹',
+    message:
+      `将删除「${store.folderDisplayName(folder)}」内的全部文件（版本、存档、配置等），且无法恢复。` +
+      warning +
+      `\n\n路径：${folder.path}\n\n请输入「清空」以确认。`,
+    fields: [{ key: 'confirm', label: '确认词', placeholder: '清空' }],
+    confirmText: '清空',
+    danger: true,
+  })
+  if (!r) return
+  if ((r.confirm ?? '').trim() !== '清空') {
+    toast.warning('确认词不正确，已取消')
+    return
+  }
+  try {
+    const removed = await store.clearGameFolder(folder.id)
+    toast.success(`文件夹已清空（删除 ${removed} 项）`)
+  } catch (e) {
+    toast.error(`清空失败：${(e as Error).message}`)
+  }
+}
+
+/** 文件夹卡片副文本：当前文件夹显示实例数，外部文件夹显示扫描到的版本数。 */
+function folderCountLabel(f: StoredFolder): string {
+  if (f.type === 'current') return `${store.instances.length} 个实例`
+  const count = store.folderVersionCount(f.id)
+  return count === null ? '' : `${count} 个版本`
 }
 
 /** 删除已添加的文件夹。 */
@@ -288,15 +369,15 @@ async function deleteFolder(id: string) {
   const folder = store.gameFolders.find((f) => f.id === id)
   if (!folder) return
   const ok = await confirmDialog({
-    title: '删除文件夹',
-    message: `确定删除文件夹「${store.folderDisplayName(folder)}」？该操作不可撤销。`,
-    confirmText: '删除',
+    title: '移除文件夹',
+    message: `确定将文件夹「${store.folderDisplayName(folder)}」从列表中移除？不会删除磁盘上的任何文件。`,
+    confirmText: '移除',
     danger: true,
   })
   if (!ok) return
   await store.removeGameFolder(id)
   if (store.selectedFolderId === id) store.selectFolder('current')
-  toast.success('文件夹已移除')
+  toast.success('文件夹已从列表移除')
 }
 
 /* ----- 账户管理页：添加账户 ----- */
@@ -427,6 +508,12 @@ function selectFolder(f: StoredFolder) {
         >
           <div class="folder-head">
             <span class="folder-name">{{ store.folderDisplayName(f) }}</span>
+            <AlxIcon
+              v-if="refreshingFolderId === f.id"
+              name="refresh"
+              :size="14"
+              class="spinning"
+            />
             <!-- 每个文件夹都有设置菜单（重命名 / 打开 / 刷新 / 清空） -->
             <button
               type="button"
@@ -447,7 +534,10 @@ function selectFolder(f: StoredFolder) {
               <AlxIcon name="trash" :size="15" />
             </button>
           </div>
-          <div class="folder-path">{{ f.path || (f.type === 'current' ? '启动器数据目录' : '路径不可用') }}</div>
+          <div class="folder-path">
+            {{ f.path || (f.type === 'current' ? '启动器数据目录' : '路径不可用') }}
+            <template v-if="folderCountLabel(f)"> · {{ folderCountLabel(f) }}</template>
+          </div>
 
           <!-- 设置菜单（点击别处自动收起） -->
           <div v-if="folderMenuId === f.id" class="folder-menu" @click.stop>
