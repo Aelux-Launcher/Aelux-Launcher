@@ -8,6 +8,7 @@
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { toast } from '../../lib/toast'
+import { openDialog } from '../../lib/dialogs'
 import type { GameInstance, ModUpdate, ResourceQuery } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxModal from '../../components/AlxModal.vue'
@@ -345,8 +346,7 @@ function downloadNewMods() {
 
 async function installFromFile() {
   try {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const picked = await open({
+    const picked = await openDialog({
       multiple: true,
       filters: [{ name: 'Mod 文件', extensions: ['jar'] }],
     })

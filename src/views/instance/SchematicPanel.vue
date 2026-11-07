@@ -8,6 +8,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { call } from '../../lib/bridge'
+import { openDialog } from '../../lib/dialogs'
 import { toast } from '../../lib/toast'
 import type { GameInstance, LocalContentItem } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
@@ -82,8 +83,7 @@ async function openSchematicFolder() {
 /** 导入原理图文件（.litematic / .schematic）。 */
 async function importSchematic() {
   try {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const picked = await open({
+    const picked = await openDialog({
       multiple: true,
       filters: [{ name: '原理图', extensions: ['litematic', 'schematic'] }],
     })

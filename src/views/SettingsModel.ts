@@ -40,6 +40,8 @@ export type PresetInherit = 'configured' | 'inherit'
 export type GcMode = 'zgc' | 'generational-zgc' | 'g1' | 'tuned-g1' | 'none'
 /** 启动器更新通道 */
 export type UpdateChannel = 'release' | 'dev'
+/** 启动器更新源（auto = 并发测速择优，自建源加权优先） */
+export type UpdateSourcePref = 'auto' | 'self' | 'r2' | 'github'
 /** 主题色来源 */
 export type AccentColorMode = 'default' | 'system' | 'custom' | 'wallpaper'
 /** 背景图片来源 */
@@ -67,6 +69,14 @@ export interface SettingsExtras {
   launcherLanguage: string
   /** 启动器更新通道（正式版 / 开发版） */
   updateChannel: UpdateChannel
+  /** 更新源选择（auto / 自建服务器 / Cloudflare R2 / GitHub） */
+  updateSource: UpdateSourcePref
+  /** 自建更新源地址（如 https://updates.example.com，updateSource 为 self 时必填） */
+  updateSelfBase: string
+  /** Cloudflare R2 更新源地址（updateSource 含 r2 / auto 时参与测速） */
+  updateR2Base: string
+  /** 发现新版本后自动后台下载（无痕更新：就绪后下次启动静默生效） */
+  autoDownloadUpdate: boolean
   /** 提前接收预览版更新（正式版发布后自动升级到正式版） */
   previewUpdates: boolean
   /** 自动显示更新弹窗 */
@@ -157,6 +167,10 @@ const DEFAULT_EXTRAS: SettingsExtras = {
   showLauncherIcon: true,
   launcherLanguage: 'system',
   updateChannel: 'release',
+  updateSource: 'auto',
+  updateSelfBase: '',
+  updateR2Base: '',
+  autoDownloadUpdate: true,
   previewUpdates: false,
   showUpdateDialog: true,
   showAnnouncements: true,
@@ -292,6 +306,7 @@ export const PRESET_INHERIT_OPTIONS: Array<{ value: PresetInherit; label: string
 export const GC_MODE_VALUES = ['zgc', 'generational-zgc', 'g1', 'tuned-g1', 'none'] as const
 
 export const UPDATE_CHANNEL_VALUES = ['release', 'dev'] as const
+export const UPDATE_SOURCE_VALUES = ['auto', 'self', 'r2', 'github'] as const
 export const ACCENT_COLOR_VALUES = ['default', 'system', 'custom', 'wallpaper'] as const
 export const BACKGROUND_MODE_VALUES = ['default', 'builtin', 'follow', 'custom', 'solid'] as const
 export const PROXY_MODE_VALUES = ['system', 'none', 'http', 'socks'] as const
@@ -386,6 +401,10 @@ export function readExtras(raw: unknown): SettingsExtras {
     out.launcherLanguage,
   )
   out.updateChannel = pick(obj.updateChannel, UPDATE_CHANNEL_VALUES, out.updateChannel)
+  out.updateSource = pick(obj.updateSource, UPDATE_SOURCE_VALUES, out.updateSource)
+  if (typeof obj.updateSelfBase === 'string') out.updateSelfBase = obj.updateSelfBase
+  if (typeof obj.updateR2Base === 'string') out.updateR2Base = obj.updateR2Base
+  if (typeof obj.autoDownloadUpdate === 'boolean') out.autoDownloadUpdate = obj.autoDownloadUpdate
   out.accentColor = pick(obj.accentColor, ACCENT_COLOR_VALUES, out.accentColor)
   out.backgroundMode = pick(obj.backgroundMode, BACKGROUND_MODE_VALUES, out.backgroundMode)
   if (typeof obj.backgroundPath === 'string') out.backgroundPath = obj.backgroundPath
@@ -470,6 +489,14 @@ export const THEME_OPTIONS: Array<{ value: 'system' | 'light' | 'dark'; label: s
 export const UPDATE_CHANNEL_OPTIONS: Array<{ value: UpdateChannel; label: string }> = [
   { value: 'release', label: '正式版' },
   { value: 'dev', label: '开发版' },
+]
+
+/** 启动器更新源选项 */
+export const UPDATE_SOURCE_OPTIONS: Array<{ value: UpdateSourcePref; label: string }> = [
+  { value: 'auto', label: '自动（测速择优，优先自建源）' },
+  { value: 'self', label: '自建服务器' },
+  { value: 'r2', label: 'Cloudflare R2' },
+  { value: 'github', label: 'GitHub Releases' },
 ]
 
 /** 主题色来源选项 */

@@ -10,7 +10,7 @@ import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import { confirmDialog } from '../lib/dialog'
 import { call, isTauri, kvGet } from '../lib/bridge'
-import { open } from '@tauri-apps/plugin-dialog'
+import { openDialog } from '../lib/dialogs'
 import AlxIcon from '../components/AlxIcon.vue'
 import AccountAvatar from '../components/AccountAvatar.vue'
 import PageHeader from '../components/PageHeader.vue'
@@ -116,7 +116,7 @@ async function editSkin(a: StoredAccount) {
     return
   }
   try {
-    const picked = await open({
+    const picked = await openDialog({
       multiple: false,
       directory: false,
       filters: [{ name: '皮肤图片', extensions: ['png'] }],

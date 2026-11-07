@@ -9,7 +9,8 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { router } from '../router'
 import { call, kvGet, isTauri } from '../lib/bridge'
-import type { Account, DeviceCodeSession } from '../lib/bindings'
+import { openDialog, saveDialog } from '../lib/dialogs'
+import type { Account, DeviceCodeSession, UpdateCheckResult } from '../lib/bindings'
 import { readExtras } from '../views/SettingsModel'
 import { fetchOnlineSkinUrl } from '../lib/skins'
 import { toast } from '../lib/toast'
@@ -342,7 +343,21 @@ export const useAppStore = defineStore('app', () => {
 
   const theme = ref<'system' | 'light' | 'dark'>('system')
   const pendingAnnouncements = ref<Announcement[]>([])
-  const updateAvailable = ref(false)
+
+  /* ------------------------------- 自动更新 ------------------------------- */
+  /** 更新流程状态：idle（无事发生）→ checking → downloading → staged（就绪）。 */
+  const updateState = ref<'idle' | 'checking' | 'downloading' | 'staged'>('idle')
+  /** 最近一次检查结果（含当前渠道最新条目）。 */
+  const updateInfo = ref<UpdateCheckResult | null>(null)
+  const updateError = ref<string | null>(null)
+  /** 已暂存待应用的版本（空 = 无）。 */
+  const stagedVersion = ref('')
+  /** 「发现新版本」弹窗（App.vue 全局展示；关闭自动下载时提示用户）。 */
+  const updatePrompt = ref(false)
+  /** 是否有可安装的新版本（旧字段语义保留：有新版本且尚未暂存）。 */
+  const updateAvailable = computed(
+    () => updateInfo.value?.status === 'available' && updateState.value !== 'staged',
+  )
 
   /* ------------------------------- 版本信息 ------------------------------- */
   /** 启动器版本：运行时从 Tauri 读取（tauri.conf.json 的 version）；浏览器预览用基线值。 */
@@ -769,14 +784,108 @@ export const useAppStore = defineStore('app', () => {
       pullAnnouncements().then((list) => {
         pendingAnnouncements.value = list
       }),
-      call<string>('read_local_update').then((raw) => {
-        updateAvailable.value = raw.trim().length > 0
+      call<{ currentVersion: string; stagedVersion: string }>('update_status').then((s) => {
+        stagedVersion.value = s.stagedVersion
+        if (s.stagedVersion) updateState.value = 'staged'
+      }).catch(() => {
+        /* 浏览器预览没有更新命令 */
       }),
     ])
     if (!officialFolderPath.value && selectedFolderId.value === 'official') {
       selectedFolderId.value = 'current'
     }
     ready.value = true
+    scheduleSilentUpdateCheck()
+  }
+
+  /* ----------------------------- 自动更新流程 ----------------------------- */
+
+  /** 启动后延迟静默检查更新（自动检查开启时；延迟避免抢占启动带宽）。 */
+  function scheduleSilentUpdateCheck() {
+    if (!isTauri) return
+    setTimeout(() => {
+      if (settings.value.autoUpdate) void checkForUpdates(true)
+    }, 30_000)
+  }
+
+  /**
+   * 检查更新：按设置里的渠道 / 更新源 / 自建与 R2 地址调用 `update_check`。
+   * silent 时无更新不打扰；发现新版本时按「自动后台下载」设置走无痕流程，
+   * 未开启自动下载且允许弹窗时才弹「发现新版本」。
+   */
+  async function checkForUpdates(silent = false) {
+    if (!isTauri) {
+      if (!silent) toast.info('浏览器预览不支持检查更新，请在桌面端操作')
+      return
+    }
+    if (updateState.value === 'checking' || updateState.value === 'downloading') return
+    updateState.value = 'checking'
+    updateError.value = null
+    const extras = readExtras(settings.value)
+    try {
+      const result = await call<UpdateCheckResult>('update_check', {
+        channel: extras.updateChannel === 'dev' ? 'dev' : 'release',
+        source: extras.updateSource,
+        selfBase: extras.updateSelfBase.trim() || null,
+        r2Base: extras.updateR2Base.trim() || null,
+      })
+      updateInfo.value = result
+      stagedVersion.value = result.stagedVersion
+      if (result.status === 'staged') {
+        updateState.value = 'staged'
+        if (!silent) toast.success(`新版本 ${result.entry.version} 已就绪，下次启动自动生效`)
+      } else if (result.status === 'available') {
+        updateState.value = 'idle'
+        if (extras.autoDownloadUpdate) {
+          // 无痕：后台静默下载，就绪后 toast 提示，下次启动自动生效
+          void downloadUpdate()
+        } else if (extras.showUpdateDialog || !silent) {
+          updatePrompt.value = true
+        }
+      } else {
+        updateState.value = 'idle'
+        if (!silent) toast.success(`当前已是最新版本（${result.currentVersion}）`)
+      }
+    } catch (e) {
+      updateState.value = 'idle'
+      updateError.value = (e as Error).message
+      if (!silent) toast.warning(`检查更新失败：${(e as Error).message}`)
+    }
+  }
+
+  /** 后台下载更新包并暂存（进度进任务面板；完成后下次启动静默生效）。 */
+  async function downloadUpdate() {
+    const entry = updateInfo.value?.entry
+    if (!entry?.version || !entry.downloadUrl) return
+    if (updateState.value === 'downloading') return
+    updatePrompt.value = false
+    updateState.value = 'downloading'
+    const taskId = beginDownloadTask(entry.file, entry.downloadUrl)
+    try {
+      await call<string>('update_download', { entry, taskId })
+      settleDownloadTask(taskId, 'done')
+      stagedVersion.value = entry.version
+      updateState.value = 'staged'
+      toast.success(`新版本 ${entry.version} 已就绪，下次启动自动生效`)
+    } catch (e) {
+      settleDownloadTask(taskId, 'failed', (e as Error).message)
+      updateState.value = 'idle'
+      updateError.value = (e as Error).message
+      toast.error(`更新下载失败：${(e as Error).message}`)
+    }
+  }
+
+  /** 立即换身重启到新版本（成功后当前进程退出）。 */
+  async function applyUpdateRestart() {
+    try {
+      await call('update_apply_restart')
+    } catch (e) {
+      toast.error(`应用更新失败：${(e as Error).message}`)
+    }
+  }
+
+  function dismissUpdatePrompt() {
+    updatePrompt.value = false
   }
 
   async function loadVersions() {
@@ -1050,8 +1159,7 @@ export const useAppStore = defineStore('app', () => {
    * 对话框取消返回 null；成功返回保存路径（绝对路径，内核 join 语义下可直接落盘）。
    */
   async function saveVersionClient(id: string): Promise<string | null> {
-    const { save } = await import('@tauri-apps/plugin-dialog')
-    const path = await save({
+    const path = await saveDialog({
       defaultPath: `${id}.jar`,
       filters: [{ name: 'Minecraft 客户端', extensions: ['jar'] }],
     })
@@ -1207,8 +1315,7 @@ export const useAppStore = defineStore('app', () => {
   async function addGameFolder(): Promise<void> {
     let path: string | null = null
     if (isTauri) {
-      const { open } = await import('@tauri-apps/plugin-dialog')
-      const picked = await open({ directory: true, multiple: false })
+      const picked = await openDialog({ directory: true, multiple: false })
       if (typeof picked === 'string') path = picked
       else if (Array.isArray(picked)) path = picked[0] ?? null
     } else {
@@ -1243,8 +1350,7 @@ export const useAppStore = defineStore('app', () => {
     if (installing.value) return null
     let picked: string | null = null
     if (isTauri) {
-      const { open } = await import('@tauri-apps/plugin-dialog')
-      const selected = await open({
+      const selected = await openDialog({
         multiple: false,
         filters: [{ name: '整合包', extensions: ['mrpack', 'zip'] }],
       })
@@ -2177,10 +2283,9 @@ export const useAppStore = defineStore('app', () => {
     const fallbackName = v.fileName || `${v.versionNumber || v.id}.jar`
     let dest: string
     if (isTauri) {
-      const { save } = await import('@tauri-apps/plugin-dialog')
       const ext = fallbackName.includes('.') ? fallbackName.split('.').pop() ?? 'jar' : 'jar'
       const sep = defaultDir?.includes('\\') ? '\\' : '/'
-      const picked = await save({
+      const picked = await saveDialog({
         defaultPath: defaultDir ? `${defaultDir}${sep}${fallbackName}` : fallbackName,
         filters: [{ name: label, extensions: [ext] }],
       })
@@ -2252,6 +2357,15 @@ export const useAppStore = defineStore('app', () => {
     theme,
     pendingAnnouncements,
     updateAvailable,
+    updateState,
+    updateInfo,
+    updateError,
+    stagedVersion,
+    updatePrompt,
+    checkForUpdates,
+    downloadUpdate,
+    applyUpdateRestart,
+    dismissUpdatePrompt,
     versions,
     versionsLoading,
     versionsError,

@@ -307,3 +307,48 @@ pub struct JavaInstallResult {
     pub runtime: JavaRuntime,
     pub install_dir: String,
 }
+
+/* ------------------------------- 自动更新 ------------------------------- */
+
+/// 更新清单里的一个渠道条目（GitHub 单渠道清单直接使用；镜像聚合清单按渠道取键）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateChannelEntry {
+    pub version: String,
+    pub pub_date: String,
+    pub notes: String,
+    /// 包文件名（各更新源文件名一致，客户端按源拼接下载地址）
+    pub file: String,
+    /// 包 sha256（空 = 不校验，仅旧清单兼容）
+    pub sha256: String,
+    /// 文件大小（字节；未知为 0）
+    pub size: f64,
+    /// 已解析的下载地址（按更新源拼接）
+    pub download_url: String,
+    /// 来源标识（github / self / r2）
+    pub source: String,
+}
+
+/// 更新检查结果。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheckResult {
+    /// available / up-to-date / staged / no-channel
+    pub status: String,
+    pub current_version: String,
+    pub channel: String,
+    /// 实际使用的更新源
+    pub source_used: String,
+    /// 已暂存待应用的版本（空 = 无）
+    pub staged_version: String,
+    /// 当前渠道最新条目（no-channel 时 version 为空）
+    pub entry: UpdateChannelEntry,
+}
+
+/// 当前版本与暂存状态。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateStatusInfo {
+    pub current_version: String,
+    pub staged_version: String,
+}

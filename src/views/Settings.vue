@@ -15,7 +15,7 @@ import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import { call, isTauri, kvGet } from '../lib/bridge'
 import { confirmDialog, promptDialog } from '../lib/dialog'
-import { open } from '@tauri-apps/plugin-dialog'
+import { openDialog } from '../lib/dialogs'
 import AlxSelect from '../components/AlxSelect.vue'
 import AlxToggle from '../components/AlxToggle.vue'
 import AlxInfoTip from '../components/AlxInfoTip.vue'
@@ -43,6 +43,7 @@ import {
   SPEED_LIMIT_RANGE,
   THEME_OPTIONS,
   UPDATE_CHANNEL_OPTIONS,
+  UPDATE_SOURCE_OPTIONS,
   VERSION_ISOLATION_OPTIONS,
   WINDOW_SIZE_OPTIONS,
   clampOpacity,
@@ -245,7 +246,7 @@ async function pickImagePath(): Promise<string | null> {
     toast.info('浏览器预览无法访问本地文件，请在桌面端操作。')
     return null
   }
-  const picked = await open({
+  const picked = await openDialog({
     multiple: false,
     directory: false,
     filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
@@ -340,6 +341,19 @@ const autoUpdate = computed({
   },
 })
 
+/** 自动后台下载更新（无痕更新主开关）。 */
+const autoDownloadUpdate = computed({
+  get: () => extras.value.autoDownloadUpdate,
+  set: (v) => {
+    setExtra('autoDownloadUpdate', v)
+  },
+})
+
+/** 更新源地址输入提交（自建 / R2）。 */
+function onUpdateBaseInput(key: 'updateSelfBase' | 'updateR2Base', e: Event) {
+  setExtra(key, (e.target as HTMLInputElement).value)
+}
+
 /* ------------------------------- Java 管理 ------------------------------ */
 
 /** 探测到的 Java 列表（来自内核 `scan_java`）。 */
@@ -382,8 +396,8 @@ onMounted(() => {
   if (isTauri && extras.value.iconPath) {
     void call('set_window_icon', { path: extras.value.iconPath }).catch(() => {})
   }
-  // 开启「自动检查更新」时静默检查一次：有新版本才弹窗
-  if (store.settings.autoUpdate) void checkUpdates(true)
+  // 开启「自动检查更新」时静默检查一次：走 store 无痕更新流程
+  if (store.settings.autoUpdate) void store.checkForUpdates(true)
 })
 
 /** 打开 Java 所在文件夹（不修改任何配置）。 */
@@ -411,8 +425,7 @@ function confirmRemoveJava() {
 /** 手动指定 Java 路径：选择可执行文件后探测并写回全局设置。 */
 async function pickJavaManually() {
   try {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const picked = await open({
+    const picked = await openDialog({
       multiple: false,
       directory: false,
       filters: [{ name: 'Java 可执行文件', extensions: ['exe'] }],
@@ -452,39 +465,19 @@ function onLanguageValue(value: string) {
   }
 }
 
-/** 本地更新清单（发布方写入 data/update.json，存在才代表有新版本）。 */
-interface LocalUpdateInfo {
-  version?: string
-  notes?: string
-  url?: string
-}
-
-const updateModalOpen = ref(false)
-const updateInfo = ref<(LocalUpdateInfo & { current: string }) | null>(null)
-
-/** 读取更新清单并与当前版本比对；silent 时无新版本不打扰用户。 */
-async function checkUpdates(silent = false) {
-  try {
-    const current = await call<string>('get_core_version')
-    const raw = await call<string>('read_local_update')
-    const info = raw.trim() ? (JSON.parse(raw) as LocalUpdateInfo) : null
-    if (!info?.version || info.version === current) {
-      if (!silent) toast.success(`当前已是最新版本（${current}）`)
-      return
-    }
-    updateInfo.value = { ...info, current }
-    updateModalOpen.value = true
-  } catch (e) {
-    if (!silent) toast.warning(`检查更新失败：${(e as Error).message}`)
+/** 更新状态展示：检查中 / 下载中 / 已就绪等文案。 */
+const updateStateText = computed(() => {
+  switch (store.updateState) {
+    case 'checking':
+      return '正在检查更新…'
+    case 'downloading':
+      return '正在后台下载更新…'
+    case 'staged':
+      return `新版本 ${store.stagedVersion} 已就绪，下次启动自动生效`
+    default:
+      return store.updateInfo?.status === 'up-to-date' ? '已是最新版本' : ''
   }
-}
-
-/** 打开更新说明中的下载页。 */
-function openUpdateUrl() {
-  const url = updateInfo.value?.url
-  if (!url) return
-  void call('open_external', { url }).catch(() => toast.error('无法打开链接'))
-}
+})
 
 /** 自定义主题色取色提交。 */
 function onAccentColorHex(e: Event) {
@@ -519,7 +512,7 @@ async function pickCacheFolder() {
     return
   }
   try {
-    const picked = await open({ multiple: false, directory: true })
+    const picked = await openDialog({ multiple: false, directory: true })
     if (typeof picked !== 'string') return
     extras.value = { ...extras.value, cacheFolderMode: 'custom', cacheFolderPath: picked }
     persistExtras()
@@ -988,6 +981,43 @@ async function clearDownloadCache() {
       <SettingGroup title="启动器更新" :collapsible="false">
         <div class="setting-row">
           <div class="setting-label">
+            更新源
+            <div class="setting-desc">自动模式并发测速择优：自建源与 R2 均衡时优先自建，GitHub 兜底</div>
+          </div>
+          <AlxSelect
+            :model-value="extras.updateSource"
+            :options="UPDATE_SOURCE_OPTIONS"
+            @update:model-value="(v: string) => setExtra('updateSource', v as SettingsExtras['updateSource'])"
+          />
+        </div>
+        <div v-if="extras.updateSource === 'self'" class="setting-row">
+          <div class="setting-label">
+            自建源地址
+            <div class="setting-desc">如 https://updates.example.com（根目录含 launcher-update.json）</div>
+          </div>
+          <input
+            class="setting-input"
+            type="text"
+            placeholder="https://updates.example.com"
+            :value="extras.updateSelfBase"
+            @change="onUpdateBaseInput('updateSelfBase', $event)"
+          />
+        </div>
+        <div v-if="extras.updateSource === 'r2' || extras.updateSource === 'auto'" class="setting-row">
+          <div class="setting-label">
+            Cloudflare R2 地址
+            <div class="setting-desc">留空则不参与测速；格式同自建源（绑定的自定义域名）</div>
+          </div>
+          <input
+            class="setting-input"
+            type="text"
+            placeholder="https://cdn.example.com"
+            :value="extras.updateR2Base"
+            @change="onUpdateBaseInput('updateR2Base', $event)"
+          />
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
             启动器更新版本
             <div class="setting-desc">开发版包含尚未稳定的新功能</div>
           </div>
@@ -996,6 +1026,13 @@ async function clearDownloadCache() {
             :options="UPDATE_CHANNEL_OPTIONS"
             @update:model-value="(v: string) => setExtra('updateChannel', v as SettingsExtras['updateChannel'])"
           />
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            自动后台下载更新
+            <div class="setting-desc">无痕更新：发现新版本即后台下载，就绪后下次启动自动生效，全程不打扰</div>
+          </div>
+          <AlxToggle v-model="autoDownloadUpdate" />
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -1010,7 +1047,7 @@ async function clearDownloadCache() {
         <div class="setting-row">
           <div class="setting-label">
             自动显示更新弹窗
-            <div class="setting-desc">发现新版本时自动弹出更新提示</div>
+            <div class="setting-desc">关闭自动下载时，发现新版本弹出更新提示</div>
           </div>
           <AlxToggle
             :model-value="extras.showUpdateDialog"
@@ -1036,27 +1073,37 @@ async function clearDownloadCache() {
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            手动检查更新
-            <div class="setting-desc">立即向更新服务查询是否有新版本</div>
+            更新状态
+            <div v-if="updateStateText" class="setting-desc">{{ updateStateText }}</div>
+            <div v-else class="setting-desc">当前版本 {{ store.appVersion }}</div>
           </div>
-          <button type="button" class="setting-btn" @click="checkUpdates()">检查更新</button>
+          <button
+            v-if="store.updateState === 'staged'"
+            type="button"
+            class="setting-btn"
+            @click="store.applyUpdateRestart()"
+          >
+            立即重启更新
+          </button>
+          <button
+            v-else-if="store.updateState === 'idle' && store.updateInfo?.status === 'available'"
+            type="button"
+            class="setting-btn"
+            @click="store.downloadUpdate()"
+          >
+            立即下载
+          </button>
+          <button
+            v-else
+            type="button"
+            class="setting-btn"
+            :disabled="store.updateState === 'checking' || store.updateState === 'downloading'"
+            @click="store.checkForUpdates()"
+          >
+            {{ store.updateState === 'checking' || store.updateState === 'downloading' ? '进行中…' : '检查更新' }}
+          </button>
         </div>
       </SettingGroup>
-
-      <!-- 发现新版本：展示版本号与更新说明 -->
-      <AlxModal :open="updateModalOpen" title="发现新版本" @close="updateModalOpen = false">
-        <p class="modal-note">
-          当前版本 <strong>{{ updateInfo?.current }}</strong>，最新版本
-          <strong>{{ updateInfo?.version }}</strong>。
-        </p>
-        <p v-if="updateInfo?.notes" class="modal-note">{{ updateInfo.notes }}</p>
-        <template #actions>
-          <button type="button" class="btn-sub" @click="updateModalOpen = false">稍后</button>
-          <button v-if="updateInfo?.url" type="button" class="btn-download" @click="openUpdateUrl">
-            前往下载
-          </button>
-        </template>
-      </AlxModal>
     </template>
 
     <!-- ==================== 启动器外观设置 ==================== -->

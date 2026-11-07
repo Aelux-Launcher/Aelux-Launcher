@@ -8,7 +8,8 @@ use crate::core_api;
 use crate::dto::{
     Account, AccountSession, AuthServer, CrashReport, DeviceCodeSession, GameInstance,
     InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem,
-    LogFile, ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
+    LogFile, ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount, UpdateCheckResult,
+    UpdateChannelEntry, UpdateStatusInfo, VersionManifest,
 };
 
 /* ------------------------------ 内核命令 ------------------------------ */
@@ -825,10 +826,37 @@ pub fn read_bundled_announcements(app: tauri::AppHandle) -> String {
         .unwrap_or_else(|| "[]".into())
 }
 
-/// 读取本地更新信息（data/update.json，存在才有内容）。
+/* ------------------------------ 自动更新 ------------------------------ */
+
+/// 检查启动器更新（按渠道 + 更新源；auto 模式并发测速择优）。
 #[tauri::command]
 #[specta::specta]
-pub fn read_local_update() -> String {
-    let path = std::path::PathBuf::from(core_api::get_data_dir()).join("update.json");
-    std::fs::read_to_string(path).unwrap_or_default()
+pub async fn update_check(
+    channel: String,
+    source: String,
+    self_base: Option<String>,
+    r2_base: Option<String>,
+) -> Result<UpdateCheckResult, String> {
+    crate::updater::check(&channel, &source, self_base.as_deref(), r2_base.as_deref()).await
+}
+
+/// 下载更新包并校验、解压暂存（进度经内核下载任务推送，任务面板可见）。
+#[tauri::command]
+#[specta::specta]
+pub async fn update_download(entry: UpdateChannelEntry, task_id: String) -> Result<String, String> {
+    crate::updater::download(&entry, &task_id).await
+}
+
+/// 立即应用暂存的更新并重启（换身替换 exe/dll）。
+#[tauri::command]
+#[specta::specta]
+pub fn update_apply_restart() -> Result<(), String> {
+    crate::updater::apply_restart()
+}
+
+/// 当前版本与暂存版本状态。
+#[tauri::command]
+#[specta::specta]
+pub fn update_status() -> UpdateStatusInfo {
+    crate::updater::status()
 }

@@ -5,6 +5,12 @@ use std::path::Path;
 fn main() {
     tauri_build::build();
 
+    // 更新默认仓库（GitHub 更新源）：CI 里由 GITHUB_REPO 注入，本地用默认值。
+    // 运行时可通过 KV `update-github-repo` 覆盖。
+    let repo = std::env::var("GITHUB_REPO").unwrap_or_else(|_| "Aelux-Team/Aelux-Launcher".into());
+    println!("cargo:rustc-env=AELUX_UPDATE_REPO={repo}");
+    println!("cargo:rerun-if-env-changed=GITHUB_REPO");
+
     // 发布链路（release-ffi）：内核以 cdylib 随包分发，运行完全离线。
     // 库文件的就位策略（按优先级）：
     //   1. src-tauri/lib/<platform>/ 下已有本地文件（本地打包测试）

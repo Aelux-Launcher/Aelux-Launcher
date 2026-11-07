@@ -4,6 +4,13 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
+	/**  原生「另存为」对话框；用户取消返回 `None`。 */
+	saveFileDialog: (options: SaveDialogOptions_Deserialize) => typedError<string | null, string>(__TAURI_INVOKE("save_file_dialog", { options })),
+	/**
+	 *  原生打开对话框（文件 / 文件夹，单个或多个）；取消返回 `None`。
+	 *  `multiple=false` 时返回长度为 1 的数组，便于统一处理。
+	 */
+	pickFileDialog: (options: OpenDialogOptions_Deserialize) => typedError<string[] | null, string>(__TAURI_INVOKE("pick_file_dialog", { options })),
 	getDataDir: () => __TAURI_INVOKE<string>("get_data_dir"),
 	/**
 	 *  检测官方启动器的 .minecraft 目录（Windows 下为 %APPDATA%\.minecraft）。
@@ -94,8 +101,14 @@ export const commands = {
 	writeText: (path: string, content: string) => typedError<null, string>(__TAURI_INVOKE("write_text", { path, content })),
 	/**  读取随包公告（src-tauri/resources/announcements.json）。 */
 	readBundledAnnouncements: () => __TAURI_INVOKE<string>("read_bundled_announcements"),
-	/**  读取本地更新信息（data/update.json，存在才有内容）。 */
-	readLocalUpdate: () => __TAURI_INVOKE<string>("read_local_update"),
+	/**  检查启动器更新（按渠道 + 更新源；auto 模式并发测速择优）。 */
+	updateCheck: (channel: string, source: string, selfBase: string | null, r2Base: string | null) => typedError<UpdateCheckResult, string>(__TAURI_INVOKE("update_check", { channel, source, selfBase, r2Base })),
+	/**  下载更新包并校验、解压暂存（进度经内核下载任务推送，任务面板可见）。 */
+	updateDownload: (entry: UpdateChannelEntry, taskId: string) => typedError<string, string>(__TAURI_INVOKE("update_download", { entry, taskId })),
+	/**  立即应用暂存的更新并重启（换身替换 exe/dll）。 */
+	updateApplyRestart: () => typedError<null, string>(__TAURI_INVOKE("update_apply_restart")),
+	/**  当前版本与暂存版本状态。 */
+	updateStatus: () => __TAURI_INVOKE<UpdateStatusInfo>("update_status"),
 };
 
 /* Types */
@@ -141,6 +154,12 @@ export type DeviceCodeSession = {
 	interval: number,
 	expiresIn: number,
 	deviceCode: string,
+};
+
+/**  文件类型过滤器（`name` 为显示名，`extensions` 不带点）。 */
+export type DialogFilter = {
+	name: string,
+	extensions: string[],
 };
 
 /**  游戏实例。 */
@@ -385,6 +404,27 @@ export type ModpackImportResult_Serialize = {
 	files: number,
 };
 
+/**  打开文件 / 文件夹选项。 */
+export type OpenDialogOptions = OpenDialogOptions_Serialize | OpenDialogOptions_Deserialize;
+
+/**  打开文件 / 文件夹选项。 */
+export type OpenDialogOptions_Deserialize = {
+	title?: string | null,
+	defaultPath?: string | null,
+	filters?: DialogFilter[] | null,
+	multiple?: boolean | null,
+	directory?: boolean | null,
+};
+
+/**  打开文件 / 文件夹选项。 */
+export type OpenDialogOptions_Serialize = {
+	title: string | null,
+	defaultPath: string | null,
+	filters: DialogFilter[] | null,
+	multiple: boolean | null,
+	directory: boolean | null,
+};
+
 /**  运行环境信息。 */
 export type OsInfo = {
 	name: string,
@@ -398,6 +438,25 @@ export type RunningGame = {
 	pid: number,
 };
 
+/**  「另存为」选项。 */
+export type SaveDialogOptions = SaveDialogOptions_Serialize | SaveDialogOptions_Deserialize;
+
+/**  「另存为」选项。 */
+export type SaveDialogOptions_Deserialize = {
+	title?: string | null,
+	/**  预填路径：可以是完整文件路径（自动拆目录 + 文件名）或纯目录。 */
+	defaultPath?: string | null,
+	filters?: DialogFilter[] | null,
+};
+
+/**  「另存为」选项。 */
+export type SaveDialogOptions_Serialize = {
+	title: string | null,
+	/**  预填路径：可以是完整文件路径（自动拆目录 + 文件名）或纯目录。 */
+	defaultPath: string | null,
+	filters: DialogFilter[] | null,
+};
+
 /**  本地账户列表条目（微软 / 离线多账户并存）。 */
 export type StoredAccount = {
 	/**  微软账户为 msaId，离线账户为离线 UUID */
@@ -407,6 +466,43 @@ export type StoredAccount = {
 	uuid: string,
 	/**  登录时间（Unix 秒，仅展示） */
 	loggedInAt: string,
+};
+
+/**  更新清单里的一个渠道条目（GitHub 单渠道清单直接使用；镜像聚合清单按渠道取键）。 */
+export type UpdateChannelEntry = {
+	version: string,
+	pubDate: string,
+	notes: string,
+	/**  包文件名（各更新源文件名一致，客户端按源拼接下载地址） */
+	file: string,
+	/**  包 sha256（空 = 不校验，仅旧清单兼容） */
+	sha256: string,
+	/**  文件大小（字节；未知为 0） */
+	size: number | null,
+	/**  已解析的下载地址（按更新源拼接） */
+	downloadUrl: string,
+	/**  来源标识（github / self / r2） */
+	source: string,
+};
+
+/**  更新检查结果。 */
+export type UpdateCheckResult = {
+	/**  available / up-to-date / staged / no-channel */
+	status: string,
+	currentVersion: string,
+	channel: string,
+	/**  实际使用的更新源 */
+	sourceUsed: string,
+	/**  已暂存待应用的版本（空 = 无） */
+	stagedVersion: string,
+	/**  当前渠道最新条目（no-channel 时 version 为空） */
+	entry: UpdateChannelEntry,
+};
+
+/**  当前版本与暂存状态。 */
+export type UpdateStatusInfo = {
+	currentVersion: string,
+	stagedVersion: string,
 };
 
 /**  Minecraft 版本清单里的一条版本。 */

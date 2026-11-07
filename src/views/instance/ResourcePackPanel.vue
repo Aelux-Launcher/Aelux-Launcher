@@ -8,6 +8,7 @@
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { toast } from '../../lib/toast'
+import { openDialog } from '../../lib/dialogs'
 import type { GameInstance } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
 import AlxModal from '../../components/AlxModal.vue'
@@ -113,8 +114,7 @@ async function openPackFolder() {
 /** 从本地文件导入资源包（.zip）。 */
 async function importPack() {
   try {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const picked = await open({
+    const picked = await openDialog({
       multiple: true,
       filters: [{ name: '资源包', extensions: ['zip'] }],
     })

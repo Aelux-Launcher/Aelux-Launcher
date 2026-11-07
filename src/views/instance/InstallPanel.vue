@@ -13,6 +13,7 @@ import { computed, ref } from 'vue'
 import { toast } from '../../lib/toast'
 import { confirmDialog } from '../../lib/dialog'
 import { call } from '../../lib/bridge'
+import { openDialog } from '../../lib/dialogs'
 import { useAppStore } from '../../stores/app'
 import type { GameInstance, InstallResult } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
@@ -132,8 +133,7 @@ const rows = computed(() =>
 /** 从本地文件安装 / 升级：内核暂不解析第三方安装包，明确提示。 */
 async function installFromFile() {
   try {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const picked = await open({
+    const picked = await openDialog({
       multiple: false,
       filters: [{ name: '加载器安装包', extensions: ['jar', 'zip'] }],
     })

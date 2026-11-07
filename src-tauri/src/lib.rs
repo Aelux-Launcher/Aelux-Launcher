@@ -2,13 +2,17 @@
 
 mod commands;
 mod core_api;
+mod dialog;
 mod dto;
+mod updater;
 
 use tauri_specta::{collect_commands, Builder};
 
 /// specta 构建器：命令清单 + TS 绑定导出（run 与测试共用同一份）。
 fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
+        dialog::save_file_dialog,
+        dialog::pick_file_dialog,
         commands::get_data_dir,
         commands::detect_official_minecraft,
         commands::get_os_info,
@@ -84,11 +88,18 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::open_folder_in_explorer,
         commands::write_text,
         commands::read_bundled_announcements,
-        commands::read_local_update,
+        commands::update_check,
+        commands::update_download,
+        commands::update_apply_restart,
+        commands::update_status,
     ])
 }
 
 pub fn run() {
+    // 无痕更新第一步：完成上次会话遗留的换身 / 应用暂存更新 / 清理 `.old`。
+    // 必须在窗口与内核初始化之前执行——此时内核 dll 尚未加载，文件未被锁。
+    updater::boot_swap_or_cleanup();
+
     let builder = specta_builder();
 
     // 调试构建导出 TS 绑定；文件纳入 git，CI diff 非空即 IPC schema 漂移
@@ -102,7 +113,6 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
@@ -134,10 +144,46 @@ pub fn run() {
                     if matches!(event, tauri::WindowEvent::Resized(_)) {
                         commands::on_window_resized(&handle);
                     }
+                    // TEMP-DIAG: 窗口关闭诊断（验证完删除）
+                    if matches!(
+                        event,
+                        tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed
+                    ) {
+                        eprintln!("[diag] window event: {event:?}");
+                    }
                 });
             }
 
             core_api::init(&app.handle().clone());
+            // TEMP-DIAG: Rust 侧直触发对话框链路（验证完删除）
+            {
+                let h = app.handle().clone();
+                std::thread::spawn(move || {
+                    let log = |msg: &str| {
+                        use std::io::Write;
+                        if let Ok(mut f) = std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open("D:/TXX/AppData/aelux-diag.log")
+                        {
+                            let _ = writeln!(f, "{msg}");
+                        }
+                    };
+                    log("diag: thread started, sleep 5s");
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    log("diag: firing rust-side dialog");
+                    let win = h.get_webview_window("main");
+                    let out = tauri::async_runtime::block_on(dialog::save_file_dialog(
+                        win.expect("no main window"),
+                        dialog::SaveDialogOptions {
+                            title: Some("RUST-SIDE-PROBE".into()),
+                            default_path: Some("rust-side-probe.jar".into()),
+                            filters: None,
+                        },
+                    ));
+                    log(&format!("diag: rust-side dialog returned: {out:?}"));
+                });
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

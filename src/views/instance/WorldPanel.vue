@@ -8,6 +8,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { call } from '../../lib/bridge'
+import { openDialog } from '../../lib/dialogs'
 import { toast } from '../../lib/toast'
 import type { GameInstance, LocalContentItem } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
@@ -95,8 +96,7 @@ async function openSavesFolder() {
 /** 导入存档：目录或 .zip（内核负责解压与同名冲突检查）。 */
 async function importWorld() {
   try {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const picked = await open({
+    const picked = await openDialog({
       multiple: false,
       directory: false,
       filters: [{ name: '存档（zip）或任意文件夹', extensions: ['zip'] }],
