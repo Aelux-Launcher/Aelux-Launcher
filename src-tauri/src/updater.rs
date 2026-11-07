@@ -162,6 +162,18 @@ fn entry_to_dto(
     exe_download_url: String,
     source: &str,
 ) -> UpdateChannelEntry {
+    // 优先策略只在这里算一次：新客户端直接用 preferred*，旧客户端忽略 exe 字段
+    let prefer_exe = !e.exe_file.trim().is_empty() && !exe_download_url.trim().is_empty();
+    let preferred_file = if prefer_exe {
+        e.exe_file.clone()
+    } else {
+        e.file.clone()
+    };
+    let preferred_download_url = if prefer_exe {
+        exe_download_url.clone()
+    } else {
+        download_url.clone()
+    };
     UpdateChannelEntry {
         version: e.version,
         pub_date: e.pub_date,
@@ -174,6 +186,8 @@ fn entry_to_dto(
         exe_size: e.exe_size,
         download_url,
         exe_download_url,
+        preferred_file,
+        preferred_download_url,
         source: source.into(),
     }
 }
@@ -297,6 +311,8 @@ async fn fetch_github(client: &reqwest::Client, channel: &str) -> Result<UpdateC
         exe_size: 0.0,
         download_url: zip.browser_download_url.clone(),
         exe_download_url: String::new(),
+        preferred_file: zip.name.clone(),
+        preferred_download_url: zip.browser_download_url.clone(),
         source: "github".into(),
     })
 }

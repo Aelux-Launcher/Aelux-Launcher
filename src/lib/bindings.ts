@@ -30,7 +30,7 @@ export const commands = {
 	 *  只接受能识别为 Minecraft 游戏目录的路径，且拒绝磁盘根目录，
 	 *  避免误传路径把不相干的东西删掉。
 	 */
-	clearGameFolder: (path: string) => typedError<number, string>(__TAURI_INVOKE("clear_game_folder", { path })),
+	clearGameFolder: (path: string) => typedError<ClearFolderResult, string>(__TAURI_INVOKE("clear_game_folder", { path })),
 	getOsInfo: () => typedError<OsInfo, string>(__TAURI_INVOKE("get_os_info")),
 	/**
 	 *  扫描所有实例的日志：启动器捕获的 `<实例>/logs/launcher-latest.log`
@@ -149,6 +149,14 @@ export type AuthServer = {
 	id: string,
 	name: string,
 	url: string,
+};
+
+/**  清空文件夹的结果。 */
+export type ClearFolderResult = {
+	/**  删除的顶层条目数 */
+	removed: number,
+	/**  一并清理的实例描述数量（仅当前 `.minecraft` 会非 0） */
+	instancesRemoved: number,
 };
 
 /**  崩溃报告：游戏非正常退出时用于弹窗展示的日志片段。 */
@@ -527,6 +535,10 @@ export type UpdateChannelEntry = {
 	downloadUrl: string,
 	/**  已解析的裸 exe 下载地址（空 = 不提供） */
 	exeDownloadUrl: string,
+	/**  客户端应优先使用的文件名（内核已按“exe 优先、ZIP 回退”算好） */
+	preferredFile: string,
+	/**  客户端应优先使用的下载地址 */
+	preferredDownloadUrl: string,
 	/**  来源标识（github / self / r2） */
 	source: string,
 };

@@ -350,8 +350,9 @@ async function folderAction(action: 'rename' | 'open' | 'refresh' | 'clear', fol
     return
   }
   try {
-    const removed = await store.clearGameFolder(folder.id)
-    toast.success(`文件夹已清空（删除 ${removed} 项）`)
+    const result = await store.clearGameFolder(folder.id)
+    const extra = result.instancesRemoved > 0 ? `，清理 ${result.instancesRemoved} 个实例` : ''
+    toast.success(`文件夹已清空（删除 ${result.removed} 项${extra}）`)
   } catch (e) {
     toast.error(`清空失败：${(e as Error).message}`)
   }

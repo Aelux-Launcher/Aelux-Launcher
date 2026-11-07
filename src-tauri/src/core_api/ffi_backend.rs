@@ -14,9 +14,10 @@ use serde_json::Value;
 use tauri::Manager;
 
 use crate::dto::{
-    Account, AccountSession, AuthServer, DeviceCodeSession, GameInstance, InstallResult,
-    JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig, LocalContentItem, ModUpdate,
-    ModpackImportResult, OsInfo, RunningGame, StoredAccount, VersionManifest,
+    Account, AccountSession, AuthServer, ClearFolderResult, DeviceCodeSession, FolderScan,
+    GameInstance, InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig,
+    LocalContentItem, ModUpdate, ModpackImportResult, OsInfo, RunningGame, StoredAccount,
+    VersionManifest,
 };
 
 use super::CoreError;
@@ -186,6 +187,18 @@ pub fn get_minecraft_dir() -> String {
         .ok()
         .and_then(|v| v.as_str().map(str::to_string))
         .unwrap_or_default()
+}
+
+/* ------------------------------ 游戏文件夹 ------------------------------ */
+
+pub fn scan_folder_versions(path: String) -> Result<FolderScan, CoreError> {
+    let value = invoke_sync("folders.scan", &serde_json::json!({ "path": path }))?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+pub fn clear_game_folder(path: String) -> Result<ClearFolderResult, CoreError> {
+    let value = invoke_sync("folders.clear", &serde_json::json!({ "path": path }))?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
 pub fn get_core_version() -> String {

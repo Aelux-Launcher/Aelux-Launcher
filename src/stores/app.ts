@@ -23,6 +23,7 @@ import type {
   DeviceFlowState,
   DownloadManagerState,
   DownloadTaskState,
+  ClearFolderResult,
   FolderScan,
   GameInstance,
   InstallResult,
@@ -859,15 +860,12 @@ export const useAppStore = defineStore('app', () => {
   /** 后台下载更新包并暂存（进度进任务面板；完成后下次启动静默生效）。 */
   async function downloadUpdate() {
     const entry = updateInfo.value?.entry
-    if (!entry?.version || (!entry.downloadUrl && !entry.exeDownloadUrl)) return
+    // preferred* 由内核算好（exe 优先、ZIP 回退），前端只负责展示与调用
+    if (!entry?.version || !entry.preferredDownloadUrl) return
     if (updateState.value === 'downloading') return
     updatePrompt.value = false
     updateState.value = 'downloading'
-    // 新清单优先裸 exe；旧清单 / 镜像没有 exe 时回退 ZIP
-    const preferExe = !!entry.exeFile && !!entry.exeDownloadUrl
-    const fileName = preferExe ? entry.exeFile : entry.file
-    const fileUrl = preferExe ? entry.exeDownloadUrl : entry.downloadUrl
-    const taskId = beginDownloadTask(fileName, fileUrl)
+    const taskId = beginDownloadTask(entry.preferredFile || entry.file, entry.preferredDownloadUrl)
     try {
       await call<string>('update_download', { entry, taskId })
       settleDownloadTask(taskId, 'done')
@@ -1440,20 +1438,12 @@ export const useAppStore = defineStore('app', () => {
   }
 
   /** 清空文件夹（删除版本 / 存档 / 配置等全部内容，文件夹本身保留）。 */
-  async function clearGameFolder(id: string): Promise<number> {
+  async function clearGameFolder(id: string): Promise<ClearFolderResult> {
     const folder = gameFolders.value.find((f) => f.id === id)
     if (!folder?.path) throw new Error('该文件夹路径不可用')
-    const removed = await call<number>('clear_game_folder', { path: folder.path })
-    if (folder.type === 'current') {
-      // 当前文件夹是内核实例的存放处：文件夹清空后实例描述也一并移除，
-      // 避免留下永远无法启动的条目（游戏目录随清空一起消失）。
-      for (const inst of [...instances.value]) {
-        try {
-          await deleteInstance(inst.id)
-        } catch {
-          /* 游戏目录已经被清空，删除失败不影响后续 */
-        }
-      }
+    // 当前 `.minecraft` 的实例描述由内核在清空时一并删除；有实例被清理时刷新缓存
+    const result = await call<ClearFolderResult>('clear_game_folder', { path: folder.path })
+    if (result.instancesRemoved > 0) {
       selectedInstanceId.value = ''
       await refreshInstances().catch(() => {})
     }
@@ -1461,7 +1451,7 @@ export const useAppStore = defineStore('app', () => {
       ...folderScans.value,
       [id]: { loading: false, loaded: true, error: null, items: [] },
     }
-    return removed
+    return result
   }
 
   /** 添加已有文件夹（Tauri 目录对话框；浏览器预览退化为路径输入）。 */

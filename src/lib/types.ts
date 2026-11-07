@@ -236,6 +236,14 @@ export interface FolderScan {
   versions: ScannedVersion[]
 }
 
+/** 清空文件夹的结果。 */
+export interface ClearFolderResult {
+  /** 删除的顶层条目数 */
+  removed: number
+  /** 一并清理的实例描述数量（仅当前 .minecraft 会非 0） */
+  instancesRemoved: number
+}
+
 /** 公告。 */
 export interface Announcement {
   id: string

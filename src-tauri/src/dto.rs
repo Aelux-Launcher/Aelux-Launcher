@@ -308,6 +308,46 @@ pub struct JavaInstallResult {
     pub install_dir: String,
 }
 
+/* ------------------------------ 游戏文件夹 ------------------------------ */
+
+/// 文件夹里扫描到的一个 Minecraft 版本（只读展示，不写入磁盘）。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ScannedVersion {
+    /// 版本目录名 / 版本 JSON 里的 id
+    pub id: String,
+    /// 对应的 Minecraft 版本（modded 版本取 inheritsFrom）
+    pub version: String,
+    /// vanilla / fabric / forge / neoforge / quilt
+    pub loader: String,
+    /// 加载器版本（可能为空）
+    pub loader_version: Option<String>,
+    /// release / snapshot / old_beta / old_alpha
+    pub kind: String,
+    /// 版本目录绝对路径
+    pub path: String,
+    /// 最后修改时间（Unix 毫秒）
+    pub last_modified: f64,
+}
+
+/// 文件夹扫描结果（root = 实际识别出的游戏根目录）。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderScan {
+    pub root: String,
+    pub versions: Vec<ScannedVersion>,
+}
+
+/// 清空文件夹的结果。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearFolderResult {
+    /// 删除的顶层条目数
+    pub removed: u32,
+    /// 一并清理的实例描述数量（仅当前 `.minecraft` 会非 0）
+    pub instances_removed: u32,
+}
+
 /* ------------------------------- 自动更新 ------------------------------- */
 
 /// 更新清单里的一个渠道条目（GitHub 单渠道清单直接使用；镜像聚合清单按渠道取键）。
@@ -337,6 +377,12 @@ pub struct UpdateChannelEntry {
     /// 已解析的裸 exe 下载地址（空 = 不提供）
     #[serde(default)]
     pub exe_download_url: String,
+    /// 客户端应优先使用的文件名（内核已按“exe 优先、ZIP 回退”算好）
+    #[serde(default)]
+    pub preferred_file: String,
+    /// 客户端应优先使用的下载地址
+    #[serde(default)]
+    pub preferred_download_url: String,
     /// 来源标识（github / self / r2）
     pub source: String,
 }
