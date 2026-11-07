@@ -35,12 +35,21 @@ const section = computed<Section>(() =>
 
 /* ------------------------------- 帮助文档 ------------------------------- */
 
-/** 当前展开的折叠条目（同一时间只展开一条）。 */
-const openHelpId = ref('')
-
-function toggleHelp(id: string) {
-  openHelpId.value = openHelpId.value === id ? '' : id
-}
+/** 按条目的 group 字段分组（保持 HELP_ENTRIES 里的出现顺序）。 */
+const helpGroups = computed(() => {
+  const groups: Array<{ title: string; items: HelpEntry[] }> = []
+  const index = new Map<string, number>()
+  for (const e of HELP_ENTRIES) {
+    let i = index.get(e.group)
+    if (i === undefined) {
+      i = groups.length
+      index.set(e.group, i)
+      groups.push({ title: e.group, items: [] })
+    }
+    groups[i].items.push(e)
+  }
+  return groups
+})
 
 /** 进入帮助详情副页面（顶栏切换为「← 返回 + 条目标题」）。 */
 function readFull(e: HelpEntry) {
@@ -312,27 +321,26 @@ async function copyAddress(s: ServerEntry) {
   <div class="page-view active sub-page settings-page">
     <!-- ============================ 帮助文档 ============================ -->
     <template v-if="section === 'help'">
-      <SettingGroup title="帮助文档" :collapsible="false" :extra="`${HELP_ENTRIES.length} 篇`">
+      <SettingGroup
+        v-for="g in helpGroups"
+        :key="g.title"
+        :title="g.title"
+        :extra="`${g.items.length} 篇`"
+      >
         <div
-          v-for="e in HELP_ENTRIES"
+          v-for="e in g.items"
           :key="e.id"
-          :class="['accordion-item help-item', openHelpId === e.id ? 'active' : '']"
-          @click="toggleHelp(e.id)"
+          class="list-item list-clickable help-row"
+          @click="readFull(e)"
         >
-          <div class="accordion-header">
-            <span class="help-title">
-              {{ e.title }}
-              <span class="tag">{{ e.group }}</span>
-            </span>
-            <AlxIcon name="chevron-down" :size="16" />
+          <div class="item-left">
+            <div class="item-icon"><AlxIcon name="file-text" :size="20" /></div>
+            <div class="item-info">
+              <div class="item-title">{{ e.title }}</div>
+              <div class="item-desc help-desc">{{ e.paragraphs[0] }}</div>
+            </div>
           </div>
-          <div class="accordion-content">
-            <!-- 摘要取第一条正文段落，全文进详情副页面看 -->
-            <p class="help-summary">{{ e.paragraphs[0] }}</p>
-            <button type="button" class="btn-download btn-ghost help-read" @click.stop="readFull(e)">
-              阅读全文
-            </button>
-          </div>
+          <AlxIcon name="chevron-right" :size="16" class="help-chevron" />
         </div>
       </SettingGroup>
     </template>
@@ -632,27 +640,17 @@ async function copyAddress(s: ServerEntry) {
 
 <style scoped>
 /* ------------------------------ 帮助文档 ------------------------------ */
-.help-item {
-  border-radius: 0;
+.help-row {
+  padding: 10px 16px;
 }
-.help-item + .help-item {
-  border-top: 1px solid var(--border-light);
+.help-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.help-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-}
-.help-summary {
-  margin: 0 0 12px;
-  font-size: 13px;
-  line-height: 1.7;
+.help-chevron {
+  flex: none;
   color: var(--text-sub);
-}
-.help-read {
-  height: 32px;
 }
 
 /* -------------------------------- 关于 -------------------------------- */
