@@ -433,17 +433,25 @@ export type VersionEntry = VersionEntry_Serialize | VersionEntry_Deserialize;
 /**  Minecraft 版本清单里的一条版本。 */
 export type VersionEntry_Deserialize = {
 	id: string,
-	type: string,
 	url: string,
 	time: string,
 	releaseTime: string,
 	sha1?: string | null,
-};
+} & ({
+	/**  内核内部统一叫 `kind`；同时兼容 Mojang 原始清单的 `type` 字段。 */
+	kind: string,
+	type?: never,
+} | {
+	/**  内核内部统一叫 `kind`；同时兼容 Mojang 原始清单的 `type` 字段。 */
+	type: string,
+	kind?: never,
+});
 
 /**  Minecraft 版本清单里的一条版本。 */
 export type VersionEntry_Serialize = {
 	id: string,
-	type: string,
+	/**  内核内部统一叫 `kind`；同时兼容 Mojang 原始清单的 `type` 字段。 */
+	kind: string,
 	url: string,
 	time: string,
 	releaseTime: string,

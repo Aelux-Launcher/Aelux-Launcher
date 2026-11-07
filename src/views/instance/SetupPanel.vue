@@ -16,7 +16,7 @@ import AlxSelect from '../../components/AlxSelect.vue'
 import SettingGroup from '../../components/SettingGroup.vue'
 import {
   DEFAULT_INSTANCE_SETTINGS,
-  JavaManager,
+  javaManager,
   type InstanceSettings,
   type InstanceUi,
   type JavaRuntime,
@@ -140,7 +140,7 @@ watch(
     onCleanup(() => {
       cancelled = true
     })
-    const manager = new JavaManager()
+    const manager = javaManager
     const list = await manager.allAvailable()
     if (cancelled) return
     jres.value = list

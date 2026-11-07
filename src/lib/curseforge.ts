@@ -17,12 +17,12 @@ import type {
 const CF_PREFIX = 'cf:'
 const GAME_ID = 432
 
-/** 资源分类 → CurseForge classId。 */
+/** 资源分类 → CurseForge classId（与 HMCL 的 SECTION_* 常量一致）。 */
 const CLASS_ID: Record<ResourceKind, number> = {
   mod: 6,
-  modpack: 4546,
+  modpack: 4471,
   resourcepack: 12,
-  shader: 4471,
+  shader: 6552,
   datapack: 6945,
   world: 17,
 }
@@ -38,9 +38,9 @@ const LOADER_TYPE: Record<string, number> = {
 /** classId → 资源分类（依赖条目跳转用）。 */
 const KIND_BY_CLASS: Record<number, ResourceKind> = {
   6: 'mod',
-  4546: 'modpack',
+  4471: 'modpack',
   12: 'resourcepack',
-  4471: 'shader',
+  6552: 'shader',
   6945: 'datapack',
   17: 'world',
 }

@@ -2,11 +2,10 @@
 /**
  * 全局顶栏（60px）：
  *   左侧 ← 返回（模块态 / 子页面态显示，点击回启动页或逐级回退）+ Logo；
- *   右侧最小化 / 最大化-还原 / 全屏 / 关闭。
+ *   右侧最小化 / 全屏 / 关闭（最大化与全屏功能重复，统一收敛到全屏）。
  *
  * 拖动：显式调用 startDragging()（排除按钮等交互元素），属性保留作为双保险。
- * 全屏：F11 切换，Esc 退出；最大化/还原走自定义命令，避免无边框窗口贴顶
- * 最大化后还原出现「窗口不显示」。
+ * 全屏：F11 切换，Esc 退出；标题栏双击仍按系统习惯最大化（窗口状态恢复由内核处理）。
  */
 import { onMounted, onUnmounted, ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -16,7 +15,6 @@ import AlxIcon from './AlxIcon.vue'
 
 const store = useAppStore()
 
-const maximized = ref(false)
 const fullscreen = ref(false)
 
 function onDragStart(e: MouseEvent) {
@@ -34,8 +32,7 @@ function onTitleDoubleClick(e: MouseEvent) {
 async function syncWindowState() {
   if (!isTauri) return
   try {
-    const [max, full] = await call<[boolean, boolean]>('window_state')
-    maximized.value = max
+    const [, full] = await call<[boolean, boolean]>('window_state')
     fullscreen.value = full
   } catch {
     // 内核未就绪时不阻塞顶栏
@@ -44,7 +41,7 @@ async function syncWindowState() {
 
 async function toggleMaximize() {
   if (!isTauri) return
-  maximized.value = await call<boolean>('toggle_maximize_window')
+  await call<boolean>('toggle_maximize_window')
   // 系统还原是异步的，稍后再同步一次真实状态
   setTimeout(() => void syncWindowState(), 200)
 }
@@ -97,17 +94,10 @@ onUnmounted(() => {
       </button>
       <button
         type="button"
-        :aria-label="maximized ? '还原' : '最大化'"
-        @click="toggleMaximize"
-      >
-        <AlxIcon :name="maximized ? 'restore' : 'maximize'" :size="16" />
-      </button>
-      <button
-        type="button"
         :aria-label="fullscreen ? '退出全屏' : '全屏'"
         @click="toggleFullscreen()"
       >
-        <AlxIcon name="fullscreen" :size="16" />
+        <AlxIcon :name="fullscreen ? 'restore' : 'maximize'" :size="16" />
       </button>
       <button type="button" class="win-close" aria-label="关闭" @click="call('close_window')">
         <AlxIcon name="x" :size="16" />

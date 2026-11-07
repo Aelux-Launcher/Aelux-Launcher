@@ -23,7 +23,8 @@ pub struct OsInfo {
 #[serde(rename_all = "camelCase")]
 pub struct VersionEntry {
     pub id: String,
-    #[serde(rename = "type")]
+    /// 内核内部统一叫 `kind`；同时兼容 Mojang 原始清单的 `type` 字段。
+    #[serde(rename = "kind", alias = "type")]
     pub kind: String,
     pub url: String,
     pub time: String,

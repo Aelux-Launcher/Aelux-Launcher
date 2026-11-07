@@ -360,6 +360,11 @@ function goPage(page: number) {
   store.setResourcePage(page)
 }
 
+/** 检索失败是否因为缺少 CurseForge API Key（世界分类只有该源提供数据）。 */
+const needsCurseForgeKey = computed(() =>
+  Boolean(store.resourceError && /CurseForge API Key/.test(store.resourceError)),
+)
+
 /** 加载失败重试 */
 function retrySearch() {
   void store.searchResources()
@@ -545,10 +550,24 @@ function retrySearch() {
 
       <!-- 检索失败（浏览器预览没有内核，不展示误导性的连接错误） -->
       <div v-else-if="store.resourceError && !store.browserMode" class="resource-state-card">
-        <AlxIcon name="alert-circle" :size="28" />
-        <div class="resource-state-title">暂时无法连接到社区资源源</div>
-        <div class="resource-state-desc">请检查网络后重试。错误详情：{{ store.resourceError }}</div>
-        <button type="button" class="btn-download btn-ghost" @click="retrySearch">重试</button>
+        <AlxIcon :name="needsCurseForgeKey ? 'key' : 'alert-circle'" :size="28" />
+        <div class="resource-state-title">
+          {{ needsCurseForgeKey ? '需要配置 CurseForge API Key' : '暂时无法连接到社区资源源' }}
+        </div>
+        <div v-if="needsCurseForgeKey" class="resource-state-desc">
+          世界分类由 CurseForge 提供数据，需要你自己申请 API Key。
+          请到「设置 → 下载 → 服务与 API」填写，或编辑 data/config/secrets.json。
+        </div>
+        <div v-else class="resource-state-desc">请检查网络后重试。错误详情：{{ store.resourceError }}</div>
+        <button
+          v-if="needsCurseForgeKey"
+          type="button"
+          class="btn-download"
+          @click="store.routerPush('/settings/download')"
+        >
+          去设置填写
+        </button>
+        <button v-else type="button" class="btn-download btn-ghost" @click="retrySearch">重试</button>
       </div>
 
       <!-- 无结果 -->

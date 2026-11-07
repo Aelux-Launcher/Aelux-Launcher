@@ -30,6 +30,11 @@ function openAccounts() {
   store.openSubPage({ kind: 'accounts' })
 }
 
+/** 整页刷新：页面卡顿或状态不同步时的兜底操作。 */
+function reloadPage() {
+  window.location.reload()
+}
+
 /** 各模块的侧栏分组（key 与路由参数一致）。 */
 const GROUPS: Record<string, Array<{ title: string; items: NavEntry[] }>> = {
   download: [
@@ -566,7 +571,18 @@ function selectFolder(f: StoredFolder) {
 
     <!-- 底部账户区：只在启动页（无子页）显示；子页与其它模块的侧栏不占这块高度。 -->
     <div v-else-if="sideModule === 'home' && !store.subPage" class="account-section">
-      <div class="account-title">账户</div>
+      <div class="account-title">
+        <span>账户</span>
+        <button
+          type="button"
+          class="account-title-refresh"
+          aria-label="刷新页面"
+          title="刷新页面"
+          @click="reloadPage"
+        >
+          <AlxIcon name="refresh" :size="14" />
+        </button>
+      </div>
       <button type="button" class="account-card" @click="openAccounts">
         <AccountAvatar
           v-if="store.session"

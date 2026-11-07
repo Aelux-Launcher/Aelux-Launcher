@@ -22,7 +22,7 @@ import AlxInfoTip from '../components/AlxInfoTip.vue'
 import AlxModal from '../components/AlxModal.vue'
 import SettingGroup from '../components/SettingGroup.vue'
 import AlxIcon from '../components/AlxIcon.vue'
-import { JavaManager } from './instanceMeta'
+import { javaManager } from './instanceMeta'
 import {
   ACCENT_COLOR_OPTIONS,
   BACKGROUND_MODE_OPTIONS,
@@ -230,6 +230,8 @@ async function downloadJava() {
         ...javas.value.filter((j) => j.path !== result.runtime.path),
         { major: result.runtime.major, path: result.runtime.path },
       ]
+      // 新装的 Java 不在旧扫描缓存里，后台重扫一次，避免下次进入页面看不到
+      void javaManager.refresh()
       javaDownloadOpen.value = false
     }
   } finally {
@@ -345,12 +347,12 @@ const javas = ref<JavaEntry[]>([])
 /** 探测中（刷新按钮禁用，避免重复触发）。 */
 const javaScanning = ref(false)
 
-/** 重新探测本机 Java（列表有数据时也可用）。 */
-async function refreshJavaList() {
+/** 读取 Java 列表：首次进入用缓存，手动刷新才强制重新探测。 */
+async function refreshJavaList(force = false) {
   if (javaScanning.value) return
   javaScanning.value = true
   try {
-    const list = await new JavaManager().allAvailable()
+    const list = await (force ? javaManager.refresh() : javaManager.allAvailable())
     javas.value = list.map((j) => ({
       major: j.major,
       version: j.version,
@@ -358,11 +360,18 @@ async function refreshJavaList() {
       arch: j.arch,
       path: j.path,
     }))
-    if (list.length > 0) toast.success(`已找到 ${javas.value.length} 个 Java`)
-    else toast.info('未发现已安装的 Java，可手动指定路径')
+    if (force) {
+      if (list.length > 0) toast.success(`已找到 ${javas.value.length} 个 Java`)
+      else toast.info('未发现已安装的 Java，可手动指定路径')
+    }
   } finally {
     javaScanning.value = false
   }
+}
+
+/** 「重新获取」按钮：绕过缓存强制重扫。 */
+function onRefreshJava() {
+  void refreshJavaList(true)
 }
 
 /* ---------------------------- 服务与 API ---------------------------- */
@@ -412,7 +421,7 @@ function openServiceConfigDir() {
   )
 }
 
-// 首次进入设置页即扫描本机 Java（只读探测，不阻塞渲染）
+// 首次进入设置页读取 Java 列表（有缓存时直接复用，不重复探测）
 onMounted(() => {
   void refreshJavaList()
   void loadPresets()
@@ -839,7 +848,7 @@ async function clearDownloadCache() {
               title="重新获取 Java 列表"
               aria-label="重新获取 Java 列表"
               :disabled="javaScanning"
-              @click="refreshJavaList"
+              @click="onRefreshJava"
             >
               <AlxIcon name="refresh" :size="15" />
             </button>
@@ -952,7 +961,7 @@ async function clearDownloadCache() {
 
       <!-- 底部动作：固定在页面底部居中，列表有数据时也常驻 -->
       <div class="setting-actions">
-        <button type="button" class="btn-download" :disabled="javaScanning" @click="refreshJavaList">
+        <button type="button" class="btn-download" :disabled="javaScanning" @click="onRefreshJava">
           自动获取
         </button>
         <button type="button" class="btn-download" @click="openJavaDownload">下载 Java</button>

@@ -273,6 +273,9 @@ svg {
 }
 
 .account-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 12px 20px;
   font-size: 11px;
   font-weight: 700;
@@ -280,6 +283,27 @@ svg {
   border-bottom: 1px solid var(--border-light);
   letter-spacing: 0.5px;
 }
+
+/* 整页刷新：平时隐藏，hover 账户标题时才出现 */
+.account-title-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-sub);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+.account-title:hover .account-title-refresh,
+.account-title-refresh:focus-visible { opacity: 1; }
+.account-title-refresh:hover { color: var(--text-main); background: var(--icon-bg); }
+.account-title-refresh:active { background: var(--hover-bg); }
 
 .account-card {
   padding: 16px 20px;

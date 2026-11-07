@@ -270,12 +270,17 @@ export function requiredJavaMajor(version: string): number {
 
 /** Java 运行时扫描与解析。 */
 export class JavaManager {
-  /** 扫描结果缓存（同一实例页内只扫一次）。 */
+  /** 扫描结果缓存（整个会话复用，避免每次进入页面都重新起进程探测）。 */
   private cache: JavaRuntime[] | null = null
 
-  /** 扫描本机可用的 Java 运行时（内核 `scan_java`）。 */
+  /** 读取可用 Java 列表；已扫描过时直接返回缓存。 */
   async allAvailable(): Promise<JavaRuntime[]> {
     if (this.cache) return this.cache
+    return this.refresh()
+  }
+
+  /** 强制重新扫描（用户点「刷新」或在线安装 Java 之后调用）。 */
+  async refresh(): Promise<JavaRuntime[]> {
     try {
       const list = await call<JavaRuntime[] | null>('scan_java')
       this.cache = Array.isArray(list) ? list : []
@@ -300,6 +305,14 @@ export class JavaManager {
     return { jre: exact[0] ?? newer[0] ?? null }
   }
 }
+
+/**
+ * 全应用共享的 Java 管理器。
+ *
+ * 与 HMCL 的策略一致：启动器只扫描一次本机 Java，之后所有页面（设置 / 版本设置 /
+ * 在线安装）复用同一份结果；只有用户主动点「重新获取」或安装新 Java 时才重扫。
+ */
+export const javaManager = new JavaManager()
 
 /* ------------------------------ 本地内容 ------------------------------ */
 
