@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+﻿﻿<script setup lang="ts">
 /**
  * 左侧导航栏（220px）：
  *   导航按模块分组切换 —— 启动页显示「基础」组，进入下载 / 设置 / 更多后
@@ -38,23 +38,44 @@ function openAccounts() {
 }
 
 /**
- * 账户区刷新：就地重拉账户 / 会话 / 认证服务器 / 实例数据。
- * 不做整页重载——location.reload 会把头像与列表闪没（白屏 → 重渲染），
- * 就地刷新只替换数据对象，头像预加载完成后才切换 src，不会闪烁。
+ * 账户区刷新：页面 + 数据同时刷新。
+ * 页面重挂 = 递增 stageNonce，舞台 :key 变化让当前页瞬时重渲染，
+ * 把卡顿 / 错位的界面状态整体归位；不经过 location.reload
+ * （整窗重启、白屏，头像与列表闪没），所以没有整页闪烁。
+ * 数据（账户 / 会话 / 认证服务器 / 实例）与页面重挂并行进行，
+ * 完成后统一反馈；store 内的「数据未变化就不替换」短路仍在，
+ * 头像皮肤由 AccountAvatar 预加载完成后才切换。
  */
 const refreshingAccount = ref(false)
+
+/** 转圈最短展示时长（ms）：刷新太快时动画不至一闪而过。 */
+const REFRESH_SPIN_MIN_MS = 700
 
 async function refreshAccountView() {
   if (refreshingAccount.value) return
   refreshingAccount.value = true
-  toast.info('正在刷新页面…')
+  // 页面先瞬时重挂归位（防卡顿），数据重拉在后台并行，互不阻塞
+  store.remountStage()
+  const started = performance.now()
   try {
-    await Promise.allSettled([
+    const results = await Promise.allSettled([
       store.loadAccounts(),
       store.restoreSession(),
       store.loadAuthServers(),
       store.refreshInstances(),
     ])
+    // 补足最短旋转时长，让刷新有可感知的回馈
+    const remain = REFRESH_SPIN_MIN_MS - (performance.now() - started)
+    if (remain > 0) await new Promise((resolve) => setTimeout(resolve, remain))
+    // 明确的完成反馈：全部成功提示一次；有失败带出第一条原因
+    const failures = results.filter((r) => r.status === 'rejected')
+    if (failures.length === 0) {
+      toast.success('页面数据已刷新')
+    } else {
+      const first = failures[0].reason
+      const reason = first instanceof Error ? first.message : String(first)
+      toast.warning(`刷新完成，${failures.length} 项失败：${reason}`)
+    }
   } finally {
     refreshingAccount.value = false
   }

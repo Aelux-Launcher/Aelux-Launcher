@@ -309,7 +309,7 @@ export class JavaManager {
 /**
  * 全应用共享的 Java 管理器。
  *
- * 与 HMCL 的策略一致：启动器只扫描一次本机 Java，之后所有页面（设置 / 版本设置 /
+ * 启动器只扫描一次本机 Java，之后所有页面（设置 / 版本设置 /
  * 在线安装）复用同一份结果；只有用户主动点「重新获取」或安装新 Java 时才重扫。
  */
 export const javaManager = new JavaManager()

@@ -66,6 +66,7 @@ export const commands = {
 	cancelDownload: () => typedError<null, string>(__TAURI_INVOKE("cancel_download")),
 	launchInstance: (id: string) => typedError<LaunchOutcome, string>(__TAURI_INVOKE("launch_instance", { id })),
 	killInstance: (id: string) => __TAURI_INVOKE<boolean>("kill_instance", { id }),
+	cancelLaunch: (id: string) => __TAURI_INVOKE<boolean>("cancel_launch", { id }),
 	runningInstances: () => typedError<RunningGame[], string>(__TAURI_INVOKE("running_instances")),
 	exportLaunchScript: (id: string) => typedError<string, string>(__TAURI_INVOKE("export_launch_script", { id })),
 	backupWorld: (instanceId: string, fileName: string) => typedError<string, string>(__TAURI_INVOKE("backup_world", { instanceId, fileName })),

@@ -17,7 +17,7 @@ import type {
 const CF_PREFIX = 'cf:'
 const GAME_ID = 432
 
-/** 资源分类 → CurseForge classId（与 HMCL 的 SECTION_* 常量一致）。 */
+/** 资源分类 → CurseForge classId。 */
 const CLASS_ID: Record<ResourceKind, number> = {
   mod: 6,
   modpack: 4471,

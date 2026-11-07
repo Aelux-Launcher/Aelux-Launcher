@@ -77,6 +77,8 @@ export const ICONS = {
   plus: { vb: V, body: `<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>` },
   x: { vb: V, body: `<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>` },
   minus: { vb: V, body: `<line x1="5" y1="12" x2="19" y2="12"/>` },
+  /* 电源键：结束游戏进程（首页右下角停止按钮） */
+  power: { vb: V, body: `<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>` },
   maximize: { vb: V, body: `<rect x="4" y="4" width="16" height="16" rx="1"/>` },
   restore: {
     vb: V,

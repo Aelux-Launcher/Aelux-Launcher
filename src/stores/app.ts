@@ -208,6 +208,16 @@ export const useAppStore = defineStore('app', () => {
   /** 页面内部层级返回（如日志详情 → 日志列表）；返回 true 表示已拦截。 */
   const innerBack = ref<null | (() => boolean)>(null)
 
+  /**
+   * 舞台重挂计数：App.vue 把它并进舞台 :key，递增即让当前页组件瞬时重挂。
+   * 用于「页面 + 数据同时刷新」——页面重置卡顿/错位的界面状态（归位），
+   * 但不经过 location.reload（整窗重启、白屏、慢），数据重拉在后台并行。
+   */
+  const stageNonce = ref(0)
+  function remountStage() {
+    stageNonce.value += 1
+  }
+
   /** 切换一级模块（路由 redirect 会落到该模块的默认分类）。 */
   function setView(v: AppModuleKey) {
     pageStack.value = []
@@ -412,6 +422,12 @@ export const useAppStore = defineStore('app', () => {
 
   /** 用户主动结束的实例：这类非 0 退出不算崩溃。 */
   const intentionallyKilled = new Set<string>()
+
+  /**
+   * 用户主动取消的启动流程（首页停止按钮）：内核后续补发的
+   * LaunchProgress 事件直接丢弃，避免收起的进度面板重新弹出。
+   */
+  const cancelledLaunches = new Set<string>()
 
   /** 解析内核退出消息（`游戏进程已退出（实例 xxx，退出码 n）`）。 */
   function parseExitMessage(text: string): { instanceId: string; code: number } | null {
@@ -649,6 +665,8 @@ export const useAppStore = defineStore('app', () => {
         if (ev.type === 'DownloadProgress') {
           queueDownloadProgress(ev)
         } else if (ev.type === 'LaunchProgress') {
+          // 用户已主动取消：内核补发的事件直接丢弃，避免面板重新弹出
+          if (cancelledLaunches.has(ev.instanceId)) return
           launchProgress.value = {
             instanceId: ev.instanceId,
             stage: ev.stage,
@@ -658,7 +676,7 @@ export const useAppStore = defineStore('app', () => {
             done: ev.done,
             error: ev.error ?? null,
           }
-          // 内核确认进程已启动后先展示「启动完成」，稍后自动收起面板
+          // 内核确认游戏窗口已出现后先展示「启动完成」，稍后自动收起面板
           if (ev.done && !ev.error) scheduleLaunchDismiss()
           pushLaunchLog(`[启动] ${ev.message}`)
         } else if (ev.type === 'Log') {
@@ -666,11 +684,22 @@ export const useAppStore = defineStore('app', () => {
         } else if (ev.type === 'Message') {
           pushLaunchLog(`[${ev.level}] ${ev.text}`)
           if (ev.level === 'error') toast.error(ev.text)
-          // 非 0 退出码 → 弹窗展示崩溃日志（用户主动结束进程时跳过）
+          // 游戏退出 → 清掉运行中标记（首页停止按钮随之隐藏）
           const exit = parseExitMessage(ev.text)
-          if (exit && exit.code !== 0) {
-            if (intentionallyKilled.delete(exit.instanceId)) return
-            void loadCrashReport(exit.instanceId, exit.code)
+          if (exit) {
+            runningInstances.value = runningInstances.value.filter(
+              (r) => r.instanceId !== exit.instanceId,
+            )
+            // 非 0 退出码 → 弹窗展示崩溃日志（用户主动结束进程时跳过）
+            if (exit.code !== 0) {
+              if (intentionallyKilled.delete(exit.instanceId)) return
+              // 启动过程中退出：内核会紧接着发「启动失败」事件，交给它展示，避免双弹窗
+              window.setTimeout(() => {
+                const progress = launchProgress.value
+                if (progress?.instanceId === exit.instanceId && progress.done && progress.error) return
+                void loadCrashReport(exit.instanceId, exit.code)
+              }, 300)
+            }
           }
         }
       })
@@ -767,7 +796,10 @@ export const useAppStore = defineStore('app', () => {
 
   async function refreshInstances() {
     const list = await call<GameInstance[]>('get_instances')
-    if (Array.isArray(list)) instances.value = list
+    // 数据未变化就不替换引用，避免账户区刷新时整页列表无意义重渲染
+    if (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(instances.value)) {
+      instances.value = list
+    }
   }
 
   async function createInstance(
@@ -791,41 +823,48 @@ export const useAppStore = defineStore('app', () => {
     instances.value = instances.value.filter((i) => i.id !== id)
   }
 
-  /** 启动实例：内核拉起进程并回传 pid，日志经 core-event 流入任务页。 */
+  /** 启动实例：内核拉起进程，进度由 LaunchProgress 事件驱动（等待游戏窗口出现为止）。 */
   async function launchInstance(id: string): Promise<LaunchResult | null> {
     const inst = instances.value.find((i) => i.id === id)
     if (!inst) return null
     pushLaunchLog(`正在启动 ${inst.name}…`)
+    // 清掉上一次取消的标记，避免本次进度事件被误丢弃
+    cancelledLaunches.delete(id)
     launchProgress.value = {
       instanceId: id,
       stage: 'prepare',
       message: '准备启动实例',
       current: 0,
-      total: 8,
+      total: 9,
       done: false,
       error: null,
     }
     try {
+      // 内核在游戏窗口出现（或兜底超时）后才返回，期间由事件流推进进度
       const outcome = await call<LaunchOutcome>('launch_instance', { id })
       runningInstances.value = [
         ...runningInstances.value.filter((r) => r.instanceId !== id),
         { instanceId: id, pid: outcome.pid },
       ]
-      // 事件丢失时兜底标记完成，避免任务页一直停在“启动中”
-      launchProgress.value = {
-        ...launchProgress.value!,
-        stage: 'spawn',
-        message: '游戏进程已启动',
-        current: 8,
-        done: true,
-        error: null,
+      // 事件丢失时兜底标记完成，避免进度面板一直停在“启动中”
+      if (launchProgress.value && !launchProgress.value.done) {
+        launchProgress.value = {
+          ...launchProgress.value,
+          stage: 'window',
+          message: '已启动游戏',
+          current: 9,
+          done: true,
+          error: null,
+        }
+        scheduleLaunchDismiss()
       }
-      scheduleLaunchDismiss()
       // 内核回写游玩时长，刷新列表让首页显示最新状态
       void refreshInstances().catch(() => {})
       return { ok: true, pid: outcome.pid }
     } catch (e) {
       const message = (e as Error).message
+      // 用户主动取消不算失败：面板已由 stopInstance 收起
+      if (cancelledLaunches.has(id)) return { ok: false, cancelled: true, error: message }
       pushLaunchLog(`启动失败：${message}`)
       launchProgress.value = {
         ...launchProgress.value!,
@@ -868,12 +907,45 @@ export const useAppStore = defineStore('app', () => {
       const ok = await call<boolean>('kill_instance', { id })
       if (ok) {
         intentionallyKilled.add(id)
+        // 启动等待期被结束：屏蔽内核随后补发的「游戏在启动过程中退出」失败事件
+        if (launchProgress.value?.instanceId === id && !launchProgress.value.done) {
+          cancelledLaunches.add(id)
+        }
         runningInstances.value = runningInstances.value.filter((r) => r.instanceId !== id)
         pushLaunchLog('已请求结束游戏进程')
       }
       return ok
     } catch (e) {
       toast.error(`结束进程失败：${(e as Error).message}`)
+      return false
+    }
+  }
+
+  /**
+   * 结束游戏（首页右下角停止按钮）：
+   * 启动中点击 → 取消启动流程并结束已拉起的进程（进程还没拉起则中止后续阶段）；
+   * 运行中点击 → 直接结束游戏进程。
+   */
+  async function stopInstance(id: string): Promise<boolean> {
+    const launching = launchProgress.value?.instanceId === id && !launchProgress.value.done
+    if (launching) {
+      // 先收起进度面板并屏蔽内核补发的事件，再请求内核取消
+      cancelledLaunches.add(id)
+      dismissLaunch()
+      pushLaunchLog('已请求结束游戏进程')
+    }
+    try {
+      const ok = await call<boolean>('cancel_launch', { id })
+      if (ok) {
+        intentionallyKilled.add(id)
+        runningInstances.value = runningInstances.value.filter((r) => r.instanceId !== id)
+        toast.success('已结束游戏进程')
+      } else if (!launching) {
+        toast.info('当前没有正在运行的游戏')
+      }
+      return ok || launching
+    } catch (e) {
+      toast.error(`结束游戏失败：${(e as Error).message}`)
       return false
     }
   }
@@ -1361,7 +1433,10 @@ export const useAppStore = defineStore('app', () => {
 
   async function restoreSession() {
     // 会话真相源在内核（accounts.session.get）
-    session.value = await call<Session | null>('account_session_get')
+    const next = await call<Session | null>('account_session_get')
+    // 数据未变化就不替换引用，避免账户卡（头像 / 用户名）无意义重渲染闪动
+    if (JSON.stringify(next) === JSON.stringify(session.value)) return
+    session.value = next
   }
 
   /* ------------------------------- 多账户管理 ------------------------------- */
@@ -1370,9 +1445,12 @@ export const useAppStore = defineStore('app', () => {
   const accounts = ref<StoredAccount[]>([])
 
   async function loadAccounts() {
-    // 成功才覆盖：刷新失败时保留旧列表，避免页面被清空。
+    // 成功才覆盖：刷新失败时保留旧列表，避免页面被清空；
+    // 数据未变化也不替换引用，避免账户列表无意义重渲染闪动。
     const list = await call<StoredAccount[]>('accounts_list')
-    if (Array.isArray(list)) accounts.value = list
+    if (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(accounts.value)) {
+      accounts.value = list
+    }
     // 账户就绪后异步同步在线皮肤；失败不影响列表展示（头像回退本地皮肤）
     void loadAccountSkins()
   }
@@ -1467,7 +1545,10 @@ export const useAppStore = defineStore('app', () => {
 
   async function loadAuthServers() {
     const list = await call<AuthServer[]>('auth_servers_list')
-    if (Array.isArray(list)) authServers.value = list
+    // 数据未变化就不替换引用，避免列表无意义重渲染
+    if (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(authServers.value)) {
+      authServers.value = list
+    }
   }
 
   /** 应用内刷新账户相关数据；失败的段落保留旧值，不重载页面。 */
@@ -2199,6 +2280,7 @@ export const useAppStore = defineStore('app', () => {
     instanceReloads,
     navState,
     pageStack,
+    stageNonce,
     launchLogs,
     crashInfo,
     /* computed */
@@ -2214,6 +2296,7 @@ export const useAppStore = defineStore('app', () => {
     setView,
     routerPush,
     setNav,
+    remountStage,
     openSubPage,
     openTasksPage,
     closeSubPage,
@@ -2234,6 +2317,7 @@ export const useAppStore = defineStore('app', () => {
     selectInstance,
     launchInstance,
     killInstance,
+    stopInstance,
     runningInstances,
     refreshRunningInstances,
     loadVersions,

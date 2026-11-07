@@ -19,6 +19,7 @@ import { call } from '../lib/bridge'
 import { toast } from '../lib/toast'
 import { confirmDialog } from '../lib/dialog'
 import { ensureMcmod, mcmodInfo } from '../lib/mcmod'
+import { resolveInstanceDir } from './instanceMeta'
 import type { ResourceKind, ResourceProject, ResourceVersion } from '../lib/types'
 import { curseForgeProjectUrl } from '../lib/curseforge'
 import {
@@ -651,49 +652,36 @@ async function installTo(instanceId: string) {
   }
 }
 
-/** 下载版本：Mod 等可安装类型直接装进当前启动实例的内容目录（不再弹「另存为」）；
- * 无当前实例时退回实例选择弹窗；数据包等不可安装类型保留「另存为」。 */
+/** 保存版本文件（原生「另存为」，默认目录 = 当前启动实例的内容目录 mods 等）。 */
 async function downloadVersion(v: ResourceVersion) {
   if (!v.fileUrl || downloadingIds.value.has(v.id)) return
-  const kind = INSTALL_KIND[props.resourceKind]
-  const inst = store.selectedInstance
-  if (kind && inst) {
-    downloadingIds.value = new Set(downloadingIds.value).add(v.id)
-    try {
-      await store.installResource(inst.id, kind, v.fileUrl, v.fileName, null)
-    } finally {
-      const next = new Set(downloadingIds.value)
-      next.delete(v.id)
-      downloadingIds.value = next
-    }
-    return
-  }
-  if (kind) {
-    requestInstall(v)
-    return
-  }
+  downloadingIds.value = new Set(downloadingIds.value).add(v.id)
   try {
-    const path = await store.saveResourceFile(v, KIND_TITLE[props.resourceKind] ?? '资源文件')
+    const kind = INSTALL_KIND[props.resourceKind]
+    let defaultDir: string | null = null
+    const inst = store.selectedInstance
+    if (kind && inst) {
+      try {
+        const root = await resolveInstanceDir(inst.id)
+        defaultDir = `${root}${root.includes('\\') ? '\\' : '/'}${kind}`
+      } catch {
+        /* 目录解析失败时由系统记住的上次位置兜底 */
+      }
+    }
+    const path = await store.saveResourceFile(v, KIND_TITLE[props.resourceKind] ?? '资源文件', defaultDir)
     if (path) toast.success(`已保存到 ${path}`)
   } catch (e) {
     toast.error(`下载失败：${(e as Error).message}`)
+  } finally {
+    const next = new Set(downloadingIds.value)
+    next.delete(v.id)
+    downloadingIds.value = next
   }
 }
 
 /** 加载失败后重试。 */
 function retry() {
   void store.loadResourceDetail(props.projectId, props.resourceKind as ResourceKind)
-}
-
-/** ⬇ 按钮提示：可安装类型 = 装进当前实例；其余 = 另存为。 */
-function downloadTitle(v: ResourceVersion): string {
-  const inst = store.selectedInstance
-  if (INSTALL_KIND[props.resourceKind]) {
-    return inst
-      ? `安装到 ${inst.name} 的 ${INSTALL_KIND[props.resourceKind]} 目录（${v.fileName}）`
-      : `选择实例安装（${v.fileName}）`
-  }
-  return `另存为 ${v.fileName}`
 }
 
 /** 封面加载失败时回退到占位图标。 */
@@ -927,7 +915,7 @@ watch(
               <button
                 type="button"
                 class="icon-btn version-file-download"
-                :title="downloadTitle(v)"
+                :title="`另存为 ${v.fileName}（默认当前实例目录）`"
                 :disabled="downloadingIds.has(v.id)"
                 @click.stop="downloadVersion(v)"
               >

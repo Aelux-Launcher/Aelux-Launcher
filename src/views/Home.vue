@@ -6,7 +6,7 @@
  * 启动进度不跳转下载任务页，而是把右栏切换为居中的进度面板；
  * 启动失败用全局弹窗展示原因，面板随即回到常规启动页。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '../stores/app'
 import { toast } from '../lib/toast'
 import { promptDialog, confirmDialog } from '../lib/dialog'
@@ -79,6 +79,8 @@ async function handleLaunch() {
     if (r?.ok) {
       store.pushLaunchLog(`游戏进程已启动${r.pid ? `（pid ${r.pid}）` : ''}。`)
       toast.success(`${selected.value.name} 已启动`)
+    } else if (r?.cancelled) {
+      // 用户主动结束：日志已由 stopInstance 记录，不按失败处理
     } else {
       // 失败弹窗由下方 watch(launch.error) 统一弹出，这里只记日志
       store.pushLaunchLog(`启动失败：${r?.error ?? '未知错误'}`)
@@ -193,6 +195,7 @@ const LAUNCH_STAGES = [
   { stage: 'java', label: '准备 Java' },
   { stage: 'classpath', label: '组装启动参数' },
   { stage: 'spawn', label: '启动游戏进程' },
+  { stage: 'window', label: '等待游戏窗口出现' },
 ] as const
 
 const launch = computed(() => store.launchProgress)
@@ -245,6 +248,30 @@ watch(
     if (retry) handleLaunch()
   },
 )
+
+/* ------------------------------ 结束游戏按钮 ------------------------------
+ * 右下角电源键（结束游戏）：启动中点击可中断启动并结束已拉起的进程，
+ * 游戏运行中点击直接结束进程。启动器重启后进入首页时同步一次运行列表。 */
+
+const showStopBtn = computed(() => store.launchActive || store.runningInstances.length > 0)
+
+/** 结束目标：优先正在启动的实例，其次是第一个运行中的实例。 */
+const stopTarget = computed(() => {
+  const progress = store.launchProgress
+  if (store.launchActive && progress) return progress.instanceId
+  return store.runningInstances[0]?.instanceId ?? null
+})
+
+async function handleStopGame() {
+  const id = stopTarget.value
+  if (!id) return
+  await store.stopInstance(id)
+}
+
+onMounted(() => {
+  // 同步运行中列表：停止按钮的显隐依赖它（启动器重启后仍能结束残留进程）
+  void store.refreshRunningInstances()
+})
 </script>
 
 <template>
@@ -388,5 +415,17 @@ watch(
       @close="microsoftModalOpen = false"
       @submit="startMicrosoftLogin"
     />
+
+    <!-- 结束游戏（右下角电源键）：启动中点击可中断启动并结束进程 -->
+    <button
+      v-if="showStopBtn"
+      type="button"
+      class="game-stop-btn"
+      :title="store.launchActive ? '结束启动并关闭游戏' : '结束游戏进程'"
+      aria-label="结束游戏"
+      @click="handleStopGame"
+    >
+      <AlxIcon name="power" :size="22" />
+    </button>
   </div>
 </template>

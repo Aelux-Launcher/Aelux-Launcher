@@ -57,6 +57,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::cancel_download,
         commands::launch_instance,
         commands::kill_instance,
+        commands::cancel_launch,
         commands::running_instances,
         commands::export_launch_script,
         commands::backup_world,

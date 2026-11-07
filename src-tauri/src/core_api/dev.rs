@@ -423,6 +423,10 @@ pub fn kill_instance(id: String) -> bool {
     core().kill_instance(&id)
 }
 
+pub fn cancel_launch(id: String) -> bool {
+    core().cancel_launch(&id)
+}
+
 pub fn running_instances() -> Result<Vec<RunningGame>, CoreError> {
     to_dto(core().running_instances())
 }

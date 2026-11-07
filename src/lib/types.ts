@@ -238,6 +238,8 @@ export interface LaunchResult {
   ok: boolean
   pid?: number
   error?: string
+  /** 用户主动结束（首页停止按钮）：不算启动失败。 */
+  cancelled?: boolean
 }
 
 /* --------------------------- 社区资源（Modrinth） --------------------------- */

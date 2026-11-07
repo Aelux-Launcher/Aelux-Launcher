@@ -2059,6 +2059,35 @@ svg {
   100% { transform: scale(1); }
 }
 
+/* 结束游戏按钮（首页右下角电源键）：
+   启动中 / 游戏运行时显示，点击立即结束游戏进程 */
+.game-stop-btn {
+  position: fixed;
+  right: 28px;
+  bottom: 24px;
+  z-index: 31;
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.game-stop-btn:hover {
+  filter: brightness(1.08);
+  transform: scale(1.06);
+}
+.game-stop-btn:active {
+  transform: scale(0.95);
+}
+
 /* 安装失败提示卡片（任务管理页） */
 .install-error-card {
   display: flex;

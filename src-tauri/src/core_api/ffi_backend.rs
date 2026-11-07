@@ -633,6 +633,13 @@ pub fn kill_instance(id: String) -> bool {
         .unwrap_or(false)
 }
 
+pub fn cancel_launch(id: String) -> bool {
+    invoke_sync("launch.cancel", &serde_json::json!({ "id": id }))
+        .ok()
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
 pub fn running_instances() -> Result<Vec<RunningGame>, CoreError> {
     let value = invoke_sync("launch.running", &Value::Null)?;
     serde_json::from_value(value).map_err(|e| e.to_string())

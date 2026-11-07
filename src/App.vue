@@ -122,9 +122,13 @@ function resetStageScroll() {
   })
 }
 
-/** 舞台内容直接由路由派生：路由变化必然触发重渲染，避免手动层状态滞留。 */
+/**
+ * 舞台内容直接由路由派生：路由变化必然触发重渲染，避免手动层状态滞留。
+ * key 额外并入 stageNonce：递增后当前页组件瞬时重挂（页面级「刷新归位」，
+ * 不经 location.reload，无白屏），数据重拉由触发方在后台并行进行。
+ */
 const stage = computed(() => ({
-  key: stageKey(route.value),
+  key: `${stageKey(route.value)}#${store.stageNonce}`,
   comp: COMPONENTS[String(route.value.name ?? 'home')] ?? Home,
   props: stageProps(route.value),
 }))

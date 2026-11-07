@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 原理图管理（参考 HMCL 的原理图页）：
+ * 原理图管理：
  * 搜索 + 工具行 + 原理图列表（尺寸 / 文件格式）。
  *
  * 数据来自内核 `content.list`（schematics），尺寸由 NBT 解析得到。

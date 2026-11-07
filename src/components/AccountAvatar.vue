@@ -25,10 +25,15 @@ const props = withDefaults(
 /** 在线头像加载失败后回退到本地皮肤。 */
 const failed = ref(false)
 
+/** 已预加载完成的在线皮肤地址（切换新地址期间保留旧图，避免闪动）。 */
+const loadedSkinUrl = ref('')
+
+/** 账户身份变化（换账户 / 换本地上传图）：清空已加载皮肤与失败态，回落本地皮肤。 */
 watch(
-  () => [props.name, props.type, props.uuid, props.override, props.skinUrl],
+  () => [props.name, props.uuid, props.override],
   () => {
     failed.value = false
+    loadedSkinUrl.value = ''
   },
 )
 
@@ -39,14 +44,17 @@ const overrideUrl = computed(() =>
 
 /**
  * 在线皮肤预加载：下载完成后才切换 src。
- * 在线地址到手前一直显示本地兜底皮肤，避免头像「本地 → 空白 → 在线」闪一下。
+ * 新旧在线地址切换期间保留旧皮肤显示，避免「在线 → 本地 → 在线」闪一下；
+ * skinUrl 清空（无在线皮肤）或账户身份变化时才回落本地兜底。
  */
-const loadedSkinUrl = ref('')
-
 watch(
   () => props.skinUrl,
   (url) => {
-    if (!url || url === loadedSkinUrl.value) return
+    if (!url) {
+      loadedSkinUrl.value = ''
+      return
+    }
+    if (url === loadedSkinUrl.value) return
     const probe = new Image()
     probe.onload = () => {
       loadedSkinUrl.value = url
@@ -62,7 +70,8 @@ watch(
  */
 const skinSrc = computed(() => {
   if (failed.value) return localSkinUrl(props.name)
-  if (props.skinUrl && props.skinUrl === loadedSkinUrl.value) return props.skinUrl
+  // 已加载完成的在线皮肤持续显示（换地址重载期间保留旧图，不闪回本地）
+  if (loadedSkinUrl.value) return loadedSkinUrl.value
   return localSkinUrl(props.name)
 })
 </script>

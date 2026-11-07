@@ -535,6 +535,12 @@ pub fn kill_instance(id: String) -> bool {
 
 #[tauri::command]
 #[specta::specta]
+pub fn cancel_launch(id: String) -> bool {
+    core_api::cancel_launch(id)
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn running_instances() -> Result<Vec<RunningGame>, String> {
     core_api::running_instances()
 }
