@@ -23,12 +23,26 @@ import Accounts from '../views/Accounts.vue'
 const LAST_ROUTE_KEY = 'aelux:last-route'
 
 /**
- * 应用重载 / 进程重启会丢掉 hash，路由兜底会落到首页。
+ * 只有「刷新 / 崩溃重载」才恢复上次页面；全新启动一律回首页。
+ * 进程重启时 navigation.type 为 navigate，reload 时为 reload。
+ */
+function isReloadNavigation() {
+  try {
+    const [entry] = performance.getEntriesByType('navigation')
+    return (entry as PerformanceNavigationTiming | undefined)?.type === 'reload'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 应用重载会丢掉 hash，路由兜底会落到首页。
  * 这里把上一次的详情/模块页写回 hash，保证下载中、下载完成或意外重载后仍停留在原页面。
  * 用 localStorage：WebView 进程重启后 sessionStorage 会被清空，localStorage 才能跨进程保留。
  */
 function restoreLastRoute() {
   try {
+    if (!isReloadNavigation()) return
     const saved = localStorage.getItem(LAST_ROUTE_KEY)
     if (!saved || location.hash) return
     const path = saved.split(/[?#]/)[0]
