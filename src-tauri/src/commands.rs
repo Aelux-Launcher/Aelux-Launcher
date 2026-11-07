@@ -6,8 +6,8 @@
 
 use crate::core_api;
 use crate::dto::{
-    Account, AccountSession, AuthServer, CrashReport, DeviceCodeSession, GameInstance,
-    InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig,
+    Account, AccountSession, ApiConfig, ApiConfigView, AuthServer, CrashReport, DeviceCodeSession,
+    GameInstance, InstallResult, JavaInstallResult, JavaRuntime, LaunchOutcome, LauncherConfig,
     LocalContentItem, LogFile, ModUpdate, ModpackImportResult, OsInfo, RunningGame,
     StoredAccount, VersionManifest,
 };
@@ -358,6 +358,18 @@ pub fn save_config(config: LauncherConfig) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
+pub fn api_config_get() -> Result<ApiConfigView, String> {
+    core_api::api_config()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn api_config_set(config: ApiConfig) -> Result<(), String> {
+    core_api::save_api_config(config)
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn cache_dir() -> String {
     core_api::cache_dir()
 }
@@ -599,6 +611,106 @@ pub fn probe_java(path: String) -> Result<JavaRuntime, String> {
 
 /* ------------------------------ 窗口命令 ------------------------------ */
 
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
+
+use tauri::{PhysicalPosition, PhysicalSize, WebviewWindow};
+
+/// 上一次窗口是否处于最大化（用于识别「贴顶最大化 → 还原」）。
+static WAS_MAXIMIZED: AtomicBool = AtomicBool::new(false);
+/// 最近一次「非最大化 / 非全屏」的窗口尺寸与位置（物理像素）。
+static NORMAL_W: AtomicU32 = AtomicU32::new(960);
+static NORMAL_H: AtomicU32 = AtomicU32::new(580);
+static NORMAL_X: AtomicI32 = AtomicI32::new(i32::MIN);
+static NORMAL_Y: AtomicI32 = AtomicI32::new(i32::MIN);
+
+const MIN_VALID: u32 = 200;
+/// 还原后延迟通知 WebView2 重排的等待时间（毫秒），避开系统拖拽动画。
+const RESTORE_DELAY_MS: u64 = 150;
+
+/// 启动时记录初始尺寸，并同步最大化状态。
+pub(crate) fn init_window_tracking(window: &WebviewWindow) {
+    WAS_MAXIMIZED.store(window.is_maximized().unwrap_or(false), Ordering::SeqCst);
+    if let Ok(size) = window.outer_size() {
+        remember_normal(window, size);
+    }
+}
+
+/// 记录「正常状态」下的窗口几何；最大化 / 全屏 / 贴边尺寸不记录。
+fn remember_normal(window: &WebviewWindow, size: PhysicalSize<u32>) {
+    if size.width < MIN_VALID || size.height < MIN_VALID {
+        return;
+    }
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        let screen = monitor.size();
+        // 贴顶 / 拖到屏幕边缘时系统会先改尺寸再置最大化，此时尺寸已等于屏幕，
+        // 不能当作「还原尺寸」保存。
+        if size.width >= screen.width || size.height >= screen.height {
+            return;
+        }
+    }
+    NORMAL_W.store(size.width, Ordering::SeqCst);
+    NORMAL_H.store(size.height, Ordering::SeqCst);
+    if let Ok(pos) = window.outer_position() {
+        NORMAL_X.store(pos.x, Ordering::SeqCst);
+        NORMAL_Y.store(pos.y, Ordering::SeqCst);
+    }
+}
+
+/// 把窗口恢复到记录的正常尺寸。若当前尺寸已经相同，则先 +1 像素再恢复，
+/// 强制 WebView2 收到一次真实的 WM_SIZE（无边框窗口常见「还原后空白」）。
+fn apply_normal_size(window: &WebviewWindow) {
+    let w = NORMAL_W.load(Ordering::SeqCst);
+    let h = NORMAL_H.load(Ordering::SeqCst);
+    if w < MIN_VALID || h < MIN_VALID {
+        return;
+    }
+    let current = window.outer_size().unwrap_or(PhysicalSize::new(0, 0));
+    let _ = window.set_size(PhysicalSize::new(w, h));
+    if current.width == w && current.height == h {
+        let _ = window.set_size(PhysicalSize::new(w, h + 1));
+        let _ = window.set_size(PhysicalSize::new(w, h));
+    }
+}
+
+/// 还原位置并显示 / 聚焦。延迟执行，避免和系统拖拽（Aero Snap 还原）打架。
+fn schedule_restore(window: WebviewWindow, restore_position: bool) {
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(RESTORE_DELAY_MS));
+        if window.is_maximized().unwrap_or(false)
+            || window.is_fullscreen().unwrap_or(false)
+            || window.is_minimized().unwrap_or(false)
+        {
+            return;
+        }
+        let _ = window.show();
+        apply_normal_size(&window);
+        if restore_position {
+            let (x, y) = (NORMAL_X.load(Ordering::SeqCst), NORMAL_Y.load(Ordering::SeqCst));
+            if x != i32::MIN && y != i32::MIN {
+                let _ = window.set_position(PhysicalPosition::new(x, y));
+            }
+        }
+        let _ = window.set_focus();
+    });
+}
+
+/// 窗口尺寸变化：跟踪最大化状态，识别「最大化 → 还原」并修复不显示。
+pub(crate) fn on_window_resized(window: &WebviewWindow) {
+    let is_max = window.is_maximized().unwrap_or(false);
+    let is_full = window.is_fullscreen().unwrap_or(false);
+    let was = WAS_MAXIMIZED.swap(is_max, Ordering::SeqCst);
+
+    if !is_max && !is_full {
+        if was {
+            // 从最大化还原（包括贴顶吸附后拖走 / 点击还原按钮）：
+            // WebView2 可能停留在最大化尺寸或不再重绘，表现为窗口不可见。
+            schedule_restore(window.clone(), false);
+        } else if let Ok(size) = window.outer_size() {
+            remember_normal(window, size);
+        }
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn minimize_window(window: tauri::WebviewWindow) {
@@ -609,6 +721,45 @@ pub fn minimize_window(window: tauri::WebviewWindow) {
 #[specta::specta]
 pub fn close_window(window: tauri::WebviewWindow) {
     let _ = window.close();
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn toggle_maximize_window(window: tauri::WebviewWindow) -> bool {
+    if window.is_maximized().unwrap_or(false) {
+        // 先取当前（最大化）尺寸不合适，使用正常状态记录值。
+        let _ = window.unmaximize();
+        schedule_restore(window, true);
+        false
+    } else {
+        if let Ok(size) = window.outer_size() {
+            remember_normal(&window, size);
+        }
+        let _ = window.maximize();
+        window.is_maximized().unwrap_or(true)
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_fullscreen_window(window: tauri::WebviewWindow, fullscreen: bool) -> bool {
+    let _ = window.set_fullscreen(fullscreen);
+    if !fullscreen {
+        // 退出全屏后同样可能出现「窗口存在但内容不显示」，统一走一次恢复。
+        let _ = window.show();
+        schedule_restore(window.clone(), false);
+        let _ = window.set_focus();
+    }
+    window.is_fullscreen().unwrap_or(fullscreen)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn window_state(window: tauri::WebviewWindow) -> (bool, bool) {
+    (
+        window.is_maximized().unwrap_or(false),
+        window.is_fullscreen().unwrap_or(false),
+    )
 }
 
 /* ---------------------------- 文件 / 外链 ----------------------------- */

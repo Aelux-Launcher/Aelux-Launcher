@@ -85,6 +85,7 @@ pub struct LauncherConfig {
     pub game_args: Vec<String>,
     pub game_width: u32,
     pub game_height: u32,
+    pub game_fullscreen: bool,
     pub download_concurrency: u32,
     pub hide_on_launch: bool,
     pub cache_dir: String,
@@ -102,11 +103,29 @@ impl Default for LauncherConfig {
             game_args: Vec::new(),
             game_width: 854,
             game_height: 480,
+            game_fullscreen: false,
             download_concurrency: 8,
             hide_on_launch: false,
             cache_dir: String::new(),
         }
     }
+}
+
+/// 第三方服务凭据（settings 页编辑、内核写入 secrets.json）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ApiConfig {
+    pub curseforge_api_key: String,
+    pub msa_client_id: String,
+}
+
+/// 凭据 + 配置文件路径。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiConfigView {
+    pub curseforge_api_key: String,
+    pub msa_client_id: String,
+    pub path: String,
 }
 
 /// 设备码登录会话（轮询时原样回传）。

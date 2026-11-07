@@ -72,6 +72,15 @@ export const ICONS = {
   plus: { vb: V, body: `<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>` },
   x: { vb: V, body: `<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>` },
   minus: { vb: V, body: `<line x1="5" y1="12" x2="19" y2="12"/>` },
+  maximize: { vb: V, body: `<rect x="4" y="4" width="16" height="16" rx="1"/>` },
+  restore: {
+    vb: V,
+    body: `<rect x="8" y="8" width="12" height="12" rx="1"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>`,
+  },
+  fullscreen: {
+    vb: V,
+    body: `<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M16 21h3a2 2 0 0 0 2-2v-3M8 21H5a2 2 0 0 1-2-2v-3"/>`,
+  },
   external: { vb: V, body: `<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>` },
   code: { vb: V, body: `<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>` },
   layout: { vb: V, body: `<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>` },

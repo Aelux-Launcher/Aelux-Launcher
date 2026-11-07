@@ -11,6 +11,7 @@ import { call } from '../../lib/bridge'
 import { toast } from '../../lib/toast'
 import type { GameInstance, LocalContentItem } from '../../lib/types'
 import AlxIcon from '../../components/AlxIcon.vue'
+import AlxLoading from '../../components/AlxLoading.vue'
 import AlxModal from '../../components/AlxModal.vue'
 import AlxSearchBar from '../../components/AlxSearchBar.vue'
 import SettingGroup from '../../components/SettingGroup.vue'
@@ -164,9 +165,10 @@ async function confirmRemove() {
 
   <!-- 存档列表 -->
   <SettingGroup title="存档列表" :collapsible="false" :extra="`共 ${worlds.length} 个`">
-    <div v-if="rows.length === 0" class="empty-state">
+    <AlxLoading v-if="loading" text="正在读取存档…" />
+    <div v-else-if="rows.length === 0" class="empty-state">
       <AlxIcon name="globe" :size="32" />
-      <span>{{ loading ? '正在读取存档…' : '还没有存档，导入或开始游戏后会出现在这里' }}</span>
+      <span>还没有存档，导入或开始游戏后会出现在这里</span>
     </div>
     <template v-else>
       <div v-for="w in rows" :key="w.path" class="list-item">

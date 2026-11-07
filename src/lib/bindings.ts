@@ -49,6 +49,8 @@ export const commands = {
 	kvRemove: (key: string) => typedError<null, string>(__TAURI_INVOKE("kv_remove", { key })),
 	getConfig: () => typedError<LauncherConfig_Serialize, string>(__TAURI_INVOKE("get_config")),
 	saveConfig: (config: LauncherConfig_Deserialize) => typedError<null, string>(__TAURI_INVOKE("save_config", { config })),
+	apiConfigGet: () => typedError<ApiConfigView, string>(__TAURI_INVOKE("api_config_get")),
+	apiConfigSet: (config: ApiConfig_Deserialize) => typedError<null, string>(__TAURI_INVOKE("api_config_set", { config })),
 	cacheDir: () => __TAURI_INVOKE<string>("cache_dir"),
 	clearCache: () => typedError<number, string>(__TAURI_INVOKE("clear_cache")),
 	/**  用本地 PNG 设置窗口图标（自定义启动器图标）。 */
@@ -84,6 +86,9 @@ export const commands = {
 	renamePath: (from: string, to: string) => typedError<null, string>(__TAURI_INVOKE("rename_path", { from, to })),
 	minimizeWindow: () => __TAURI_INVOKE<void>("minimize_window"),
 	closeWindow: () => __TAURI_INVOKE<void>("close_window"),
+	toggleMaximizeWindow: () => __TAURI_INVOKE<boolean>("toggle_maximize_window"),
+	setFullscreenWindow: (fullscreen: boolean) => __TAURI_INVOKE<boolean>("set_fullscreen_window", { fullscreen }),
+	windowState: () => __TAURI_INVOKE<[boolean, boolean]>("window_state"),
 	openExternal: (url: string) => typedError<null, string>(__TAURI_INVOKE("open_external", { url })),
 	openFolderInExplorer: (path: string) => typedError<null, string>(__TAURI_INVOKE("open_folder_in_explorer", { path })),
 	writeText: (path: string, content: string) => typedError<null, string>(__TAURI_INVOKE("write_text", { path, content })),
@@ -110,6 +115,28 @@ export type AccountSession = {
 	type: string,
 	username: string,
 	uuid: string,
+};
+
+/**  第三方服务凭据（settings 页编辑、内核写入 secrets.json）。 */
+export type ApiConfig = ApiConfig_Serialize | ApiConfig_Deserialize;
+
+/**  凭据 + 配置文件路径。 */
+export type ApiConfigView = {
+	curseforgeApiKey: string,
+	msaClientId: string,
+	path: string,
+};
+
+/**  第三方服务凭据（settings 页编辑、内核写入 secrets.json）。 */
+export type ApiConfig_Deserialize = {
+	curseforgeApiKey?: string,
+	msaClientId?: string,
+};
+
+/**  第三方服务凭据（settings 页编辑、内核写入 secrets.json）。 */
+export type ApiConfig_Serialize = {
+	curseforgeApiKey: string,
+	msaClientId: string,
 };
 
 /**  外置登录认证服务器（authlib-injector）。 */

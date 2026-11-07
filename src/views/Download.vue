@@ -17,6 +17,7 @@ import { toast } from '../lib/toast'
 import { ensureMcmod, mcmodInfo } from '../lib/mcmod'
 import type { McmodInfo } from '../lib/mcmod'
 import AlxIcon from '../components/AlxIcon.vue'
+import AlxLoading from '../components/AlxLoading.vue'
 import AlxSelect from '../components/AlxSelect.vue'
 import VersionRowActions from '../components/VersionRowActions.vue'
 import { versionRowIcon } from '../lib/versionIcons'
@@ -222,8 +223,13 @@ const versionOptions = computed(() =>
   store.versions.filter((v) => v.kind === 'release').map((v) => v.id),
 )
 
-/** 世界分类：Modrinth 没有 world 类型，仅展示说明 */
+/** 世界分类：Modrinth 没有 world 类型，仅 CurseForge 提供（classId 17）。 */
 const isWorld = computed(() => currentKind.value === 'world')
+
+/** 世界分类下隐藏 Modrinth 来源，避免选到必然为空的数据源。 */
+const sourceOptions = computed(() =>
+  isWorld.value ? SOURCE_OPTIONS.filter((o) => o.value !== 'modrinth') : SOURCE_OPTIONS,
+)
 
 /** 是否有筛选条件（用于重置按钮与空状态） */
 const hasActiveFilters = computed(
@@ -257,6 +263,10 @@ watch(
   (c) => {
     if (c === 'original') return
     store.setResourceKind(c as ResourceKind)
+    // 世界只有 CurseForge 提供，若当前停在 Modrinth 则自动切回全部
+    if (c === 'world' && store.resourceQuery.source === 'modrinth') {
+      store.setResourceQuery({ source: 'all' })
+    }
     void store.searchResources()
   },
   { immediate: true },
@@ -361,18 +371,19 @@ function retrySearch() {
     <!-- ============ 原版游戏下载 ============ -->
     <template v-if="!isResource">
       <!-- 版本清单加载中 -->
-      <div v-if="store.versionsLoading" class="loading-hint">
-        正在从版本清单源拉取可下载版本…
+      <div v-if="store.versionsLoading" class="version-card">
+        <AlxLoading text="正在从版本清单源拉取可下载版本…" />
       </div>
 
-      <!-- 版本清单加载失败 -->
-      <div v-else-if="store.versionsError" class="empty-state">
+      <!-- 版本清单加载失败（浏览器预览没有内核，不展示误导性报错） -->
+      <div v-else-if="store.versionsError && !store.browserMode" class="empty-state">
         <AlxIcon name="alert-circle" :size="32" />
         <div>版本清单加载失败：{{ store.versionsError }}</div>
         <button type="button" class="btn-download btn-ghost" @click="store.loadVersions()">重试</button>
       </div>
 
-      <template v-else>
+      <!-- 没有版本数据时不渲染任何占位，避免空状态干扰 -->
+      <template v-else-if="store.versions.length > 0">
         <!-- 最新版本卡片 -->
         <div v-if="latestRelease || latestSnapshot" class="version-card">
           <div class="version-card-title">最新版本</div>
@@ -448,27 +459,12 @@ function retrySearch() {
           </div>
         </div>
 
-        <div v-if="store.versions.length === 0" class="empty-state">
-          <AlxIcon name="info" :size="32" />
-          <div>版本清单为空，请稍后重试。</div>
-        </div>
       </template>
     </template>
 
     <!-- ============ 社区资源（整合包 / 模组 / 世界 / 资源包 / 数据包 / 光影包） ============ -->
     <template v-else>
-      <!-- 世界：当前源没有 world 类型时（正式链路）展示说明；预览数据可用时正常走列表 -->
-      <div
-        v-if="isWorld && !store.resourceLoading && store.resourceProjects.length === 0"
-        class="resource-state-card"
-      >
-        <AlxIcon name="globe" :size="28" />
-        <div class="resource-state-title">当前下载源暂未提供「世界」类项目</div>
-        <div class="resource-state-desc">该分类等待接入支持世界资源的数据源。</div>
-      </div>
-
-      <template v-else>
-        <!-- 筛选卡片：名称 + 来源 / 游戏版本 + 加载器 + 类型 / 按钮行 -->
+      <!-- 筛选卡片：名称 + 来源 / 游戏版本 + 加载器 + 类型 / 按钮行 -->
         <section class="resource-search-card">
           <div class="resource-filter-row">
             <div class="filter-field filter-field-name">
@@ -487,7 +483,7 @@ function retrySearch() {
               <span class="filter-label">来源</span>
               <AlxSelect
                 :model-value="source"
-                :options="SOURCE_OPTIONS"
+                :options="sourceOptions"
                 @update:model-value="(v: string) => store.setResourceQuery({ source: v as ResourceSource })"
               />
             </div>
@@ -542,20 +538,13 @@ function retrySearch() {
           </div>
         </section>
 
-      <!-- 检索中：骨架屏 -->
+      <!-- 检索中：加载动画 -->
       <div v-if="store.resourceLoading" class="resource-results-card">
-        <div v-for="i in 5" :key="i" class="resource-skeleton">
-          <div class="skeleton-block skeleton-icon" />
-          <div class="resource-skeleton-main">
-            <div class="skeleton-block skeleton-title" />
-            <div class="skeleton-block skeleton-desc" />
-            <div class="skeleton-block skeleton-meta" />
-          </div>
-        </div>
+        <AlxLoading text="正在加载资源列表…" />
       </div>
 
-      <!-- 检索失败 -->
-      <div v-else-if="store.resourceError" class="resource-state-card">
+      <!-- 检索失败（浏览器预览没有内核，不展示误导性的连接错误） -->
+      <div v-else-if="store.resourceError && !store.browserMode" class="resource-state-card">
         <AlxIcon name="alert-circle" :size="28" />
         <div class="resource-state-title">暂时无法连接到社区资源源</div>
         <div class="resource-state-desc">请检查网络后重试。错误详情：{{ store.resourceError }}</div>
@@ -563,7 +552,7 @@ function retrySearch() {
       </div>
 
       <!-- 无结果 -->
-        <div v-else-if="store.resourceProjects.length === 0" class="resource-state-card">
+        <div v-else-if="store.resourceProjects.length === 0 && !store.browserMode" class="resource-state-card">
           <AlxIcon name="search" :size="28" />
           <div class="resource-state-title">没有找到相关资源</div>
           <div class="resource-state-desc">试试更换关键词，或放宽版本 / 加载器 / 类型筛选。</div>
@@ -681,6 +670,5 @@ function retrySearch() {
           </div>
         </template>
       </template>
-    </template>
   </div>
 </template>

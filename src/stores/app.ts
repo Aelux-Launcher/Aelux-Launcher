@@ -456,13 +456,19 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function init() {
-    const savedTheme = await kvGet('theme')
+    // 先判断运行环境：浏览器预览没有内核，后续 kv/命令读取失败时仍要能正确降级。
+    browserMode.value = !('__TAURI_INTERNALS__' in window)
+    let savedTheme: string | null = null
+    try {
+      savedTheme = await kvGet('theme')
+    } catch {
+      /* 浏览器预览环境没有内核 KV */
+    }
     applyTheme(
       savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system' ? savedTheme : 'system',
       false,
     )
     initError.value = null
-    browserMode.value = !('__TAURI_INTERNALS__' in window)
 
     // 内核事件订阅（下载进度 / 启动日志），失败不影响启动
     void subscribeCoreEvents()
@@ -1483,6 +1489,11 @@ export const useAppStore = defineStore('app', () => {
         }
         if (mr.status === 'rejected' && cf.status === 'rejected') {
           throw mr.reason instanceof Error ? mr.reason : new Error(String(mr.reason))
+        }
+        // 世界只有 CurseForge 能提供，Modrinth 的空结果不能掩盖 CurseForge 的真实错误
+        // （例如未配置 API Key），否则会误报「没有找到相关资源」。
+        if (resourceKind.value === 'world' && cf.status === 'rejected') {
+          throw cf.reason instanceof Error ? cf.reason : new Error(String(cf.reason))
         }
         resourceProjects.value = projects.sort((a, b) => b.downloads - a.downloads)
         resourceTotal.value = total

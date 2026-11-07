@@ -52,7 +52,8 @@ release-ffi = ["dep:libloading"]      # 发布打包
 
 ## 第三方服务配置
 
-凭据只保存在本机内核 KV（`data/kv/store.json`），不上传；设置页修改后立即生效。
+凭据只保存在本机独立配置文件 `data/config/secrets.json`，不上传；设置页修改后立即生效。
+完整申请步骤与排错见 [docs/API-KEYS.md](../docs/API-KEYS.md)（仓库根目录 `docs/`）。
 
 ### CurseForge API Key
 
@@ -69,8 +70,7 @@ release-ffi = ["dep:libloading"]      # 发布打包
 1. 打开 <https://portal.azure.com/> → **Microsoft Entra ID → 应用注册 → 新注册**；
 2. 受支持的账户类型选「**仅个人 Microsoft 账户**」；
 3. 注册后在「**身份验证 → 添加平台 → 移动和桌面应用程序**」，
-   勾选「`https://login.microsoftonline.com/common/oauth2/nativeclient`」与
-   「**允许公共客户端流 (Enable public client flow)**」；
+   勾选「**允许公共客户端流 (Enable public client flow)**」；
 4. 复制概览页的「**应用程序(客户端) ID**」；
 5. 填入「设置 → 服务与 API → 微软 Client ID」，或打包时用环境变量注入：
 
@@ -78,7 +78,7 @@ release-ffi = ["dep:libloading"]      # 发布打包
    $env:AELUX_MSA_CLIENT_ID = "<你的客户端 ID>"
    ```
 
-解析优先级：环境变量 `AELUX_MSA_CLIENT_ID` → 内核 KV `msa_client_id` → 占位值。
+解析优先级：环境变量 `AELUX_MSA_CLIENT_ID` → `secrets.json` 的 `msaClientId` → 旧版 KV。
 占位值状态下发起登录会直接提示「未配置微软 Client ID」。
 
 登录链路：设备码 → Xbox Live → XSTS → Minecraft 服务 → 档案；

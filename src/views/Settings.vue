@@ -367,36 +367,49 @@ async function refreshJavaList() {
 
 /* ---------------------------- 服务与 API ---------------------------- */
 
-/** 真实数据源凭据（存内核 KV，不写入 settings JSON）。 */
+/** 真实数据源凭据（独立文件 data/config/secrets.json）。 */
 const curseforgeKey = ref('')
 const msaClientId = ref('')
+const serviceConfigPath = ref('')
 
-/** 读取已保存的凭据。 */
+/** 读取已保存的凭据 + 配置文件路径。 */
 async function loadServiceConfig() {
   try {
-    const [cf, msa] = await Promise.all([
-      kvGet('curseforge_api_key'),
-      kvGet('msa_client_id'),
-    ])
-    curseforgeKey.value = cf ?? ''
-    msaClientId.value = msa ?? ''
+    const cfg = await call<{
+      curseforgeApiKey: string
+      msaClientId: string
+      path: string
+    }>('api_config_get')
+    curseforgeKey.value = cfg.curseforgeApiKey
+    msaClientId.value = cfg.msaClientId
+    serviceConfigPath.value = cfg.path
   } catch {
     // 未连接内核（如纯浏览器预览）时保持空值
   }
 }
 
-/** 保存凭据到内核 KV。 */
-async function saveServiceKey(
-  key: 'curseforge_api_key' | 'msa_client_id',
-  value: string,
-  label: string,
-) {
+/** 保存两个凭据（一并写入 secrets.json）。 */
+async function saveServiceConfig(label: string) {
   try {
-    await call('kv_set', { key, value: value.trim() })
+    await call('api_config_set', {
+      config: {
+        curseforgeApiKey: curseforgeKey.value.trim(),
+        msaClientId: msaClientId.value.trim(),
+      },
+    })
     toast.success(`${label}已保存`)
   } catch (e) {
     toast.error(`保存失败：${(e as Error).message}`)
   }
+}
+
+/** 打开凭据文件所在目录。 */
+function openServiceConfigDir() {
+  const dir = serviceConfigPath.value.replace(/[\\/][^\\/]+$/, '')
+  if (!dir || !isTauri) return
+  void call('open_folder_in_explorer', { path: dir }).catch(() =>
+    toast.error('无法打开配置目录'),
+  )
 }
 
 // 首次进入设置页即扫描本机 Java（只读探测，不阻塞渲染）
@@ -1342,7 +1355,7 @@ async function clearDownloadCache() {
         </template>
       </SettingGroup>
 
-      <!-- 服务与 API：真实数据源的凭据，保存在本机内核 KV -->
+      <!-- 服务与 API：真实数据源的凭据，保存到独立的 secrets.json -->
       <SettingGroup title="服务与 API" :collapsible="false">
         <div class="setting-row">
           <div class="setting-label">
@@ -1354,7 +1367,7 @@ async function clearDownloadCache() {
             type="password"
             v-model="curseforgeKey"
             placeholder="粘贴 CurseForge API Key"
-            @change="saveServiceKey('curseforge_api_key', curseforgeKey, 'CurseForge API Key')"
+            @change="saveServiceConfig('CurseForge API Key')"
           />
         </div>
         <div class="setting-row">
@@ -1366,12 +1379,22 @@ async function clearDownloadCache() {
             class="setting-input"
             v-model="msaClientId"
             placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            @change="saveServiceKey('msa_client_id', msaClientId, '微软 Client ID')"
+            @change="saveServiceConfig('微软 Client ID')"
           />
         </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            凭据文件
+            <div class="setting-desc">{{ serviceConfigPath || '首次运行内核后生成' }}</div>
+          </div>
+          <button type="button" class="btn-download btn-ghost" @click="openServiceConfigDir">
+            打开配置目录
+          </button>
+        </div>
         <div class="setting-note">
-          凭据仅保存在本机内核 KV，不会上传。修改后重新发起搜索或登录即可生效。
-          CurseForge Key 需在 CurseForge 开发者平台申请；微软 Client ID 需在 Azure 门户注册应用并开启「允许公共客户端流」。
+          凭据保存在独立的 secrets.json，不会上传；也可用环境变量
+          AELUX_CURSEFORGE_API_KEY / AELUX_MSA_CLIENT_ID 覆盖。修改后重新发起搜索或登录即可生效。
+          申请方式见项目文档 docs/API-KEYS.md。
         </div>
       </SettingGroup>
     </template>

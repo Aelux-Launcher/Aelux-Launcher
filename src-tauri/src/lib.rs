@@ -4,7 +4,14 @@ mod commands;
 mod core_api;
 mod dto;
 
+
+
 use tauri_specta::{collect_commands, Builder};
+
+
+
+
+
 
 /// specta 构建器：命令清单 + TS 绑定导出（run 与测试共用同一份）。
 fn specta_builder() -> Builder<tauri::Wry> {
@@ -41,6 +48,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::kv_remove,
         commands::get_config,
         commands::save_config,
+        commands::api_config_get,
+        commands::api_config_set,
         commands::cache_dir,
         commands::clear_cache,
         commands::set_window_icon,
@@ -75,6 +84,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::rename_path,
         commands::minimize_window,
         commands::close_window,
+        commands::toggle_maximize_window,
+        commands::set_fullscreen_window,
+        commands::window_state,
         commands::open_external,
         commands::open_folder_in_explorer,
         commands::write_text,
@@ -109,11 +121,21 @@ pub fn run() {
             // 与内容边缘重合，无空气边；Win10 无 DWM 圆角则呈现方角。
             use tauri::Manager;
             if let Some(win) = app.get_webview_window("main") {
-                // 窗口尺寸固定 960×540（16:9）：默认 = 最小，
+                // 窗口尺寸固定 960×580：默认 = 最小，
                 // 想要更大由用户手动拖大；不做屏幕自适应放大。
                 let _ = win.set_min_size(Some(tauri::LogicalSize::new(960.0, 580.0)));
                 // 双保险：conf 的 center:true 之外显式居中一次
                 let _ = win.center();
+
+                commands::init_window_tracking(&win);
+                let handle = win.clone();
+                win.on_window_event(move |event| {
+                    // 「贴顶最大化 → 还原」时 WebView2 可能停留在最大化尺寸或不再
+                    // 重绘，表现为窗口不可见；统一交给窗口命令层处理。
+                    if matches!(event, tauri::WindowEvent::Resized(_)) {
+                        commands::on_window_resized(&handle);
+                    }
+                });
             }
 
             core_api::init(&app.handle().clone());
