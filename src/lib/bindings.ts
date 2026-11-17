@@ -98,6 +98,7 @@ export const commands = {
 	deletePath: (path: string) => typedError<null, string>(__TAURI_INVOKE("delete_path", { path })),
 	renamePath: (from: string, to: string) => typedError<null, string>(__TAURI_INVOKE("rename_path", { from, to })),
 	minimizeWindow: () => __TAURI_INVOKE<void>("minimize_window"),
+	/**  设置启动器窗口可见性（启动器可见性策略使用：游戏启动后隐藏 / 游戏退出后重新显示）。 */
 	setWindowVisible: (visible: boolean) => __TAURI_INVOKE<void>("set_window_visible", { visible }),
 	closeWindow: () => __TAURI_INVOKE<void>("close_window"),
 	toggleMaximizeWindow: () => __TAURI_INVOKE<boolean>("toggle_maximize_window"),
