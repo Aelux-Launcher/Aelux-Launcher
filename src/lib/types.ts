@@ -138,6 +138,7 @@ export type CoreEvent =
       done: boolean
       error?: string | null
     }
+  | { type: 'GameExited'; instanceId: string; code: number }
 
 export interface LauncherConfig {
   theme: string
@@ -155,7 +156,22 @@ export interface LauncherConfig {
   fileSource: string
   /** 版本清单与版本 JSON 下载源：mirror / auto / official */
   versionSource: string
-  hideOnLaunch: boolean
+  /** 游戏启动后启动器行为：keep / minimize / close / hide-close / hide-reopen */
+  launcherVisibility: string
+  /** 游戏进程优先级：normal / high / low */
+  processPriority: string
+  /** 全局垃圾回收策略：none / g1 / zgc / generational_zgc / tuned_g1 */
+  gcMode: string
+  /** 快速游玩目标：none / singleplayer / multiplayer / realms */
+  quickPlay: string
+  /** 快速游玩目标值（存档名 / host:port / Realms ID） */
+  quickPlayTarget: string
+  /** 自定义游戏窗口标题（空 = 不改写；支持 {date} / {time} 占位符） */
+  gameTitle: string
+  /** 自定义信息：写入 --versionType，显示在旧版游戏标题里 */
+  gameInfo: string
+  /** 启动游戏前执行的命令（空 = 不执行） */
+  preLaunchCommand: string
   cacheDir: string
 }
 

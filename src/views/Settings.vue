@@ -49,6 +49,7 @@ import {
   clampOpacity,
   clampParallel,
   clampSpeedLimit,
+  clampWindowDimension,
   extrasPatch,
   readExtras,
   type JavaEntry,
@@ -114,6 +115,18 @@ function setChoice(key: ChoiceKey, value: string) {
   }
   extras.value = { ...extras.value, [key]: value } as SettingsExtras
   persistExtras()
+}
+
+/** 自定义窗口尺寸提交（非法输入回落默认 854×480）。 */
+function onWindowDimension(key: 'windowWidth' | 'windowHeight', e: Event) {
+  const raw = Number((e.target as HTMLInputElement).value)
+  const fallback = key === 'windowWidth' ? 854 : 480
+  setExtra(key, Number.isFinite(raw) && raw > 0 ? clampWindowDimension(raw) : fallback)
+}
+
+/** 快速游玩目标提交（存档名 / host:port / Realms ID）。 */
+function onQuickPlayTarget(e: Event) {
+  store.saveQuickPlayTarget((e.target as HTMLInputElement).value).catch(() => {})
 }
 
 /* ------------------------------ 游戏设置预设 ------------------------------ */
@@ -565,7 +578,7 @@ async function clearDownloadCache() {
         <div class="setting-row">
           <div class="setting-label">
             游戏窗口标题
-            <div class="setting-desc">留空时使用默认标题</div>
+            <div class="setting-desc">留空时使用默认标题；{date} / {time} 显示当前时间</div>
           </div>
           <input
             class="setting-input"
@@ -586,7 +599,7 @@ async function clearDownloadCache() {
         <div class="setting-row">
           <div class="setting-label">
             自定义信息
-            <div class="setting-desc">显示在游戏窗口的信息栏，留空则不显示</div>
+            <div class="setting-desc">显示在游戏窗口标题中，留空则不显示</div>
           </div>
           <input
             class="setting-input"
@@ -625,22 +638,66 @@ async function clearDownloadCache() {
             窗口大小
             <div class="setting-desc">游戏窗口的初始尺寸</div>
           </div>
-          <AlxSelect
-            :model-value="extras.windowSize"
-            :options="WINDOW_SIZE_OPTIONS"
-            @update:model-value="(v: string) => setChoice('windowSize', v)"
-          />
+          <div class="window-size-row">
+            <AlxSelect
+              :model-value="extras.windowSize"
+              :options="WINDOW_SIZE_OPTIONS"
+              @update:model-value="(v: string) => setChoice('windowSize', v)"
+            />
+            <template v-if="extras.windowSize === 'custom'">
+              <input
+                class="setting-input window-size-input"
+                type="number"
+                min="320"
+                max="7680"
+                :value="extras.windowWidth"
+                @change="onWindowDimension('windowWidth', $event)"
+              />
+              <span class="window-size-x">×</span>
+              <input
+                class="setting-input window-size-input"
+                type="number"
+                min="240"
+                max="4320"
+                :value="extras.windowHeight"
+                @change="onWindowDimension('windowHeight', $event)"
+              />
+            </template>
+          </div>
         </div>
 
         <div class="setting-row">
           <div class="setting-label">
             快速游玩
-            <div class="setting-desc">启动游戏后直接进入指定服务器或世界</div>
+            <div class="setting-desc">启动游戏后直接进入指定目标（仅 1.20+ 生效）</div>
           </div>
           <AlxSelect
             :model-value="extras.quickPlay"
             :options="QUICK_PLAY_OPTIONS"
             @update:model-value="(v: string) => setChoice('quickPlay', v)"
+          />
+        </div>
+
+        <div v-if="extras.quickPlay !== 'none'" class="setting-row">
+          <div class="setting-label">
+            <template v-if="extras.quickPlay === 'singleplayer'">目标世界</template>
+            <template v-else-if="extras.quickPlay === 'realms'">Realms ID</template>
+            <template v-else>服务器地址</template>
+            <div class="setting-desc">
+              {{
+                extras.quickPlay === 'singleplayer'
+                  ? '存档在实例世界列表中的名称'
+                  : extras.quickPlay === 'realms'
+                    ? '要加入的 Realms 世界 ID'
+                    : '格式为 域名:端口，端口可省略'
+              }}
+            </div>
+          </div>
+          <input
+            class="setting-input"
+            :value="store.quickPlayTarget"
+            :placeholder="extras.quickPlay === 'multiplayer' ? 'server.example.com:25565' : '无'"
+            @change="onQuickPlayTarget($event)"
           />
         </div>
 

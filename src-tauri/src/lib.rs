@@ -83,6 +83,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
         commands::delete_path,
         commands::rename_path,
         commands::minimize_window,
+        commands::set_window_visible,
         commands::close_window,
         commands::toggle_maximize_window,
         commands::set_fullscreen_window,

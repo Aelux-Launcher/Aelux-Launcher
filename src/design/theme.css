@@ -1296,6 +1296,23 @@ svg.spinning { animation: nav-refresh-spin 0.8s linear infinite; }
   font-family: inherit;
 }
 
+/* 窗口大小行：下拉 + 自定义宽高输入（仅 custom 档显示输入框） */
+.window-size-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.window-size-input {
+  width: 76px;
+  padding: 6px 8px;
+}
+
+.window-size-x {
+  color: var(--text-subtle);
+  font-size: 13px;
+}
+
 /* 主题色自定义取色器：与下拉同高 */
 .setting-color {
   width: 34px;

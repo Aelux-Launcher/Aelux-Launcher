@@ -90,7 +90,22 @@ pub struct LauncherConfig {
     pub download_concurrency: u32,
     pub file_source: String,
     pub version_source: String,
-    pub hide_on_launch: bool,
+    /// 游戏启动后启动器行为：keep / minimize / close / hide-close / hide-reopen
+    pub launcher_visibility: String,
+    /// 游戏进程优先级：normal / high / low
+    pub process_priority: String,
+    /// 全局垃圾回收策略：none / g1 / zgc / generational_zgc / tuned_g1
+    pub gc_mode: String,
+    /// 快速游玩目标：none / singleplayer / multiplayer / realms
+    pub quick_play: String,
+    /// 快速游玩目标值（存档名 / host:port / Realms ID）
+    pub quick_play_target: String,
+    /// 自定义游戏窗口标题（空 = 不改写；支持 {date} / {time} 占位符）
+    pub game_title: String,
+    /// 自定义信息：写入 --versionType，显示在旧版游戏标题里
+    pub game_info: String,
+    /// 启动游戏前执行的命令（空 = 不执行）
+    pub pre_launch_command: String,
     pub cache_dir: String,
 }
 
@@ -110,7 +125,14 @@ impl Default for LauncherConfig {
             download_concurrency: 128,
             file_source: "auto".into(),
             version_source: "auto".into(),
-            hide_on_launch: false,
+            launcher_visibility: "keep".into(),
+            process_priority: "normal".into(),
+            gc_mode: "none".into(),
+            quick_play: "none".into(),
+            quick_play_target: String::new(),
+            game_title: String::new(),
+            game_info: String::new(),
+            pre_launch_command: String::new(),
             cache_dir: String::new(),
         }
     }

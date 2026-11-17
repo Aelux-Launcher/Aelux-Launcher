@@ -695,7 +695,11 @@ export const useAppStore = defineStore('app', () => {
             error: ev.error ?? null,
           }
           // 内核确认游戏窗口已出现后先展示「启动完成」，稍后自动收起面板
-          if (ev.done && !ev.error) scheduleLaunchDismiss()
+          if (ev.done && !ev.error) {
+            scheduleLaunchDismiss()
+            // 启动器可见性：最小化 / 关闭 / 隐藏（游戏退出后的动作走 GameExited）
+            void applyLauncherVisibility('after-launch')
+          }
           pushLaunchLog(`[启动] ${ev.message}`)
         } else if (ev.type === 'Log') {
           pushLaunchLog(ev.line)
@@ -719,6 +723,12 @@ export const useAppStore = defineStore('app', () => {
               }, 300)
             }
           }
+        } else if (ev.type === 'GameExited') {
+          // 结构化退出事件：清运行标记 + 执行「游戏退出后」可见性策略
+          runningInstances.value = runningInstances.value.filter(
+            (r) => r.instanceId !== ev.instanceId,
+          )
+          void applyLauncherVisibility('on-game-exit')
         }
       })
     } catch {
@@ -784,6 +794,7 @@ export const useAppStore = defineStore('app', () => {
       loadAddedFolders(),
       loadFolderNames(),
       loadSettings(),
+      loadQuickPlayTarget(),
       loadRooms(),
       pullAnnouncements().then((list) => {
         pendingAnnouncements.value = list
@@ -1966,7 +1977,15 @@ export const useAppStore = defineStore('app', () => {
     const extras = readExtras(next)
     const cacheDir =
       extras.cacheFolderMode === 'custom' ? (extras.cacheFolderPath ?? '').trim() : ''
+    // 窗口大小：全屏走 gameFullscreen，自定义取界面输入值，其余档位用默认尺寸
+    const customSize = extras.windowSize === 'custom'
     const gameFullscreen = extras.windowSize === 'fullscreen'
+    // JVM / 游戏参数按行拆分（内核按数组逐条追加）
+    const splitLines = (text: string) =>
+      text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
     await Promise.all([
       call('kv_set', { key: 'settings', value: JSON.stringify(next) }),
       call('save_config', {
@@ -1976,21 +1995,73 @@ export const useAppStore = defineStore('app', () => {
           javaPath: next.javaPath,
           memoryMinMb: Math.min(512, Math.max(128, next.memoryMb)),
           memoryMaxMb: Math.max(512, next.memoryMb),
-          jvmArgs: [],
-          gameArgs: [],
-          gameWidth: 854,
-          gameHeight: 480,
+          jvmArgs: splitLines(extras.jvmArgs ?? ''),
+          gameArgs: splitLines(extras.gameArgs ?? ''),
+          gameWidth: customSize ? (extras.windowWidth ?? 854) : 854,
+          gameHeight: customSize ? (extras.windowHeight ?? 480) : 480,
           gameFullscreen,
           downloadConcurrency: extras.maxParallel,
           fileSource: extras.fileSource,
           versionSource: extras.versionSource,
-          hideOnLaunch: false,
+          launcherVisibility: extras.launcherVisibility,
+          processPriority: extras.processPriority,
+          gcMode: extras.gcMode,
+          quickPlay: extras.quickPlay,
+          quickPlayTarget:
+            extras.quickPlay === 'none' ? '' : (quickPlayTarget.value ?? '').trim(),
+          gameTitle: (extras.windowTitle ?? '').trim(),
+          gameInfo: (extras.customInfo ?? '').trim(),
+          preLaunchCommand: (extras.preLaunchCommand ?? '').trim(),
           cacheDir,
         },
       }).catch(() => {
         /* 预览环境没有 save_config */
       }),
     ])
+  }
+
+  /** 全局快速游玩目标值（存档名 / host:port / Realms ID），随设置落盘。 */
+  const quickPlayTarget = ref('')
+
+  /** 恢复快速游玩目标（设置页与启动链路共用）。 */
+  async function loadQuickPlayTarget() {
+    quickPlayTarget.value = (await kvGet('quick-play-target')) ?? ''
+  }
+
+  /** 保存快速游玩目标并同步内核配置。 */
+  async function saveQuickPlayTarget(value: string) {
+    quickPlayTarget.value = value.trim()
+    await call('kv_set', { key: 'quick-play-target', value: quickPlayTarget.value })
+    await saveSettings({})
+  }
+
+  /**
+   * 启动器可见性动作：游戏启动完成后按设置隐藏 / 最小化 / 关闭窗口；
+   * 游戏退出后按设置重新显示或关闭窗口。预览环境直接跳过。
+   */
+  async function applyLauncherVisibility(action: 'after-launch' | 'on-game-exit') {
+    const visibility = readExtras(settings.value).launcherVisibility
+    if (action === 'after-launch') {
+      if (visibility === 'minimize') await invokeRaw('minimize_window')
+      else if (visibility === 'close') await invokeRaw('close_window')
+      else if (visibility === 'hide-close' || visibility === 'hide-reopen')
+        await invokeRaw('set_window_visible', { visible: false })
+    } else if (visibility === 'hide-close') {
+      await invokeRaw('close_window')
+    } else if (visibility === 'hide-reopen') {
+      await invokeRaw('set_window_visible', { visible: true })
+    }
+  }
+
+  /** 裸 invoke（可见性 / 窗口控制类命令，失败静默）。 */
+  async function invokeRaw(command: string, args?: Record<string, unknown>) {
+    if (!isTauri) return
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke(command, args)
+    } catch {
+      /* 预览环境 / 窗口已关闭 */
+    }
   }
 
   /* --------------------------------- 联机 --------------------------------- */
@@ -2661,6 +2732,8 @@ export const useAppStore = defineStore('app', () => {
     logout,
     loadSettings,
     saveSettings,
+    quickPlayTarget,
+    saveQuickPlayTarget,
     loadRooms,
     createRoom,
     removeRoom,

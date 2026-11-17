@@ -131,6 +131,10 @@ export interface SettingsExtras {
   processPriority: ProcessPriority
   /** 游戏窗口大小 */
   windowSize: GameWindowSize
+  /** 自定义窗口宽度（windowSize 为 custom 时生效） */
+  windowWidth: number
+  /** 自定义窗口高度（windowSize 为 custom 时生效） */
+  windowHeight: number
   /** 快速游玩 */
   quickPlay: QuickPlay
 
@@ -197,6 +201,8 @@ const DEFAULT_EXTRAS: SettingsExtras = {
   launcherVisibility: 'keep',
   processPriority: 'normal',
   windowSize: 'default',
+  windowWidth: 854,
+  windowHeight: 480,
   quickPlay: 'none',
   presetName: '预设1',
   presetInherit: 'configured',
@@ -344,6 +350,13 @@ export const SPEED_LIMIT_RANGE: readonly [number, number] = [0, 128]
 /** 线程数超过该值会明显加剧下载期间的卡顿，需要提示用户。 */
 export const PARALLEL_WARN_THRESHOLD = 128
 
+/** 游戏窗口尺寸合法区间（与内核 clamp 一致：320–7680 / 240–4320）。 */
+export function clampWindowDimension(v: number): number {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return 0
+  return Math.round(clamp(n, 320, 7680))
+}
+
 /** 线程数夹取到合法区间。 */
 export function clampParallel(v: number): number {
   const n = Number(v)
@@ -421,6 +434,8 @@ export function readExtras(raw: unknown): SettingsExtras {
   out.launcherVisibility = pick(obj.launcherVisibility, LAUNCHER_VISIBILITY_VALUES, out.launcherVisibility)
   out.processPriority = pick(obj.processPriority, PROCESS_PRIORITY_VALUES, out.processPriority)
   out.windowSize = pick(obj.windowSize, WINDOW_SIZE_VALUES, out.windowSize)
+  if (typeof obj.windowWidth === 'number') out.windowWidth = clampWindowDimension(obj.windowWidth)
+  if (typeof obj.windowHeight === 'number') out.windowHeight = clampWindowDimension(obj.windowHeight)
   out.quickPlay = pick(obj.quickPlay, QUICK_PLAY_VALUES, out.quickPlay)
   out.presetInherit = pick(obj.presetInherit, PRESET_INHERIT_VALUES, out.presetInherit)
   if (typeof obj.iconPath === 'string') out.iconPath = obj.iconPath

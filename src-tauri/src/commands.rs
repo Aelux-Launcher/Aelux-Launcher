@@ -799,6 +799,17 @@ pub fn minimize_window(window: tauri::WebviewWindow) {
     let _ = window.minimize();
 }
 
+/// 设置启动器窗口可见性（启动器可见性策略使用：游戏启动后隐藏 / 游戏退出后重新显示）。
+#[tauri::command]
+#[specta::specta]
+pub fn set_window_visible(window: tauri::WebviewWindow, visible: bool) {
+    let _ = if visible {
+        window.show().and_then(|_| window.set_focus())
+    } else {
+        window.hide()
+    };
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn close_window(window: tauri::WebviewWindow) {

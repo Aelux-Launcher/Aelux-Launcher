@@ -98,6 +98,7 @@ export const commands = {
 	deletePath: (path: string) => typedError<null, string>(__TAURI_INVOKE("delete_path", { path })),
 	renamePath: (from: string, to: string) => typedError<null, string>(__TAURI_INVOKE("rename_path", { from, to })),
 	minimizeWindow: () => __TAURI_INVOKE<void>("minimize_window"),
+	setWindowVisible: (visible: boolean) => __TAURI_INVOKE<void>("set_window_visible", { visible }),
 	closeWindow: () => __TAURI_INVOKE<void>("close_window"),
 	toggleMaximizeWindow: () => __TAURI_INVOKE<boolean>("toggle_maximize_window"),
 	setFullscreenWindow: (fullscreen: boolean) => __TAURI_INVOKE<boolean>("set_fullscreen_window", { fullscreen }),
@@ -305,7 +306,22 @@ export type LauncherConfig_Deserialize = {
 	downloadConcurrency?: number,
 	fileSource?: string,
 	versionSource?: string,
-	hideOnLaunch?: boolean,
+	/**  游戏启动后启动器行为：keep / minimize / close / hide-close / hide-reopen */
+	launcherVisibility?: string,
+	/**  游戏进程优先级：normal / high / low */
+	processPriority?: string,
+	/**  全局垃圾回收策略：none / g1 / zgc / generational_zgc / tuned_g1 */
+	gcMode?: string,
+	/**  快速游玩目标：none / singleplayer / multiplayer / realms */
+	quickPlay?: string,
+	/**  快速游玩目标值（存档名 / host:port / Realms ID） */
+	quickPlayTarget?: string,
+	/**  自定义游戏窗口标题（空 = 不改写；支持 {date} / {time} 占位符） */
+	gameTitle?: string,
+	/**  自定义信息：写入 --versionType，显示在旧版游戏标题里 */
+	gameInfo?: string,
+	/**  启动游戏前执行的命令（空 = 不执行） */
+	preLaunchCommand?: string,
 	cacheDir?: string,
 };
 
@@ -324,7 +340,22 @@ export type LauncherConfig_Serialize = {
 	downloadConcurrency: number,
 	fileSource: string,
 	versionSource: string,
-	hideOnLaunch: boolean,
+	/**  游戏启动后启动器行为：keep / minimize / close / hide-close / hide-reopen */
+	launcherVisibility: string,
+	/**  游戏进程优先级：normal / high / low */
+	processPriority: string,
+	/**  全局垃圾回收策略：none / g1 / zgc / generational_zgc / tuned_g1 */
+	gcMode: string,
+	/**  快速游玩目标：none / singleplayer / multiplayer / realms */
+	quickPlay: string,
+	/**  快速游玩目标值（存档名 / host:port / Realms ID） */
+	quickPlayTarget: string,
+	/**  自定义游戏窗口标题（空 = 不改写；支持 {date} / {time} 占位符） */
+	gameTitle: string,
+	/**  自定义信息：写入 --versionType，显示在旧版游戏标题里 */
+	gameInfo: string,
+	/**  启动游戏前执行的命令（空 = 不执行） */
+	preLaunchCommand: string,
 	cacheDir: string,
 };
 
